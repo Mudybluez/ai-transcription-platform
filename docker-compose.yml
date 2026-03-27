@@ -1,47 +1,165 @@
-version: "3.9"
+version: '3.8'
 
 services:
-
-  # 🐰 RabbitMQ (очередь)
-  rabbitmq:
-    image: rabbitmq:3-management
-    container_name: rabbitmq
+  # База данных для пользователей и метаданных файлов
+  postgres:
+    image: postgres:15-alpine
+    container_name: ai_postgres
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: secretpassword
+      POSTGRES_DB: transcription_db
     ports:
-      - "5672:5672"      # очередь
-      - "15672:15672"    # web UI
-    healthcheck:
-      test: ["CMD", "rabbitmq-diagnostics", "ping"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - ai_network
+    restart: unless-stopped
+
+  # Кэш для сессий, токенов и быстрого доступа (Redis)
+  redis:
+    image: redis:7-alpine
+    container_name: ai_redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - ai_network
+    restart: unless-stopped
+
+  # Брокер сообщений для асинхронных задач (RabbitMQ)
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: ai_rabbitmq
     environment:
       RABBITMQ_DEFAULT_USER: guest
       RABBITMQ_DEFAULT_PASS: guest
-
-  # 📦 Upload Service
-  upload-service:
-    build: ./services/upload-service
-    container_name: upload-service
     ports:
-      - "8002:8002"
-    depends_on:
-      - rabbitmq
-    environment:
-      RABBITMQ_HOST: rabbitmq
+      - "5672:5672"   # Порт для общения сервисов
+      - "15672:15672" # Веб-интерфейс RabbitMQ (логин: guest, пароль: guest)
     volumes:
-      - ./storage:/app/storage
+      - rabbitmq_data:/var/lib/rabbitmq
+    networks:
+      - ai_network
+    restart: unless-stopped
 
-  # 🧠 Transcription (пока заглушка, потом добавим Whisper)
-  transcription-service:
-    build: ./services/transcription-service
-    container_name: transcription-service
-    depends_on:
-      - rabbitmq
+  # --- ПЛЕЙСХОЛДЕРЫ ДЛЯ НАШИХ СЕРВИСОВ (будем добавлять по мере написания) ---
+  
+  api-gateway:
+    build:
+      context: ./api-gateway
+    container_name: ai_api_gateway
+    ports:
+      - "3000:3000"
     environment:
-      RABBITMQ_HOST: rabbitmq
+      - PORT=3000
+      - USER_SERVICE_URL=http://user-service:3001
+      - UPLOAD_SERVICE_URL=http://upload-service:3002
+      - SEARCH_SERVICE_URL=http://search-service:3003
+      - JWT_SECRET=super_secret_jwt_key
+    networks:
+      - ai_network
+    depends_on:
+      - redis
+  user-service:
+    build:
+      context: ./services/user-service
+    container_name: ai_user_service
+    ports:
+      - "3001:3001"
+    environment:
+      - PORT=3001
+      - POSTGRES_USER=admin
+      - POSTGRES_PASSWORD=secretpassword
+      - POSTGRES_DB=transcription_db
+      - POSTGRES_HOST=postgres
+      - JWT_SECRET=super_secret_jwt_key
+    networks:
+      - ai_network
+    depends_on:
+      - postgres
+  upload-service:
+    build:
+      context: ./services/upload-service
+    container_name: ai_upload_service
+    ports:
+      - "3002:3002"
+    environment:
+      - PORT=3002
+      - POSTGRES_USER=admin
+      - POSTGRES_PASSWORD=secretpassword
+      - POSTGRES_DB=transcription_db
+      - POSTGRES_HOST=postgres
+      - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672
+      - JWT_SECRET=super_secret_jwt_key
+    networks:
+      - ai_network
+    depends_on:
+      - postgres
+      - rabbitmq
     volumes:
-      - ./storage:/app/storage
+      - media_uploads:/usr/src/app/uploads
+  
+  ai-processing-service:
+    build:
+      context: ./services/ai-processing-service
+    container_name: ai_python_worker
+    environment:
+      - POSTGRES_USER=admin
+      - POSTGRES_PASSWORD=secretpassword
+      - POSTGRES_DB=transcription_db
+      - POSTGRES_HOST=postgres
+      - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672/
+      # ВСТАВЬ СЮДА СВОЙ РЕАЛЬНЫЙ КЛЮЧ GEMINI!
+      - GEMINI_API_KEY=AIzaSyCWDNatOnJWnYgmMQs9yIKtINHhQpD4Vxs
+    networks:
+      - ai_network
+    depends_on:
+      - postgres
+      - rabbitmq
+    volumes:
+      # Важно: монтируем ту же папку, что и upload-service!
+      - media_uploads:/usr/src/app/uploads
+
+  search-service:
+    build:
+      context: ./services/search-service
+    container_name: ai_search_service
+    ports:
+      - "3003:3003"
+    environment:
+      - PORT=3003
+      - POSTGRES_USER=admin
+      - POSTGRES_PASSWORD=secretpassword
+      - POSTGRES_DB=transcription_db
+      - POSTGRES_HOST=postgres
+      - REDIS_URL=redis://redis:6379
+      - JWT_SECRET=super_secret_jwt_key
+    networks:
+      - ai_network
+    depends_on:
+      - postgres
+      - redis
+
+  frontend:
+    build:
+      context: ./frontend
+    container_name: ai_frontend
+    ports:
+      - "3005:5173"
+    networks:
+      - ai_network
+    depends_on:
+      - api-gateway
+
+volumes:
+  postgres_data:
+  redis_data:
+  rabbitmq_data:
+  media_uploads: # Общее хранилище для загруженных файлов
 
 networks:
-  default:
-    name: ai-network
+  ai_network:
+    driver: bridge

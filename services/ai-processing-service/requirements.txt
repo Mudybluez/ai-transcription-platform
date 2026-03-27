@@ -1,0 +1,7 @@
+pika==1.3.2
+psycopg2-binary==2.9.9
+openai-whisper==20231117
+google-generativeai
+torch==2.2.1
+numpy<2
+yt-dlp
