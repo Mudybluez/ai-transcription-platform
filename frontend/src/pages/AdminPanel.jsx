@@ -1,115 +1,89 @@
-import React, { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { Link, Navigate } from 'react-router-dom';
 import api from '../api';
+import './Extras.css';
 
 const AdminPanel = () => {
     const [users, setUsers] = useState([]);
-    const [jobs, setJobs] = useState([]);
-    const [loading, setLoading] = useState(true);
+    const role = localStorage.getItem('role');
 
     useEffect(() => {
-        // Функция для загрузки данных при открытии страницы
-        const fetchData = async () => {
+        const fetchUsers = async () => {
             try {
-                // Делаем два запроса параллельно для скорости
-                const [usersResponse, jobsResponse] = await Promise.all([
-                    api.get('/users/all'), // Идет в User Service
-                    api.get('/upload/jobs/all') // Идет в Upload Service
-                ]);
-                
-                setUsers(usersResponse.data);
-                setJobs(jobsResponse.data);
+                const res = await api.get('/users/all');
+                setUsers(res.data);
             } catch (error) {
-                console.error('Ошибка загрузки данных для админки:', error);
-                alert('Не удалось загрузить данные. Проверьте консоль.');
-            } finally {
-                setLoading(false);
+                console.error("Ошибка загрузки пользователей");
             }
         };
-
-        fetchData();
+        fetchUsers();
     }, []);
 
-    if (loading) return <div style={{ padding: '20px' }}>Загрузка данных панели...</div>;
+    // Жесткая защита фронтенда
+    if (role !== 'admin') {
+        return <Navigate to="/" />;
+    }
 
     return (
-        <div style={{ padding: '20px', fontFamily: 'sans-serif' }}>
-            <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <h2>⚙️ Панель Администратора</h2>
-                <Link to="/" style={{ padding: '8px 15px', backgroundColor: '#e5e7eb', textDecoration: 'none', color: '#000', borderRadius: '5px' }}>
-                    Вернуться в Dashboard
-                </Link>
+        <div className="dashboard-container fade-in">
+            <header className="top-nav">
+                <div className="logo">🛡️ Admin Panel</div>
+                <div>
+                    <Link to="/" className="nav-link">Выйти в Дашборд</Link>
+                </div>
             </header>
-            <hr style={{ margin: '20px 0' }}/>
 
-            <div style={{ display: 'flex', gap: '40px', flexWrap: 'wrap' }}>
+            <div className="admin-layout fade-in-up">
+                {/* Верхние виджеты статистики */}
+                <div className="admin-widgets">
+                    <div className="widget-card">
+                        <h3>Всего пользователей</h3>
+                        <div className="widget-value">{users.length}</div>
+                    </div>
+                    <div className="widget-card">
+                        <h3>Статус серверов</h3>
+                        <div className="widget-value status-ok">Онлайн 🟢</div>
+                    </div>
+                    <div className="widget-card">
+                        <h3>ИИ Модель</h3>
+                        <div className="widget-value text-purple">Gemini 2.5 Flash ⚡</div>
+                    </div>
+                </div>
+
                 {/* Таблица пользователей */}
-                <section style={{ flex: '1 1 400px' }}>
-                    <h3>👥 Пользователи ({users.length})</h3>
-                    <div style={{ overflowX: 'auto' }}>
-                        <table style={{ width: '100%', textAlign: 'left', borderCollapse: 'collapse' }}>
-                            <thead>
-                                <tr style={{ borderBottom: '2px solid #333', backgroundColor: '#f9fafb' }}>
-                                    <th style={{ padding: '10px' }}>ID</th>
-                                    <th style={{ padding: '10px' }}>Имя</th>
-                                    <th style={{ padding: '10px' }}>Email</th>
-                                    <th style={{ padding: '10px' }}>Роль</th>
+                <div className="admin-table-container">
+                    <h2 style={{marginBottom: '20px'}}>Зарегистрированные пользователи</h2>
+                    <table className="glass-table">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Имя (Username)</th>
+                                <th>Email</th>
+                                <th>Роль</th>
+                                <th>Дата регистрации</th>
+                                <th>Действия</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {users.map(user => (
+                                <tr key={user.id}>
+                                    <td>#{user.id}</td>
+                                    <td><strong>{user.username}</strong></td>
+                                    <td>{user.email}</td>
+                                    <td>
+                                        <span className={`chip ${user.role === 'admin' ? 'chip-admin' : 'chip-user'}`}>
+                                            {user.role}
+                                        </span>
+                                    </td>
+                                    <td>{new Date(user.created_at).toLocaleDateString('ru-RU')}</td>
+                                    <td>
+                                        <button className="action-btn block-btn">Заблокировать</button>
+                                    </td>
                                 </tr>
-                            </thead>
-                            <tbody>
-                                {users.map(user => (
-                                    <tr key={user.id} style={{ borderBottom: '1px solid #e5e7eb' }}>
-                                        <td style={{ padding: '10px' }}>{user.id}</td>
-                                        <td style={{ padding: '10px' }}>{user.username}</td>
-                                        <td style={{ padding: '10px' }}>{user.email}</td>
-                                        <td style={{ padding: '10px' }}>
-                                            <span style={{ 
-                                                backgroundColor: user.role === 'admin' ? '#fef08a' : '#e5e7eb',
-                                                padding: '3px 8px', borderRadius: '12px', fontSize: '12px'
-                                            }}>
-                                                {user.role}
-                                            </span>
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
-                </section>
-
-                {/* Таблица задач */}
-                <section style={{ flex: '1 1 400px' }}>
-                    <h3>📡 Очередь задач ({jobs.length})</h3>
-                    <div style={{ overflowX: 'auto' }}>
-                        <table style={{ width: '100%', textAlign: 'left', borderCollapse: 'collapse' }}>
-                            <thead>
-                                <tr style={{ borderBottom: '2px solid #333', backgroundColor: '#f9fafb' }}>
-                                    <th style={{ padding: '10px' }}>ID</th>
-                                    <th style={{ padding: '10px' }}>User ID</th>
-                                    <th style={{ padding: '10px' }}>Файл</th>
-                                    <th style={{ padding: '10px' }}>Статус</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {jobs.map(job => (
-                                    <tr key={job.id} style={{ borderBottom: '1px solid #e5e7eb' }}>
-                                        <td style={{ padding: '10px' }}>{job.id}</td>
-                                        <td style={{ padding: '10px' }}>{job.user_id}</td>
-                                        <td style={{ padding: '10px' }} title={job.file_name}>
-                                            {job.file_name.length > 20 ? job.file_name.substring(0, 20) + '...' : job.file_name}
-                                        </td>
-                                        <td style={{ padding: '10px', fontWeight: 'bold', 
-                                            color: job.status === 'COMPLETED' ? 'green' : 
-                                                   job.status.includes('FAILED') ? 'red' : 'orange' 
-                                        }}>
-                                            {job.status}
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
-                </section>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
     );

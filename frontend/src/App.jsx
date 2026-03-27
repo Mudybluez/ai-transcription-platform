@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import AdminPanel from './pages/AdminPanel';
+import Profile from './pages/Profile';
 
 // Простой защищенный роут
 const ProtectedRoute = ({ children, requireAdmin = false }) => {
@@ -32,7 +33,7 @@ function App() {
                         <Dashboard />
                     </ProtectedRoute>
                 } />
-                
+                <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
                 {/* Админ панель */}
                 <Route path="/admin" element={
                     <ProtectedRoute requireAdmin={true}>

@@ -4,6 +4,7 @@ import google.generativeai as genai
 import json
 import tempfile
 import yt_dlp
+import re
 
 # Загружаем базовую модель Whisper один раз при старте сервиса
 print("⏳ Загрузка модели Whisper (base)...")
@@ -69,9 +70,12 @@ def analyze_content(text):
     1. В полях 'summary' и 'detailed_analysis' используй Markdown-разметку.
     2. Выделяй важные термины **жирным шрифтом**.
     3. ОБЯЗАТЕЛЬНО используй Markdown-таблицы, если в тексте есть перечисления свойств, сравнения, хронология или данные (минимум 1 таблица на анализ).
-    4. ДОБАВЬ 1-2 контекстные иллюстрации, используя генератор картинок. Вставляй их прямо в текст Markdown в таком формате: 
-    ![описание](https://image.pollinations.ai/prompt/КЛЮЧЕВЫЕ_СЛОВА_НА_АНГЛИЙСКОМ_БЕЗ_ПРОБЕЛОВ_ЧЕРЕЗ_ПОДЧЕРКИВАНИЕ?width=800&height=400&nologo=true)
-    Например: ![Manganese](https://image.pollinations.ai/prompt/manganese_chemistry_laboratory?width=800&height=400&nologo=true)
+    4. ДОБАВЬ 1-2 контекстные иллюстрации для красоты. 
+    Вставляй их в текст Markdown СТРОГО в таком формате: 
+    ![описание](https://loremflickr.com/800/400/KEYWORD)
+    КРИТИЧЕСКИ ВАЖНО: Вместо KEYWORD напиши 1-2 английских слова, отражающих суть текущего раздела. Если слов несколько, разделяй их запятой, БЕЗ ПРОБЕЛОВ!
+    Правильный пример: ![Laboratory](https://loremflickr.com/800/400/chemistry,lab)
+    Неправильный пример: ![Error](https://loremflickr.com/800/400/chemistry lab)
     
     Структура JSON должна быть следующей (заполни все поля максимально подробно):
     {{
@@ -122,6 +126,7 @@ def analyze_content(text):
         response = model.generate_content(prompt)
         # Очищаем ответ от маркдауна
         clean_text = response.text.replace('```json', '').replace('```', '').strip()
-        return json.loads(clean_text)
+        clean_text = re.sub(r'\\([^"\\/bfnrtu])', r'\1', clean_text)
+        return json.loads(clean_text, strict=False)
     except Exception as e:
         raise Exception(f"Ошибка анализа Gemini: {str(e)}")

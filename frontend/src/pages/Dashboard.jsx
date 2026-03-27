@@ -96,18 +96,28 @@ const Dashboard = () => {
         setTimeout(() => setCurrentCardIndex(p => p - 1), 150);
     };
 
+    const getMarkdownText = (data) => {
+        if (!data) return '';
+        if (typeof data === 'string') return data;
+        if (Array.isArray(data)) return data.join('\n\n'); // Если это массив строк, склеиваем их
+        return JSON.stringify(data, null, 2); // На крайний случай, если это объект
+    };
+
     return (
         <div className="dashboard-container fade-in">
             <header className="top-nav">
-                <div className="logo">✨ Turbo AI Clone</div>
+                <div className="logo">✨ AI Transcription Platform</div>
                 <div>
                     {localStorage.getItem('role') === 'admin' && (
-                        <Link to="/admin" className="nav-link">Админка</Link>
+                        <Link to="/admin" className="nav-link">Admin-Panel</Link>
                     )}
+                    
+                    <Link to="/profile" className="nav-link">Profile</Link>
+                    
                     <span className="nav-link logout" onClick={() => {
                         localStorage.clear();
                         window.location.href = '/login';
-                    }}>Выйти</span>
+                    }}>Log-out</span>
                 </div>
             </header>
 
@@ -185,7 +195,7 @@ const Dashboard = () => {
                                 {/* Главное резюме (Markdown) */}
                                 <div className="markdown-body hero-summary">
                                     <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                                        {activeItem.analysis?.summary}
+                                        {getMarkdownText(activeItem.analysis?.summary)}
                                     </ReactMarkdown>
                                 </div>
 
@@ -212,7 +222,7 @@ const Dashboard = () => {
                                 <h2 className="section-title" style={{marginTop: '50px'}}>📚 Детальный разбор</h2>
                                 <div className="markdown-body detailed-content">
                                     <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                                        {activeItem.analysis?.detailed_analysis}
+                                        {getMarkdownText(activeItem.analysis?.detailed_analysis)}
                                     </ReactMarkdown>
                                 </div>
 
@@ -235,10 +245,24 @@ const Dashboard = () => {
                         )}
 
                         {currentTab === 'flashcards' && (
-                            <div className="carousel-container">
-                                <button className="arrow-btn" onClick={prevCard} disabled={currentCardIndex === 0}>❮</button>
+                            <div className="carousel-section">
+                                {/* Стрелки теперь позиционируются абсолютно относительно секции */}
+                                <button 
+                                    className="arrow-btn prev" 
+                                    onClick={prevCard} 
+                                    disabled={currentCardIndex === 0}
+                                    title="Предыдущая"
+                                >❮</button>
                                 
-                                <div className="flashcard-wrapper" onClick={() => setIsFlipped(!isFlipped)}>
+                                <button 
+                                    className="arrow-btn next" 
+                                    onClick={nextCard} 
+                                    disabled={currentCardIndex === (activeItem.analysis?.flashcards?.length - 1)}
+                                    title="Следующая"
+                                >❯</button>
+
+                                {/* Стабильный родитель для 3D перспективы. Жесткий центр. */}
+                                <div className="flashcard-scene" onClick={() => setIsFlipped(!isFlipped)}>
                                     <div className={`flashcard-inner ${isFlipped ? 'is-flipped' : ''}`}>
                                         <div className="flashcard-front">
                                             <span className="card-counter">{currentCardIndex + 1} / {activeItem.analysis?.flashcards?.length}</span>
@@ -250,8 +274,6 @@ const Dashboard = () => {
                                         </div>
                                     </div>
                                 </div>
-
-                                <button className="arrow-btn" onClick={nextCard} disabled={currentCardIndex === (activeItem.analysis?.flashcards?.length - 1)}>❯</button>
                             </div>
                         )}
 

@@ -1,3 +1,14 @@
+* {
+    box-sizing: border-box; /* Главный фикс от кривого вращения */
+}
+
+html, body {
+    margin: 0;
+    padding: 0;
+    background-color: #050505; /* Черный фон на весь экран */
+    min-height: 100vh;
+    overflow-x: hidden; /* Убираем горизонтальную прокрутку */
+}
 /* Базовые стили и анимации */
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 @keyframes fadeInUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
@@ -98,15 +109,10 @@
 .topic-card ul { color: #cbd5e1; padding-left: 20px; line-height: 1.6; }
 
 /* 3D Карусель Карточек */
-.carousel-container { display: flex; align-items: center; justify-content: center; gap: 40px; perspective: 1000px; }
-.arrow-btn {
-    background: rgba(255,255,255,0.1); border: none; color: white; width: 50px; height: 50px;
-    border-radius: 50%; font-size: 20px; cursor: pointer; transition: all 0.3s; backdrop-filter: blur(5px);
-}
-.arrow-btn:hover:not(:disabled) { background: #a855f7; transform: scale(1.1); }
-.arrow-btn:disabled { opacity: 0.2; cursor: not-allowed; }
 
-.flashcard-wrapper { width: 600px; height: 350px; cursor: pointer; perspective: 1000px; }
+
+
+
 .flashcard-inner {
     width: 100%; height: 100%; position: relative;
     transition: transform 0.6s cubic-bezier(0.4, 0.2, 0.2, 1);
@@ -216,3 +222,109 @@
 }
 .takeaways-box h3 { margin-top: 0; color: #4ade80; }
 .takeaways-box ul { margin: 0; padding-left: 20px; color: #e2e8f0; font-size: 16px; line-height: 1.6; }
+
+
+/* --- СТИЛИ ДЛЯ ИДЕАЛЬНОЙ 3D-КАРУСЕЛИ --- */
+.carousel-section {
+    position: relative;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    width: 100%;
+    min-height: 480px; /* Увеличили высоту, чтобы карточка 100% влезала */
+    padding: 20px 80px; /* Отступы по бокам для стрелок */
+}
+
+/* Сцена для 3D. Жестко фиксируем размеры, чтобы не было смещений */
+.flashcard-scene {
+    width: 100%;
+    max-width: 650px;
+    height: 400px; /* Точная высота карты */
+    perspective: 1500px;
+    margin: 0 auto;
+}
+
+.flashcard-inner {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    transition: transform 0.7s cubic-bezier(0.4, 0.2, 0.2, 1);
+    transform-style: preserve-3d;
+}
+
+.flashcard-inner.is-flipped {
+    transform: rotateY(180deg);
+}
+
+.flashcard-front, .flashcard-back {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    backface-visibility: hidden;
+    -webkit-backface-visibility: hidden; /* Фикс для Safari */
+    border-radius: 24px;
+    padding: 40px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    box-shadow: 0 15px 35px rgba(0,0,0,0.4);
+    border: none; /* Убираем рамки, вызывающие виляние */
+}
+
+.flashcard-front {
+    background: linear-gradient(135deg, #2dd4bf, #0ea5e9);
+    color: #0f172a;
+}
+
+/* Задняя сторона сразу перевернута на 180 градусов */
+.flashcard-back {
+    background: linear-gradient(135deg, #8b5cf6, #d946ef);
+    color: white;
+    transform: rotateY(180deg);
+}
+
+/* Текст на карточках */
+.flashcard-front h3 { font-size: 30px; margin: 0; line-height: 1.4; }
+.flashcard-back p { font-size: 22px; line-height: 1.5; margin: 0; }
+.card-counter { position: absolute; top: 25px; right: 30px; font-weight: 700; opacity: 0.6; }
+.flip-hint { position: absolute; bottom: 25px; font-size: 13px; opacity: 0.6; letter-spacing: 1px; text-transform: uppercase; }
+
+/* Стрелки (Точное позиционирование) */
+.arrow-btn {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.1);
+    color: white;
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    font-size: 20px;
+    cursor: pointer;
+    transition: all 0.3s;
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.arrow-btn.prev { left: 20px; }
+.arrow-btn.next { right: 20px; }
+
+.arrow-btn:hover:not(:disabled) {
+    background: #a855f7;
+    border-color: #a855f7;
+    transform: translateY(-50%) scale(1.1); /* Масштабируем, не теряя центр */
+    box-shadow: 0 0 20px rgba(168, 85, 247, 0.5);
+}
+
+.arrow-btn:disabled {
+    opacity: 0.2;
+    cursor: not-allowed;
+    background: transparent;
+}

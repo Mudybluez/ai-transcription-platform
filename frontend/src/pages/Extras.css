@@ -1,0 +1,110 @@
+/* --- СТИЛИ ДЛЯ ПРОФИЛЯ --- */
+.profile-wrapper {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding-top: 50px;
+}
+
+.profile-card {
+    background: linear-gradient(145deg, rgba(30,41,59,0.7), rgba(15,23,42,0.8));
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 24px;
+    padding: 50px;
+    width: 100%;
+    max-width: 500px;
+    text-align: center;
+    box-shadow: 0 20px 40px rgba(0,0,0,0.5);
+    backdrop-filter: blur(10px);
+}
+
+.profile-avatar {
+    width: 100px;
+    height: 100px;
+    background: linear-gradient(135deg, #a855f7, #6366f1);
+    border-radius: 50%;
+    margin: 0 auto 20px auto;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-size: 40px;
+    font-weight: bold;
+    box-shadow: 0 0 30px rgba(168, 85, 247, 0.4);
+}
+
+.profile-email {
+    color: #94a3b8;
+    margin-bottom: 20px;
+}
+
+.role-badge {
+    display: inline-block;
+    background: rgba(168, 85, 247, 0.2);
+    color: #d8b4fe;
+    padding: 8px 16px;
+    border-radius: 20px;
+    border: 1px solid rgba(168, 85, 247, 0.4);
+    font-size: 14px;
+    margin-bottom: 40px;
+}
+
+.profile-stats {
+    display: flex;
+    justify-content: space-around;
+    border-top: 1px solid rgba(255,255,255,0.1);
+    padding-top: 30px;
+}
+
+.stat-box { display: flex; flex-direction: column; gap: 5px; }
+.stat-number { font-size: 32px; font-weight: 800; color: #fff; }
+.stat-label { font-size: 14px; color: #94a3b8; }
+
+/* --- СТИЛИ ДЛЯ АДМИНКИ --- */
+.admin-layout { display: flex; flex-direction: column; gap: 40px; }
+
+.admin-widgets {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 20px;
+}
+
+.widget-card {
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 16px;
+    padding: 25px;
+    transition: transform 0.3s;
+}
+.widget-card:hover { transform: translateY(-5px); border-color: #6366f1; }
+.widget-card h3 { color: #94a3b8; font-size: 16px; margin: 0 0 15px 0; text-transform: uppercase; letter-spacing: 1px;}
+.widget-value { font-size: 36px; font-weight: 800; }
+
+.status-ok { color: #4ade80; text-shadow: 0 0 15px rgba(74, 222, 128, 0.4); }
+.text-purple { color: #a855f7; }
+
+/* Стеклянная таблица */
+.admin-table-container {
+    background: rgba(0,0,0,0.3);
+    border-radius: 16px;
+    border: 1px solid rgba(255,255,255,0.05);
+    padding: 30px;
+    overflow-x: auto;
+}
+
+.glass-table { width: 100%; border-collapse: collapse; }
+.glass-table th {
+    text-align: left; padding: 15px; color: #94a3b8; font-weight: 600;
+    border-bottom: 2px solid rgba(255,255,255,0.1); text-transform: uppercase; font-size: 13px;
+}
+.glass-table td { padding: 15px; border-bottom: 1px solid rgba(255,255,255,0.05); color: #e2e8f0; }
+.glass-table tr:hover td { background: rgba(255,255,255,0.02); }
+
+/* Чипы ролей */
+.chip { padding: 6px 12px; border-radius: 12px; font-size: 12px; font-weight: bold; text-transform: uppercase; }
+.chip-admin { background: rgba(239, 68, 68, 0.2); color: #fca5a5; border: 1px solid #ef4444; }
+.chip-user { background: rgba(56, 189, 248, 0.2); color: #7dd3fc; border: 1px solid #38bdf8; }
+
+/* Кнопки действий */
+.action-btn { padding: 8px 16px; border-radius: 8px; font-weight: 600; cursor: pointer; transition: all 0.2s; border: none;}
+.block-btn { background: rgba(239, 68, 68, 0.1); color: #ef4444; }
+.block-btn:hover { background: #ef4444; color: white; }
