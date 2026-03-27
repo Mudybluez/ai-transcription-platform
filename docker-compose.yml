@@ -1,0 +1,47 @@
+version: "3.9"
+
+services:
+
+  # 🐰 RabbitMQ (очередь)
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: rabbitmq
+    ports:
+      - "5672:5672"      # очередь
+      - "15672:15672"    # web UI
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+
+  # 📦 Upload Service
+  upload-service:
+    build: ./services/upload-service
+    container_name: upload-service
+    ports:
+      - "8002:8002"
+    depends_on:
+      - rabbitmq
+    environment:
+      RABBITMQ_HOST: rabbitmq
+    volumes:
+      - ./storage:/app/storage
+
+  # 🧠 Transcription (пока заглушка, потом добавим Whisper)
+  transcription-service:
+    build: ./services/transcription-service
+    container_name: transcription-service
+    depends_on:
+      - rabbitmq
+    environment:
+      RABBITMQ_HOST: rabbitmq
+    volumes:
+      - ./storage:/app/storage
+
+networks:
+  default:
+    name: ai-network
