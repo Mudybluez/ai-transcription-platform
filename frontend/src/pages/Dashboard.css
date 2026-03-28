@@ -328,3 +328,43 @@ html, body {
     cursor: not-allowed;
     background: transparent;
 }
+
+/* --- СТИЛИЗОВАННЫЙ ПЕРЕКЛЮЧАТЕЛЬ ЯЗЫКОВ --- */
+.lang-switcher {
+    appearance: none; /* Убираем уродливую стандартную стрелку Windows/Mac */
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    
+    background-color: rgba(255, 255, 255, 0.05); /* Полупрозрачный фон */
+    color: #e2e8f0;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    padding: 8px 36px 8px 16px; /* Оставляем место справа для новой стрелки */
+    border-radius: 10px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    outline: none;
+    transition: all 0.3s ease;
+    backdrop-filter: blur(10px); /* Эффект матового стекла */
+
+    /* Наша собственная стильная фиолетовая стрелочка (через SVG) */
+    background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23a855f7' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+    background-size: 16px;
+}
+
+/* Эффект при наведении мышкой */
+.lang-switcher:hover, .lang-switcher:focus {
+    border-color: #a855f7;
+    background-color: rgba(0, 0, 0, 0.4);
+    box-shadow: 0 0 15px rgba(168, 85, 247, 0.3);
+}
+
+/* Красим выпадающий список (работает в Chrome/Edge/Firefox) */
+.lang-switcher option {
+    background-color: #0f172a; /* Темно-синий/черный фон */
+    color: #ffffff;
+    font-weight: 500;
+    padding: 10px;
+}

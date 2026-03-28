@@ -113,7 +113,7 @@ services:
       - POSTGRES_HOST=postgres
       - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672/
       # ВСТАВЬ СЮДА СВОЙ РЕАЛЬНЫЙ КЛЮЧ GEMINI!
-      - GEMINI_API_KEY=AIzaSyCLKOpobHjrC8jAepq__4Cat6RZ7seOB78
+      - GEMINI_API_KEY=AIzaSyBnVcQ7-Cm8uNiqeOFf4g7KfjEppZFCjsU
     networks:
       - ai_network
     depends_on:

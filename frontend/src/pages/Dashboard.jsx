@@ -4,9 +4,11 @@ import api from '../api';
 import './Dashboard.css';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import { useTranslation } from 'react-i18next';
 
 const Dashboard = () => {
     const [youtubeUrl, setYoutubeUrl] = useState('');
+    const [analysisLang, setAnalysisLang] = useState('ru'); 
     const [status, setStatus] = useState('');
     const [history, setHistory] = useState([]);
     
@@ -22,6 +24,13 @@ const Dashboard = () => {
     
     const [quizAnswers, setQuizAnswers] = useState({});
     const [revealedAnswers, setRevealedAnswers] = useState({}); // Для кнопки "Узнать ответ"
+
+    const { t, i18n } = useTranslation();
+
+// Функция для смены языка
+const changeLanguage = (lng) => {
+    i18n.changeLanguage(lng);
+};
 
     useEffect(() => {
         loadHistory();
@@ -63,11 +72,12 @@ const Dashboard = () => {
     const handleYoutubeSubmit = async (e) => {
         e.preventDefault();
         if (!youtubeUrl) return;
-        setStatus('Анализируем видео... Пожалуйста, подождите ⏳');
+        setStatus(t('btn_loading')); // Заменил жесткий текст на перевод
         try {
-            const response = await api.post('/upload/youtube', { url: youtubeUrl });
+            // НОВОЕ: Передаем analysisLang
+            const response = await api.post('/upload/youtube', { url: youtubeUrl, language: analysisLang });
             setYoutubeUrl('');
-            setPollingJobId(response.data.job_id); // Начинаем следить за этим ID
+            setPollingJobId(response.data.job_id);
         } catch (err) {
             setStatus('Ошибка добавления видео');
         }
@@ -105,47 +115,71 @@ const Dashboard = () => {
 
     return (
         <div className="dashboard-container fade-in">
+            {/* ИСПРАВЛЕННАЯ ШАПКА (Убрали дубликаты) */}
             <header className="top-nav">
-                <div className="logo">✨ AI Transcription Platform</div>
-                <div>
+                <div className="logo">{t('app_name')}</div>
+                <div style={{display: 'flex', alignItems: 'center', gap: '15px'}}>
+                    
+                    <select 
+                        className="lang-switcher" 
+                        onChange={(e) => changeLanguage(e.target.value)} 
+                        value={i18n.language}
+                    >
+                        <option value="en">EN</option>
+                        <option value="ru">RU</option>
+                        <option value="kk">KK</option>
+                    </select>
+
                     {localStorage.getItem('role') === 'admin' && (
-                        <Link to="/admin" className="nav-link">Admin-Panel</Link>
+                        <Link to="/admin" className="nav-link">{t('admin_panel')}</Link>
                     )}
-                    
-                    <Link to="/profile" className="nav-link">Profile</Link>
-                    
+                    <Link to="/profile" className="nav-link">{t('profile')}</Link>
                     <span className="nav-link logout" onClick={() => {
                         localStorage.clear();
                         window.location.href = '/login';
-                    }}>Log-out</span>
+                    }}>{t('logout')}</span>
                 </div>
             </header>
 
             {!activeItem ? (
                 <div className="fade-in-up">
                     <section className="hero-section">
-                        <h1>Преврати видео в знания</h1>
-                        <p>ИИ сгенерирует конспект, 10 вопросов для теста и карточки.</p>
+                        {/* ПЕРЕВЕЛИ ГЛАВНЫЙ ЭКРАН */}
+                        <h1>{t('hero_title')}</h1>
+                        <p>{t('hero_subtitle')}</p>
                         
                         <form className="input-group" onSubmit={handleYoutubeSubmit}>
                             <input 
                                 type="url" 
                                 className="yt-input" 
-                                placeholder="Вставь ссылку на YouTube..." 
+                                placeholder={t('input_placeholder')} 
                                 value={youtubeUrl}
                                 onChange={(e) => setYoutubeUrl(e.target.value)}
                                 disabled={!!pollingJobId}
                                 required
                             />
+                            <select 
+                                className="yt-input" 
+                                style={{ width: '140px', padding: '0 15px', cursor: 'pointer' }}
+                                value={analysisLang}
+                                onChange={(e) => setAnalysisLang(e.target.value)}
+                                disabled={!!pollingJobId}
+                            >
+                                <option value="ru">🇷🇺 Русский</option>
+                                <option value="en">🇬🇧 English</option>
+                                <option value="kk">🇰🇿 Қазақша</option>
+                            </select>
+                            
                             <button type="submit" className="btn-primary" disabled={!!pollingJobId}>
-                                {pollingJobId ? 'Обработка...' : 'Создать магию'}
+                                {pollingJobId ? t('btn_loading') : t('btn_process')}
                             </button>
                         </form>
                         {status && <div className="status-pulse">{status}</div>}
                     </section>
 
                     <section>
-                        <h2 className="section-title">Твоя библиотека</h2>
+                        {/* ПЕРЕВЕЛИ БИБЛИОТЕКУ */}
+                        <h2 className="section-title">{t('library')}</h2>
                         <div className="history-grid">
                             {history.map((item) => {
                                 const analysis = typeof item.structured_analysis === 'string' 
@@ -158,10 +192,10 @@ const Dashboard = () => {
                                         <h3>Разбор #{item.job_id}</h3>
                                         <p>
                                             {!isReady 
-                                                ? 'Видео в процессе обработки...' 
+                                                ? t('status_processing', 'Видео в процессе обработки...') 
                                                 : (analysis?.summary?.substring(0, 80) + '...')}
                                         </p>
-                                        {isReady && <span className="card-link">Открыть →</span>}
+                                        {isReady && <span className="card-link">{t('open_btn', 'Открыть →')}</span>}
                                     </div>
                                 )
                             })}
@@ -171,7 +205,7 @@ const Dashboard = () => {
             ) : (
                 <div className="fade-in">
                     <button className="back-btn" onClick={() => setActiveItem(null)}>
-                        ← Назад в библиотеку
+                        ← {t('back_btn', 'Назад в библиотеку')}
                     </button>
                     
                     <div className="tabs-container">
@@ -181,10 +215,11 @@ const Dashboard = () => {
                                 className={`tab-btn ${currentTab === tab ? 'active' : ''}`} 
                                 onClick={() => setCurrentTab(tab)}
                             >
-                                {tab === 'summary' && 'Анализ'}
-                                {tab === 'flashcards' && 'Карточки'}
-                                {tab === 'quiz' && 'Тест'}
-                                {tab === 'transcript' && 'Текст'}
+                                {/* ПЕРЕВЕЛИ ВКЛАДКИ */}
+                                {tab === 'summary' && t('tab_summary', 'Анализ')}
+                                {tab === 'flashcards' && t('tab_flashcards', 'Карточки')}
+                                {tab === 'quiz' && t('tab_quiz', 'Тест')}
+                                {tab === 'transcript' && t('tab_text', 'Текст')}
                             </button>
                         ))}
                     </div>
@@ -192,15 +227,13 @@ const Dashboard = () => {
                     <div className="content-box slide-up">
                         {currentTab === 'summary' && (
                             <div className="analysis-layout">
-                                {/* Главное резюме (Markdown) */}
                                 <div className="markdown-body hero-summary">
                                     <ReactMarkdown remarkPlugins={[remarkGfm]}>
                                         {getMarkdownText(activeItem.analysis?.summary)}
                                     </ReactMarkdown>
                                 </div>
 
-                                {/* Ключевые инсайты (Теперь они наполнены контентом!) */}
-                                <h2 className="section-title" style={{marginTop: '40px'}}>💡 Ключевые инсайты</h2>
+                                <h2 className="section-title" style={{marginTop: '40px'}}>💡 {t('key_insights', 'Ключевые инсайты')}</h2>
                                 <div className="insights-grid">
                                     {activeItem.analysis?.key_topics?.map((topic, i) => (
                                         <div key={i} className="insight-card">
@@ -211,24 +244,22 @@ const Dashboard = () => {
                                                     {topic.key_points?.map((pt, j) => <li key={j}>{pt}</li>)}
                                                 </ul>
                                                 <div className="insight-relevance">
-                                                    <strong>Почему это важно:</strong> {topic.relevance}
+                                                    <strong>{t('why_important', 'Почему это важно:')}</strong> {topic.relevance}
                                                 </div>
                                             </div>
                                         </div>
                                     ))}
                                 </div>
 
-                                {/* Детальный анализ с таблицами и картинками (Markdown) */}
-                                <h2 className="section-title" style={{marginTop: '50px'}}>📚 Детальный разбор</h2>
+                                <h2 className="section-title" style={{marginTop: '50px'}}>📚 {t('detailed_analysis', 'Детальный разбор')}</h2>
                                 <div className="markdown-body detailed-content">
                                     <ReactMarkdown remarkPlugins={[remarkGfm]}>
                                         {getMarkdownText(activeItem.analysis?.detailed_analysis)}
                                     </ReactMarkdown>
                                 </div>
 
-                                {/* Главные выводы */}
                                 <div className="takeaways-box">
-                                    <h3>Главные выводы</h3>
+                                    <h3>{t('takeaways', 'Главные выводы')}</h3>
                                     <ul>
                                         {activeItem.analysis?.takeaways?.map((item, i) => (
                                             <li key={i}>{item}</li>
@@ -246,28 +277,15 @@ const Dashboard = () => {
 
                         {currentTab === 'flashcards' && (
                             <div className="carousel-section">
-                                {/* Стрелки теперь позиционируются абсолютно относительно секции */}
-                                <button 
-                                    className="arrow-btn prev" 
-                                    onClick={prevCard} 
-                                    disabled={currentCardIndex === 0}
-                                    title="Предыдущая"
-                                >❮</button>
-                                
-                                <button 
-                                    className="arrow-btn next" 
-                                    onClick={nextCard} 
-                                    disabled={currentCardIndex === (activeItem.analysis?.flashcards?.length - 1)}
-                                    title="Следующая"
-                                >❯</button>
+                                <button className="arrow-btn prev" onClick={prevCard} disabled={currentCardIndex === 0}>❮</button>
+                                <button className="arrow-btn next" onClick={nextCard} disabled={currentCardIndex === (activeItem.analysis?.flashcards?.length - 1)}>❯</button>
 
-                                {/* Стабильный родитель для 3D перспективы. Жесткий центр. */}
                                 <div className="flashcard-scene" onClick={() => setIsFlipped(!isFlipped)}>
                                     <div className={`flashcard-inner ${isFlipped ? 'is-flipped' : ''}`}>
                                         <div className="flashcard-front">
                                             <span className="card-counter">{currentCardIndex + 1} / {activeItem.analysis?.flashcards?.length}</span>
                                             <h3>{activeItem.analysis?.flashcards?.[currentCardIndex]?.question}</h3>
-                                            <span className="flip-hint">Нажми, чтобы перевернуть</span>
+                                            <span className="flip-hint">{t('click_to_flip', 'Нажми, чтобы перевернуть')}</span>
                                         </div>
                                         <div className="flashcard-back">
                                             <p>{activeItem.analysis?.flashcards?.[currentCardIndex]?.answer}</p>
@@ -310,7 +328,7 @@ const Dashboard = () => {
                                             </div>
                                             {isAnswered && !isCorrect && !isRevealed && (
                                                 <button className="reveal-btn fade-in" onClick={() => setRevealedAnswers({...revealedAnswers, [qIndex]: true})}>
-                                                    Показать правильный ответ 👁️
+                                                    {t('show_answer', 'Показать правильный ответ 👁️')}
                                                 </button>
                                             )}
                                         </div>

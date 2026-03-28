@@ -29,10 +29,14 @@ def callback(ch, method, properties, body):
     user_id = job_data['userId']
     file_path = job_data['filePath']
     is_youtube = job_data.get('isYoutube', False)
+
+    # 1. Достаем язык
+    language = job_data.get('language', 'ru')
     
-    print(f"\n📥 Получена задача ID: {job_id} для файла: {job_data.get('fileName', 'Unknown')}")
+    # Оставили один чистый и красивый лог
+    print(f"\n📥 Получена задача ID: {job_id} для файла: {job_data.get('fileName', 'Unknown')} (Язык: {language})")
     
-    # НОВОЕ: СРАЗУ говорим RabbitMQ "Я взял задачу, можешь удалять ее из очереди и не ждать меня"
+    # СРАЗУ говорим RabbitMQ "Я взял задачу"
     ch.basic_ack(delivery_tag=method.delivery_tag)
     
     try:
@@ -51,8 +55,10 @@ def callback(ch, method, properties, body):
         if is_youtube and os.path.exists(audio_to_process):
             os.remove(audio_to_process)
 
-        print(f"🧠 Анализ в Gemini...")
-        analysis_data = analyze_content(raw_text)
+        print(f"🧠 Анализ в Gemini на языке: {language}...")
+        
+        # 2. ИСПРАВЛЕНИЕ: Передаем переменную language в ядро ИИ!
+        analysis_data = analyze_content(raw_text, language)
         
         save_result(job_id, user_id, raw_text, analysis_data)
         update_job_status(job_id, "COMPLETED")

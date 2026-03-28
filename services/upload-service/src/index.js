@@ -110,10 +110,7 @@ app.get('/jobs/all', async (req, res) => {
 // Роут для обработки YouTube ссылок
 // Роут для обработки YouTube ссылок (БЕЗ getUserFromToken)
 app.post('/youtube', async (req, res) => {
-    const { url } = req.body;
-    
-    // API Gateway обычно передает ID пользователя в заголовках. 
-    // Если нет - ставим 1 (как дефолтный ID для тестов)
+    const { url, language } = req.body; 
     const userId = req.headers['x-user-id'] || req.headers['user-id'] || 1;
 
     if (!url || !url.includes('youtu')) {
@@ -132,7 +129,8 @@ app.post('/youtube', async (req, res) => {
             userId: userId,
             filePath: url,
             fileName: 'YouTube Video',
-            isYoutube: true // Специальный флаг для Python-воркера
+            isYoutube: true ,
+            language: language || 'ru'
         });
 
         res.status(202).json({ message: 'YouTube ссылка принята в обработку', job_id: jobId });
