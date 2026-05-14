@@ -29,7 +29,7 @@ const resources = {
       "detailed_analysis": "Детальный разбор",
       "takeaways": "Главные выводы",
       "click_to_flip": "Нажми, чтобы перевернуть",
-      "show_answer": "Показать правильный ответ 👁️"
+      "show_answer": "Показать правильный ответ"
     }
   },
   en: {
@@ -58,7 +58,7 @@ const resources = {
       "detailed_analysis": "Detailed Analysis",
       "takeaways": "Key Takeaways",
       "click_to_flip": "Click to flip",
-      "show_answer": "Show correct answer 👁️"
+      "show_answer": "Show correct answer"
     }
   },
   kk: {
@@ -87,7 +87,7 @@ const resources = {
       "detailed_analysis": "Толық талдау",
       "takeaways": "Негізгі қорытындылар",
       "click_to_flip": "Аудару үшін басыңыз",
-      "show_answer": "Дұрыс жауапты көрсету 👁️"
+      "show_answer": "Дұрыс жауапты көрсету"
     }
   }
 };

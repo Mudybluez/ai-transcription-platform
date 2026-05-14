@@ -11,7 +11,6 @@ const Login = () => {
     const [message, setMessage] = useState('');
     const [isError, setIsError] = useState(false);
     
-    // Хук для программной навигации
     const navigate = useNavigate();
 
     const handleSubmit = async (e) => {

@@ -36,7 +36,7 @@ const changeLanguage = (lng) => {
         loadHistory();
     }, []);
 
-    // Магия авто-перенаправления
+    // авто-перенаправления
     useEffect(() => {
         let interval;
         if (pollingJobId) {
@@ -55,7 +55,7 @@ const changeLanguage = (lng) => {
                 } catch (e) {
                     console.error(e);
                 }
-            }, 3000); // Проверяем каждые 3 секунды
+            }, 3000); 
         }
         return () => clearInterval(interval);
     }, [pollingJobId]);
@@ -109,13 +109,12 @@ const changeLanguage = (lng) => {
     const getMarkdownText = (data) => {
         if (!data) return '';
         if (typeof data === 'string') return data;
-        if (Array.isArray(data)) return data.join('\n\n'); // Если это массив строк, склеиваем их
+        if (Array.isArray(data)) return data.join('\n\n'); 
         return JSON.stringify(data, null, 2); // На крайний случай, если это объект
     };
 
     return (
         <div className="dashboard-container fade-in">
-            {/* ИСПРАВЛЕННАЯ ШАПКА (Убрали дубликаты) */}
             <header className="top-nav">
                 <div className="logo">{t('app_name')}</div>
                 <div style={{display: 'flex', alignItems: 'center', gap: '15px'}}>
@@ -144,7 +143,6 @@ const changeLanguage = (lng) => {
             {!activeItem ? (
                 <div className="fade-in-up">
                     <section className="hero-section">
-                        {/* ПЕРЕВЕЛИ ГЛАВНЫЙ ЭКРАН */}
                         <h1>{t('hero_title')}</h1>
                         <p>{t('hero_subtitle')}</p>
                         
@@ -178,7 +176,6 @@ const changeLanguage = (lng) => {
                     </section>
 
                     <section>
-                        {/* ПЕРЕВЕЛИ БИБЛИОТЕКУ */}
                         <h2 className="section-title">{t('library')}</h2>
                         <div className="history-grid">
                             {history.map((item) => {
@@ -215,7 +212,6 @@ const changeLanguage = (lng) => {
                                 className={`tab-btn ${currentTab === tab ? 'active' : ''}`} 
                                 onClick={() => setCurrentTab(tab)}
                             >
-                                {/* ПЕРЕВЕЛИ ВКЛАДКИ */}
                                 {tab === 'summary' && t('tab_summary', 'Анализ')}
                                 {tab === 'flashcards' && t('tab_flashcards', 'Карточки')}
                                 {tab === 'quiz' && t('tab_quiz', 'Тест')}

@@ -112,16 +112,18 @@ services:
       - POSTGRES_DB=transcription_db
       - POSTGRES_HOST=postgres
       - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672/
-      # ВСТАВЬ СЮДА СВОЙ РЕАЛЬНЫЙ КЛЮЧ GEMINI!
-      - GEMINI_API_KEY=AIzaSyBnVcQ7-Cm8uNiqeOFf4g7KfjEppZFCjsU
+    env_file:
+      - .env  
     networks:
       - ai_network
     depends_on:
       - postgres
       - rabbitmq
+    restart: unless-stopped
     volumes:
       # Важно: монтируем ту же папку, что и upload-service!
       - media_uploads:/usr/src/app/uploads
+
 
   search-service:
     build:

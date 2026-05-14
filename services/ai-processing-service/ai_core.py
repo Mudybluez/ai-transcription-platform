@@ -8,12 +8,10 @@ import re
 import json_repair
 import time
 
-# Загружаем базовую модель Whisper один раз при старте сервиса
 print("⏳ Загрузка модели Whisper (base)...")
 whisper_model = whisper.load_model("base")
 print("✅ Модель Whisper загружена")
 
-# Настраиваем API ключ Gemini
 gemini_api_key = os.getenv("GEMINI_API_KEY")
 if gemini_api_key:
     genai.configure(api_key=gemini_api_key)
@@ -158,7 +156,7 @@ def analyze_content(text, language="ru"):
             error_msg = str(e)
             if "429" in error_msg or "Quota exceeded" in error_msg:
                 if attempt < max_retries - 1:
-                    print(f"⏳ Лимит API! Ждем 35 секунд... ({attempt + 1}/{max_retries})")
+                    print(f"Лимит API! Ждем 35 секунд... ({attempt + 1}/{max_retries})")
                     time.sleep(35)
                     continue 
             

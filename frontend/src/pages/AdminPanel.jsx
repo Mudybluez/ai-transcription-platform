@@ -19,7 +19,6 @@ const AdminPanel = () => {
         fetchUsers();
     }, []);
 
-    // Жесткая защита фронтенда
     if (role !== 'admin') {
         return <Navigate to="/" />;
     }
