@@ -98,14 +98,17 @@ app.get('/', authenticateUser, async (req, res) => {
         res.status(500).json({ message: 'Внутренняя ошибка сервера при поиске' });
     }
 });
-// Роут для получения истории всех разборов пользователя
+// Роут для получения всей истории всех разборов пользователя
 app.get('/history', authenticateUser, async (req, res) => {
     try {
         const result = await db.query(
             'SELECT id, job_id, raw_text, structured_analysis, created_at FROM transcriptions WHERE user_id = $1 ORDER BY created_at DESC',
             [req.userId]
         );
-        res.status(200).json(result.rows);
+
+        res.status(200).json({
+            items: result.rows
+        });
     } catch (error) {
         res.status(500).json({ message: 'Ошибка получения истории' });
     }

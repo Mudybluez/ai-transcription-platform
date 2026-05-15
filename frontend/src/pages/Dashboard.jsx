@@ -90,6 +90,20 @@ const Dashboard = () => {
     const [quizAnswers, setQuizAnswers] = useState({});
     const [revealedAnswers, setRevealedAnswers] = useState({}); // Для кнопки "Узнать ответ"
 
+    const [showScrollTop, setShowScrollTop] = useState(false);
+
+    useEffect(() => {
+        const handleScroll = () => {
+            setShowScrollTop(window.scrollY > 300);
+        };
+        window.addEventListener('scroll', handleScroll);
+        return () => window.removeEventListener('scroll', handleScroll);
+    }, []);
+
+    const scrollToTop = () => {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    };
+
     const { t, i18n } = useTranslation();
 
 // Функция для смены языка
@@ -108,14 +122,18 @@ const changeLanguage = (lng) => {
             interval = setInterval(async () => {
                 try {
                     const res = await api.get('/history');
-                    setHistory(res.data);
+                    const historyData = res.data.items || [];
                     
-                    const finishedJob = res.data.find(j => j.job_id === pollingJobId && j.structured_analysis);
+                    // Only update history if polling is active
+                    setHistory(historyData);
+                    
+                    const finishedJob = historyData.find(j => j.job_id === pollingJobId && j.structured_analysis);
                     if (finishedJob) {
                         clearInterval(interval);
                         setPollingJobId(null);
                         setStatus('');
-                        openItem(finishedJob); // Автоматически открываем результат!
+                        openItem(finishedJob);
+                        loadHistory();
                     }
                 } catch (e) {
                     console.error(e);
@@ -128,7 +146,7 @@ const changeLanguage = (lng) => {
     const loadHistory = async () => {
         try {
             const response = await api.get('/history');
-            setHistory(response.data);
+            setHistory(response.data.items || []);
         } catch (error) {
             console.error("Ошибка загрузки истории");
             if (error.response && error.response.status !== 401 && error.response.status !== 403) {
@@ -262,7 +280,13 @@ const changeLanguage = (lng) => {
         const detailed = getMarkdownText(activeItem.analysis.detailed_analysis);
         const title = activeItem.analysis.title || `Analysis #${activeItem.job_id}`;
         
-        const textToCopy = `# ${title}\n\n## Summary\n${summary}\n\n## Detailed Analysis\n${detailed}`;
+        const textToCopy = `# ${title}
+
+## Summary
+${summary}
+
+## Detailed Analysis
+${detailed}`;
         
         navigator.clipboard.writeText(textToCopy).then(() => {
             alert(t('copied_alert', 'Скопировано в буфер обмена'));
@@ -479,7 +503,7 @@ const changeLanguage = (lng) => {
                                     </ReactMarkdown>
                                 </div>
 
-                                <h2 className="section-title" style={{marginTop: '40px'}}>Ключевые инсайты</h2>
+                                <h2 className="section-title" style={{marginTop: '40px'}}>{t('key_insights')}</h2>
                                 <div className="insights-grid">
                                     {activeItem.analysis?.key_topics?.map((topic, i) => (
                                         <div key={i} className="insight-card">
@@ -497,7 +521,7 @@ const changeLanguage = (lng) => {
                                     ))}
                                 </div>
 
-                                <h2 className="section-title" style={{marginTop: '50px'}}>Детальный разбор</h2>
+                                <h2 className="section-title" style={{marginTop: '50px'}}>{t('detailed_analysis')}</h2>
                                 <div className="markdown-body detailed-content">
                                     <ReactMarkdown remarkPlugins={[remarkGfm]}>
                                         {getMarkdownText(activeItem.analysis?.detailed_analysis)}
@@ -523,8 +547,8 @@ const changeLanguage = (lng) => {
 
                         {currentTab === 'flashcards' && (
                             <div className="carousel-section">
-                                <button className="arrow-btn prev" onClick={prevCard} disabled={currentCardIndex === 0}>Назад</button>
-                                <button className="arrow-btn next" onClick={nextCard} disabled={currentCardIndex === (activeItem.analysis?.flashcards?.length - 1)}>Вперед</button>
+                                <button className="arrow-btn prev" onClick={prevCard} disabled={currentCardIndex === 0}>{t('prev_btn')}</button>
+                                <button className="arrow-btn next" onClick={nextCard} disabled={currentCardIndex === (activeItem.analysis?.flashcards?.length - 1)}>{t('next_btn')}</button>
 
                                 <div className="flashcard-scene" onClick={() => setIsFlipped(!isFlipped)}>
                                     <div className={`flashcard-inner ${isFlipped ? 'is-flipped' : ''}`}>
@@ -584,6 +608,34 @@ const changeLanguage = (lng) => {
                         )}
                     </div>
                 </div>
+            )}
+            
+            {showScrollTop && (
+                <button 
+                    className="scroll-top-btn" 
+                    onClick={scrollToTop}
+                    style={{
+                        position: 'fixed',
+                        bottom: '30px',
+                        right: '30px',
+                        width: '50px',
+                        height: '50px',
+                        borderRadius: '50%',
+                        backgroundColor: '#6366f1',
+                        color: 'white',
+                        border: 'none',
+                        cursor: 'pointer',
+                        boxShadow: '0 4px 12px rgba(0,0,0,0.2)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: '24px',
+                        zIndex: 1000,
+                        transition: 'all 0.3s ease'
+                    }}
+                >
+                    ↑
+                </button>
             )}
         </div>
     );

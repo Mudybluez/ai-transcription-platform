@@ -2,7 +2,12 @@ import axios from 'axios';
 
 const api = axios.create({
     // Стучимся в наш API Gateway через Nginx прокси
-    baseURL: '/api', 
+    baseURL: '/api',
+    headers: {
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0'
+    }
 });
 
 // Автоматически добавляем токен ко всем запросам
