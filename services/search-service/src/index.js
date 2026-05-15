@@ -111,6 +111,109 @@ app.get('/history', authenticateUser, async (req, res) => {
     }
 });
 
+// Удаление конкретной записи
+app.delete('/history/:id', authenticateUser, async (req, res) => {
+    try {
+        const result = await db.query(
+            'DELETE FROM transcriptions WHERE id = $1 AND user_id = $2',
+            [req.params.id, req.userId]
+        );
+        if (result.rowCount === 0) {
+            return res.status(404).json({ message: 'Запись не найдена' });
+        }
+        res.status(200).json({ message: 'Запись удалена' });
+    } catch (error) {
+        res.status(500).json({ message: 'Ошибка при удалении записи' });
+    }
+});
+
+// Полная очистка истории пользователя
+app.delete('/history/all/clear', authenticateUser, async (req, res) => {
+    try {
+        await db.query('DELETE FROM transcriptions WHERE user_id = $1', [req.userId]);
+        res.status(200).json({ message: 'Вся история очищена' });
+    } catch (error) {
+        res.status(500).json({ message: 'Ошибка при очистке истории' });
+    }
+});
+
+// Статистика для админ-панели (расширенная)
+app.get('/admin/stats', async (req, res) => {
+    try {
+        const totalTranscriptions = await db.query('SELECT COUNT(*) FROM transcriptions');
+        const totalUsers = await db.query('SELECT COUNT(DISTINCT user_id) FROM transcriptions');
+        const totalLength = await db.query('SELECT SUM(LENGTH(raw_text)) as total_chars FROM transcriptions');
+        
+        // Активность по дням (последние 7 дней)
+        const dailyActivity = await db.query(`
+            SELECT DATE_TRUNC('day', created_at) as day, COUNT(*) as count 
+            FROM transcriptions 
+            WHERE created_at > NOW() - INTERVAL '7 days'
+            GROUP BY day 
+            ORDER BY day ASC
+        `);
+
+        // Распределение по языкам
+        const langDistribution = await db.query(`
+            SELECT 
+                json_extract_path_text(structured_analysis::json, 'language') as lang,
+                COUNT(*) as count
+            FROM transcriptions 
+            GROUP BY lang
+        `);
+
+        res.status(200).json({
+            totalTranscriptions: parseInt(totalTranscriptions.rows[0].count),
+            totalUsers: parseInt(totalUsers.rows[0].count),
+            totalChars: parseInt(totalLength.rows[0].total_chars || 0),
+            dailyActivity: dailyActivity.rows.map(r => ({
+                day: r.day.toISOString().split('T')[0],
+                count: parseInt(r.count)
+            })),
+            langDistribution: langDistribution.rows.map(r => ({
+                label: r.lang || 'unknown',
+                count: parseInt(r.count)
+            }))
+        });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: 'Ошибка при получении статистики' });
+    }
+});
+
+// Детальная статистика пользователя
+app.get('/user/stats/:id', authenticateUser, async (req, res) => {
+    try {
+        const userId = req.params.id;
+        
+        // Проверяем, что пользователь запрашивает свою статистику (или он админ)
+        if (req.userId != userId) {
+            // В идеале тут проверка на админа, но пока упростим
+            return res.status(403).json({ message: 'Нет прав доступа' });
+        }
+
+        const total = await db.query('SELECT COUNT(*) FROM transcriptions WHERE user_id = $1', [userId]);
+        const totalWords = await db.query('SELECT SUM(ARRAY_LENGTH(REGEXP_SPLIT_TO_ARRAY(raw_text, \'\\s+\'), 1)) as words FROM transcriptions WHERE user_id = $1', [userId]);
+        
+        const langUsage = await db.query(`
+            SELECT 
+                json_extract_path_text(structured_analysis::json, 'language') as lang,
+                COUNT(*) as count
+            FROM transcriptions 
+            WHERE user_id = $1
+            GROUP BY lang
+        `, [userId]);
+
+        res.status(200).json({
+            totalTranscriptions: parseInt(total.rows[0].count),
+            totalWords: parseInt(totalWords.rows[0].words || 0),
+            languages: langUsage.rows
+        });
+    } catch (error) {
+        res.status(500).json({ message: 'Ошибка при получении личной статистики' });
+    }
+});
+
 app.listen(PORT, () => {
     console.log(`🔎 Search Service запущен на порту ${PORT}`);
 });

@@ -131,6 +131,31 @@ html, body {
     border-radius: 12px;
     padding: 10px 20px;
 }
+.record-status-container {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    width: 100%;
+}
+.recording-active-ui {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    width: 100%;
+}
+.recording-timer {
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 18px;
+    font-weight: bold;
+    color: #ef4444;
+    min-width: 60px;
+}
+.visualizer-canvas {
+    flex-grow: 1;
+    height: 40px;
+    background: rgba(255,255,255,0.02);
+    border-radius: 6px;
+}
 .btn-record {
     background: rgba(255,255,255,0.05);
     border: 1px solid rgba(255,255,255,0.1);
@@ -159,6 +184,21 @@ html, body {
     color: #4ade80;
     font-size: 14px;
     font-weight: 600;
+}
+
+.delete-item-btn {
+    background: rgba(239, 68, 68, 0.1);
+    border: 1px solid rgba(239, 68, 68, 0.3);
+    color: #f87171;
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+.delete-item-btn:hover {
+    background: #ef4444;
+    color: white;
 }
 
 /* История / Библиотека */
@@ -296,7 +336,7 @@ html, body {
     display: flex; gap: 15px; transition: all 0.3s;
 }
 .insight-card:hover { transform: translateY(-5px); border-color: #a855f7; box-shadow: 0 10px 20px rgba(168, 85, 247, 0.15); }
-.insight-icon { font-size: 30px; }
+.insight-icon { font-size: 16px; font-weight: bold; color: #a855f7; }
 .insight-card h4 { margin: 0 0 15px 0; font-size: 20px; color: #fff; }
 .insight-points { padding-left: 15px; font-size: 15px; color: #cbd5e1; margin-bottom: 15px; }
 .insight-relevance { background: rgba(168, 85, 247, 0.1); padding: 12px; border-radius: 8px; font-size: 14px; color: #e2e8f0; }
@@ -390,7 +430,8 @@ html, body {
     width: 50px;
     height: 50px;
     border-radius: 50%;
-    font-size: 20px;
+    font-size: 14px;
+    font-weight: bold;
     cursor: pointer;
     transition: all 0.3s;
     z-index: 10;

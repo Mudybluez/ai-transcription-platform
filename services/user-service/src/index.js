@@ -91,6 +91,34 @@ app.get('/all', async (req, res) => {
     }
 });
 
+// Смена пароля
+app.post('/change-password', async (req, res) => {
+    const { userId, oldPassword, newPassword } = req.body;
+
+    try {
+        const userResult = await db.query('SELECT * FROM users WHERE id = $1', [userId]);
+        if (userResult.rows.length === 0) {
+            return res.status(404).json({ message: 'Пользователь не найден' });
+        }
+
+        const user = userResult.rows[0];
+        const isMatch = await bcrypt.compare(oldPassword, user.password);
+        if (!isMatch) {
+            return res.status(400).json({ message: 'Неверный старый пароль' });
+        }
+
+        const salt = await bcrypt.genSalt(10);
+        const hashedPassword = await bcrypt.hash(newPassword, salt);
+
+        await db.query('UPDATE users SET password = $1 WHERE id = $2', [hashedPassword, userId]);
+
+        res.status(200).json({ message: 'Пароль успешно изменен' });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: 'Ошибка сервера при смене пароля' });
+    }
+});
+
 app.listen(PORT, () => {
     console.log(`👤 User Service запущен на порту ${PORT}`);
 });

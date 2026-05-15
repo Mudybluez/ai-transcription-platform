@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../api';
 import './Dashboard.css';
@@ -18,6 +18,64 @@ const Dashboard = () => {
     const [isRecording, setIsRecording] = useState(false);
     const [mediaRecorder, setMediaRecorder] = useState(null);
     const [audioChunks, setAudioChunks] = useState([]);
+
+    const [recordingTime, setRecordingTime] = useState(0);
+    const audioContextRef = useRef(null);
+    const analyserRef = useRef(null);
+    const animationFrameRef = useRef(null);
+    const canvasRef = useRef(null);
+    const timerIntervalRef = useRef(null);
+
+    useEffect(() => {
+        return () => {
+            if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
+            if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current);
+            if (audioContextRef.current) audioContextRef.current.close();
+        };
+    }, []);
+
+    const formatTime = (seconds) => {
+        const mins = Math.floor(seconds / 60);
+        const secs = seconds % 60;
+        return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+    };
+
+    const drawVisualizer = () => {
+        if (!analyserRef.current || !canvasRef.current) return;
+        
+        const canvas = canvasRef.current;
+        const ctx = canvas.getContext('2d');
+        const analyser = analyserRef.current;
+        const bufferLength = analyser.frequencyBinCount;
+        const dataArray = new Uint8Array(bufferLength);
+        
+        const draw = () => {
+            animationFrameRef.current = requestAnimationFrame(draw);
+            analyser.getByteFrequencyData(dataArray);
+            
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            const barWidth = 1.5; // Сделали намного уже
+            let barHeight;
+            let x = 0;
+            
+            // Рисуем только значимые частоты (первые 80%)
+            const countToDraw = Math.min(bufferLength, 100); 
+            
+            for (let i = 0; i < countToDraw; i++) {
+                barHeight = dataArray[i] / 1.5;
+                
+                const gradient = ctx.createLinearGradient(0, canvas.height, 0, 0);
+                gradient.addColorStop(0, '#a855f7');
+                gradient.addColorStop(1, '#6366f1');
+                
+                ctx.fillStyle = gradient;
+                ctx.fillRect(x, canvas.height - barHeight, barWidth, barHeight);
+                x += barWidth + 1.5; // Увеличили плотность
+            }
+        };
+        draw();
+    };
 
     // Авто-обновление при загрузке
     const [pollingJobId, setPollingJobId] = useState(null);
@@ -73,6 +131,9 @@ const changeLanguage = (lng) => {
             setHistory(response.data);
         } catch (error) {
             console.error("Ошибка загрузки истории");
+            if (error.response && error.response.status !== 401 && error.response.status !== 403) {
+                alert("Не удалось загрузить историю разборов. Проверьте соединение с сервером.");
+            }
         }
     };
 
@@ -83,11 +144,17 @@ const changeLanguage = (lng) => {
         try {
             let response;
             if (inputMode === 'youtube') {
-                if (!youtubeUrl) return;
+                if (!youtubeUrl) {
+                    alert("Пожалуйста, введите ссылку на YouTube");
+                    return;
+                }
                 response = await api.post('/upload/youtube', { url: youtubeUrl, language: analysisLang });
                 setYoutubeUrl('');
             } else if (inputMode === 'file' || inputMode === 'record') {
-                if (!selectedFile) return;
+                if (!selectedFile) {
+                    alert("Пожалуйста, выберите файл или запишите аудио");
+                    return;
+                }
                 const formData = new FormData();
                 formData.append('language', analysisLang); // Сначала текст
                 formData.append('mediaFile', selectedFile); // Потом файл
@@ -101,7 +168,9 @@ const changeLanguage = (lng) => {
                 setPollingJobId(response.data.job_id);
             }
         } catch (err) {
+            const errorMsg = err.response?.data?.message || "Произошла ошибка при отправке данных на сервер.";
             setStatus('Ошибка добавления задачи');
+            alert(errorMsg);
             console.error(err);
         }
     };
@@ -110,6 +179,17 @@ const changeLanguage = (lng) => {
     const startRecording = async () => {
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            
+            // Настройка визуализатора
+            const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            const source = audioContext.createMediaStreamSource(stream);
+            const analyser = audioContext.createAnalyser();
+            analyser.fftSize = 256; // Больше полосок для детальности
+            source.connect(analyser);
+            
+            audioContextRef.current = audioContext;
+            analyserRef.current = analyser;
+
             const recorder = new MediaRecorder(stream);
             const chunks = [];
 
@@ -126,6 +206,16 @@ const changeLanguage = (lng) => {
             recorder.start();
             setMediaRecorder(recorder);
             setIsRecording(true);
+            setRecordingTime(0);
+
+            // Таймер
+            timerIntervalRef.current = setInterval(() => {
+                setRecordingTime(prev => prev + 1);
+            }, 1000);
+
+            // Визуал (ждем пока отрисуется канвас)
+            setTimeout(drawVisualizer, 100);
+
         } catch (err) {
             console.error("Ошибка доступа к микрофону", err);
             alert("Нет доступа к микрофону");
@@ -137,6 +227,31 @@ const changeLanguage = (lng) => {
             mediaRecorder.stop();
             setIsRecording(false);
             mediaRecorder.stream.getTracks().forEach(track => track.stop());
+
+            if (timerIntervalRef.current) {
+                clearInterval(timerIntervalRef.current);
+                timerIntervalRef.current = null;
+            }
+
+            if (animationFrameRef.current) {
+                cancelAnimationFrame(animationFrameRef.current);
+            }
+
+            if (audioContextRef.current) {
+                audioContextRef.current.close();
+            }
+        }
+    };
+
+    const deleteHistoryItem = async (e, id) => {
+        e.stopPropagation(); // Чтобы не открывалась карточка
+        if (!window.confirm(t('confirm_delete'))) return;
+
+        try {
+            await api.delete(`/history/${id}`);
+            setHistory(prev => prev.filter(item => item.id !== id));
+        } catch (error) {
+            alert("Не удалось удалить запись");
         }
     };
 
@@ -204,9 +319,9 @@ const changeLanguage = (lng) => {
                         <p>{t('hero_subtitle')}</p>
                         
                         <div className="mode-selector">
-                            <button className={inputMode === 'youtube' ? 'active' : ''} onClick={() => setInputMode('youtube')}>📺 {t('type_youtube')}</button>
-                            <button className={inputMode === 'file' ? 'active' : ''} onClick={() => setInputMode('file')}>📁 {t('type_upload')}</button>
-                            <button className={inputMode === 'record' ? 'active' : ''} onClick={() => setInputMode('record')}>🎤 {t('type_record')}</button>
+                            <button className={inputMode === 'youtube' ? 'active' : ''} onClick={() => setInputMode('youtube')}>YouTube</button>
+                            <button className={inputMode === 'file' ? 'active' : ''} onClick={() => setInputMode('file')}>Файл</button>
+                            <button className={inputMode === 'record' ? 'active' : ''} onClick={() => setInputMode('record')}>Запись</button>
                         </div>
 
                         <form className="input-group" onSubmit={handleSubmit}>
@@ -240,18 +355,24 @@ const changeLanguage = (lng) => {
 
                             {inputMode === 'record' && (
                                 <div className="record-controls">
-                                    {!isRecording ? (
-                                        <button type="button" className="btn-record" onClick={startRecording} disabled={!!pollingJobId}>
-                                            🔴 {t('record_start')}
-                                        </button>
-                                    ) : (
-                                        <button type="button" className="btn-record recording" onClick={stopRecording}>
-                                            ⏹️ {t('record_stop')}
-                                        </button>
-                                    )}
-                                    {selectedFile && !isRecording && (
-                                        <span className="file-ready-badge">✅ {t('type_record')} готово</span>
-                                    )}
+                                    <div className="record-status-container">
+                                        {!isRecording ? (
+                                            <button type="button" className="btn-record" onClick={startRecording} disabled={!!pollingJobId}>
+                                                Начать запись
+                                            </button>
+                                        ) : (
+                                            <div className="recording-active-ui">
+                                                <button type="button" className="btn-record recording" onClick={stopRecording}>
+                                                    Остановить
+                                                </button>
+                                                <span className="recording-timer">{formatTime(recordingTime)}</span>
+                                                <canvas ref={canvasRef} className="visualizer-canvas" width="300" height="40"></canvas>
+                                            </div>
+                                        )}
+                                        {selectedFile && !isRecording && (
+                                            <span className="file-ready-badge">Запись готова</span>
+                                        )}
+                                    </div>
                                 </div>
                             )}
 
@@ -262,9 +383,9 @@ const changeLanguage = (lng) => {
                                 onChange={(e) => setAnalysisLang(e.target.value)}
                                 disabled={!!pollingJobId}
                             >
-                                <option value="ru">🇷🇺 Русский</option>
-                                <option value="en">🇬🇧 English</option>
-                                <option value="kk">🇰🇿 Қазақша</option>
+                                <option value="ru">Русский</option>
+                                <option value="en">English</option>
+                                <option value="kk">Қазақша</option>
                             </select>
                             
                             <button type="submit" className="btn-primary" disabled={!!pollingJobId || (inputMode !== 'youtube' && !selectedFile)}>
@@ -285,13 +406,22 @@ const changeLanguage = (lng) => {
 
                                 return (
                                     <div key={item.id} className={`history-card ${!isReady ? 'processing' : ''}`} onClick={() => isReady && openItem(item)}>
-                                        <h3>Разбор #{item.job_id}</h3>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                                            <h3>Разбор #{item.job_id}</h3>
+                                            <button 
+                                                className="delete-item-btn" 
+                                                onClick={(e) => deleteHistoryItem(e, item.id)}
+                                                title={t('delete_btn')}
+                                            >
+                                                {t('delete_btn')}
+                                            </button>
+                                        </div>
                                         <p>
                                             {!isReady 
                                                 ? t('status_processing', 'Видео в процессе обработки...') 
                                                 : (analysis?.summary?.substring(0, 80) + '...')}
                                         </p>
-                                        {isReady && <span className="card-link">{t('open_btn', 'Открыть →')}</span>}
+                                        {isReady && <span className="card-link">{t('open_btn', 'Открыть')}</span>}
                                     </div>
                                 )
                             })}
@@ -301,7 +431,7 @@ const changeLanguage = (lng) => {
             ) : (
                 <div className="fade-in">
                     <button className="back-btn" onClick={() => setActiveItem(null)}>
-                        ← {t('back_btn', 'Назад в библиотеку')}
+                        Назад в библиотеку
                     </button>
                     
                     <div className="tabs-container">
@@ -328,11 +458,11 @@ const changeLanguage = (lng) => {
                                     </ReactMarkdown>
                                 </div>
 
-                                <h2 className="section-title" style={{marginTop: '40px'}}>💡 {t('key_insights', 'Ключевые инсайты')}</h2>
+                                <h2 className="section-title" style={{marginTop: '40px'}}>Ключевые инсайты</h2>
                                 <div className="insights-grid">
                                     {activeItem.analysis?.key_topics?.map((topic, i) => (
                                         <div key={i} className="insight-card">
-                                            <div className="insight-icon">🎯</div>
+                                            <div className="insight-icon">Часть {i + 1}</div>
                                             <div>
                                                 <h4>{topic.title}</h4>
                                                 <ul className="insight-points">
@@ -346,7 +476,7 @@ const changeLanguage = (lng) => {
                                     ))}
                                 </div>
 
-                                <h2 className="section-title" style={{marginTop: '50px'}}>📚 {t('detailed_analysis', 'Детальный разбор')}</h2>
+                                <h2 className="section-title" style={{marginTop: '50px'}}>Детальный разбор</h2>
                                 <div className="markdown-body detailed-content">
                                     <ReactMarkdown remarkPlugins={[remarkGfm]}>
                                         {getMarkdownText(activeItem.analysis?.detailed_analysis)}
@@ -372,8 +502,8 @@ const changeLanguage = (lng) => {
 
                         {currentTab === 'flashcards' && (
                             <div className="carousel-section">
-                                <button className="arrow-btn prev" onClick={prevCard} disabled={currentCardIndex === 0}>❮</button>
-                                <button className="arrow-btn next" onClick={nextCard} disabled={currentCardIndex === (activeItem.analysis?.flashcards?.length - 1)}>❯</button>
+                                <button className="arrow-btn prev" onClick={prevCard} disabled={currentCardIndex === 0}>Назад</button>
+                                <button className="arrow-btn next" onClick={nextCard} disabled={currentCardIndex === (activeItem.analysis?.flashcards?.length - 1)}>Вперед</button>
 
                                 <div className="flashcard-scene" onClick={() => setIsFlipped(!isFlipped)}>
                                     <div className={`flashcard-inner ${isFlipped ? 'is-flipped' : ''}`}>
@@ -423,7 +553,7 @@ const changeLanguage = (lng) => {
                                             </div>
                                             {isAnswered && !isCorrect && !isRevealed && (
                                                 <button className="reveal-btn fade-in" onClick={() => setRevealedAnswers({...revealedAnswers, [qIndex]: true})}>
-                                                    {t('show_answer', 'Показать правильный ответ 👁️')}
+                                                    {t('show_answer', 'Показать правильный ответ')}
                                                 </button>
                                             )}
                                         </div>

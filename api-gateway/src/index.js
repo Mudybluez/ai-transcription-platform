@@ -40,21 +40,34 @@ app.use(authenticateToken);
 // --- МАРШРУТИЗАЦИЯ (ПРОКСИ) ---
 
 // Запросы к микросервису пользователей
+app.use('/api/users/change-password', proxy(process.env.USER_SERVICE_URL || 'http://localhost:3001', {
+    proxyReqPathResolver: () => '/change-password'
+}));
 app.use('/api/users', proxy(process.env.USER_SERVICE_URL || 'http://localhost:3001'));
 
-// Запросы к микросервису загрузки файлов
-app.use('/api/upload/youtube', proxy(process.env.UPLOAD_SERVICE_URL || 'http://localhost:3002', {
-    proxyReqPathResolver: (req) => {
-        return '/youtube';
-    }
-}));
-app.use('/api/upload', proxy(process.env.UPLOAD_SERVICE_URL || 'http://localhost:3002', {
-    parseReqBody: false
-}));
+// ... (existing code) ...
 
 // Запросы к микросервису поиска
+app.use('/api/search/admin/stats', proxy(process.env.SEARCH_SERVICE_URL || 'http://localhost:3003', {
+    proxyReqPathResolver: () => '/admin/stats'
+}));
 app.use('/api/search', proxy(process.env.SEARCH_SERVICE_URL || 'http://localhost:3003'));
-app.use('/api/history', proxy(process.env.SEARCH_SERVICE_URL || 'http://localhost:3003', { proxyReqPathResolver: req => '/history' }));
+
+app.use('/api/history/all/clear', proxy(process.env.SEARCH_SERVICE_URL || 'http://localhost:3003', {
+    proxyReqPathResolver: () => '/history/all/clear'
+}));
+
+app.delete('/api/history/:id', proxy(process.env.SEARCH_SERVICE_URL || 'http://localhost:3003', {
+    proxyReqPathResolver: (req) => `/history/${req.params.id}`
+}));
+
+app.get('/api/history', proxy(process.env.SEARCH_SERVICE_URL || 'http://localhost:3003', {
+    proxyReqPathResolver: () => '/history'
+}));
+
+app.get('/api/user/stats/:id', proxy(process.env.SEARCH_SERVICE_URL || 'http://localhost:3003', {
+    proxyReqPathResolver: (req) => `/user/stats/${req.params.id}`
+}));
 
 // Базовый роут для проверки работоспособности
 app.get('/health', (req, res) => {

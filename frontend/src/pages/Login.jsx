@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../api';
+import { useTranslation } from 'react-i18next';
 
 const Login = () => {
     // Состояния формы
@@ -12,6 +13,11 @@ const Login = () => {
     const [isError, setIsError] = useState(false);
     
     const navigate = useNavigate();
+    const { t, i18n } = useTranslation();
+
+    const changeLanguage = (lng) => {
+        i18n.changeLanguage(lng);
+    };
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -23,9 +29,12 @@ const Login = () => {
                 // Логика входа
                 const response = await api.post('/users/login', { email, password });
                 
-                // Сохраняем токен и роль в localStorage
+                // Сохраняем данные пользователя в localStorage
                 localStorage.setItem('token', response.data.token);
+                localStorage.setItem('userId', response.data.user.id);
                 localStorage.setItem('role', response.data.user.role);
+                localStorage.setItem('username', response.data.user.username);
+                localStorage.setItem('email', response.data.user.email);
                 
                 // Направляем пользователя в зависимости от его роли
                 if (response.data.user.role === 'admin') {
@@ -50,86 +59,100 @@ const Login = () => {
     };
 
     return (
-        <div style={{ 
-            maxWidth: '400px', 
-            margin: '100px auto', 
-            padding: '30px', 
-            border: '1px solid #eaeaea', 
-            borderRadius: '10px', 
-            boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
-            fontFamily: 'sans-serif' 
-        }}>
-            <h2 style={{ textAlign: 'center', marginBottom: '20px' }}>
-                {isLoginMode ? 'Вход в систему' : 'Регистрация'}
-            </h2>
-            
-            {message && (
-                <div style={{ 
-                    padding: '10px', 
-                    marginBottom: '15px', 
-                    borderRadius: '5px',
-                    backgroundColor: isError ? '#fee2e2' : '#dcfce7',
-                    color: isError ? '#991b1b' : '#166534',
-                    textAlign: 'center'
-                }}>
-                    {message}
-                </div>
-            )}
-            
-            <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-                {!isLoginMode && (
-                    <input 
-                        type="text" 
-                        placeholder="Имя пользователя" 
-                        value={username}
-                        onChange={(e) => setUsername(e.target.value)}
-                        required
-                        style={{ padding: '12px', borderRadius: '5px', border: '1px solid #ccc' }}
-                    />
+        <div style={{ minHeight: '100vh', backgroundColor: '#050505', paddingTop: '50px' }}>
+            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '20px' }}>
+                <select 
+                    className="lang-switcher" 
+                    onChange={(e) => changeLanguage(e.target.value)} 
+                    value={i18n.language}
+                >
+                    <option value="en">EN</option>
+                    <option value="ru">RU</option>
+                    <option value="kk">KK</option>
+                </select>
+            </div>
+
+            <div style={{ 
+                maxWidth: '400px', 
+                margin: '0 auto', 
+                padding: '30px', 
+                backgroundColor: 'rgba(255,255,255,0.03)',
+                border: '1px solid rgba(255,255,255,0.1)', 
+                borderRadius: '16px', 
+                boxShadow: '0 20px 40px rgba(0,0,0,0.4)',
+                fontFamily: 'sans-serif',
+                color: 'white',
+                backdropFilter: 'blur(10px)'
+            }}>
+                <h2 style={{ textAlign: 'center', marginBottom: '20px' }}>
+                    {isLoginMode ? t('login_title') : t('register_title')}
+                </h2>
+                
+                {message && (
+                    <div style={{ 
+                        padding: '10px', 
+                        marginBottom: '15px', 
+                        borderRadius: '5px',
+                        backgroundColor: isError ? 'rgba(239, 68, 68, 0.2)' : 'rgba(34, 197, 94, 0.2)',
+                        color: isError ? '#fca5a5' : '#86efac',
+                        textAlign: 'center',
+                        fontSize: '14px',
+                        border: isError ? '1px solid #ef4444' : '1px solid #22c55e'
+                    }}>
+                        {message}
+                    </div>
                 )}
-                <input 
-                    type="email" 
-                    placeholder="Email" 
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    required
-                    style={{ padding: '12px', borderRadius: '5px', border: '1px solid #ccc' }}
-                />
-                <input 
-                    type="password" 
-                    placeholder="Пароль" 
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    required
-                    style={{ padding: '12px', borderRadius: '5px', border: '1px solid #ccc' }}
-                />
-                <button 
-                    type="submit" 
-                    style={{ 
-                        padding: '12px', 
-                        backgroundColor: '#2563eb', 
-                        color: 'white', 
-                        border: 'none', 
-                        borderRadius: '5px', 
-                        cursor: 'pointer',
-                        fontSize: '16px',
-                        fontWeight: 'bold'
+                
+                <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                    {!isLoginMode && (
+                        <input 
+                            type="text" 
+                            placeholder={t('username_label')} 
+                            value={username}
+                            onChange={(e) => setUsername(e.target.value)}
+                            required
+                            className="yt-input"
+                            style={{ width: '100%' }}
+                        />
+                    )}
+                    <input 
+                        type="email" 
+                        placeholder={t('email_label')} 
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        required
+                        className="yt-input"
+                        style={{ width: '100%' }}
+                    />
+                    <input 
+                        type="password" 
+                        placeholder={t('password_label')} 
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        required
+                        className="yt-input"
+                        style={{ width: '100%' }}
+                    />
+                    <button 
+                        type="submit" 
+                        className="btn-primary"
+                        style={{ padding: '14px', width: '100%' }}
+                    >
+                        {isLoginMode ? t('login_btn') : t('register_btn')}
+                    </button>
+                </form>
+                
+                <p 
+                    style={{ textAlign: 'center', marginTop: '20px', cursor: 'pointer', color: '#a855f7' }} 
+                    onClick={() => {
+                        setIsLoginMode(!isLoginMode);
+                        setMessage('');
+                        setIsError(false);
                     }}
                 >
-                    {isLoginMode ? 'Войти' : 'Зарегистрироваться'}
-                </button>
-            </form>
-            
-            <p 
-                style={{ textAlign: 'center', marginTop: '20px', cursor: 'pointer', color: '#2563eb' }} 
-                onClick={() => {
-                    setIsLoginMode(!isLoginMode);
-                    setMessage('');
-                    setIsError(false);
-                }}
-            >
-                {isLoginMode ? 'Нет аккаунта? Зарегистрируйтесь' : 'Уже есть аккаунт? Войти'}
-            </p>
+                    {isLoginMode ? t('no_account') : t('have_account')}
+                </p>
+            </div>
         </div>
     );
 };
