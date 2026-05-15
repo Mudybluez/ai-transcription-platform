@@ -75,6 +75,92 @@ html, body {
 .btn-primary:disabled { opacity: 0.6; cursor: not-allowed; }
 .status-pulse { color: #a855f7; margin-top: 20px; font-weight: 500; animation: pulseGlow 2s infinite; }
 
+/* Mode Selector Styles */
+.mode-selector {
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+    margin-bottom: 25px;
+}
+.mode-selector button {
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.1);
+    color: #94a3b8;
+    padding: 10px 20px;
+    border-radius: 20px;
+    cursor: pointer;
+    font-weight: 600;
+    transition: all 0.3s;
+}
+.mode-selector button:hover {
+    background: rgba(255,255,255,0.1);
+    color: white;
+}
+.mode-selector button.active {
+    background: #a855f7;
+    color: white;
+    border-color: #a855f7;
+    box-shadow: 0 0 15px rgba(168, 85, 247, 0.4);
+}
+
+/* File Input Styles */
+.file-input-wrapper {
+    position: relative;
+    width: 500px;
+}
+.file-input-hidden {
+    display: none;
+}
+.file-label {
+    display: block;
+    cursor: pointer;
+    text-align: left;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Record Controls Styles */
+.record-controls {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    width: 500px;
+    background: rgba(0,0,0,0.3);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 12px;
+    padding: 10px 20px;
+}
+.btn-record {
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.1);
+    color: white;
+    padding: 8px 16px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-weight: 600;
+    transition: all 0.3s;
+}
+.btn-record:hover {
+    background: rgba(255,255,255,0.1);
+}
+.btn-record.recording {
+    background: rgba(239, 68, 68, 0.2);
+    border-color: #ef4444;
+    color: #ef4444;
+    animation: pulse 1.5s infinite;
+}
+@keyframes pulse {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.05); box-shadow: 0 0 10px rgba(239, 68, 68, 0.4); }
+    100% { transform: scale(1); }
+}
+.file-ready-badge {
+    color: #4ade80;
+    font-size: 14px;
+    font-weight: 600;
+}
+
 /* История / Библиотека */
 .section-title { margin-bottom: 25px; font-weight: 600; }
 .history-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 20px; }

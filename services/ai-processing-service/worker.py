@@ -49,9 +49,8 @@ def callback(ch, method, properties, body):
             audio_to_process = file_path
 
         print(f"Начинаем транскрибацию...")
-        raw_text = transcribe_audio(audio_to_process)
+        raw_text = transcribe_audio(audio_to_process, language)
         print(f"Транскрибация завершена. Длина: {len(raw_text)} символов.")
-
         if is_youtube and os.path.exists(audio_to_process):
             os.remove(audio_to_process)
 

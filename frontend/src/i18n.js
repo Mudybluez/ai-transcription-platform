@@ -15,6 +15,12 @@ const resources = {
       "btn_process": "Создать магию",
       "btn_loading": "Обработка...",
       "library": "Твоя библиотека",
+      "type_youtube": "YouTube",
+      "type_upload": "Файл",
+      "type_record": "Запись",
+      "record_start": "Начать запись",
+      "record_stop": "Остановить",
+      "upload_placeholder": "Выберите файл (mp3, mp4, wav...)",
       
       // Новые ключи для внутренностей разбора
       "status_processing": "Видео в процессе обработки...",
@@ -44,6 +50,12 @@ const resources = {
       "btn_process": "Create Magic",
       "btn_loading": "Processing...",
       "library": "Your Library",
+      "type_youtube": "YouTube",
+      "type_upload": "File",
+      "type_record": "Record",
+      "record_start": "Start Recording",
+      "record_stop": "Stop",
+      "upload_placeholder": "Select file (mp3, mp4, wav...)",
       
       // Новые ключи для внутренностей разбора
       "status_processing": "Video is processing...",
@@ -73,6 +85,12 @@ const resources = {
       "btn_process": "Бастау",
       "btn_loading": "Өңделуде...",
       "library": "Сенің кітапханаң",
+      "type_youtube": "YouTube",
+      "type_upload": "Файл",
+      "type_record": "Жазу",
+      "record_start": "Жазуды бастау",
+      "record_stop": "Тоқтату",
+      "upload_placeholder": "Файлды таңдаңыз (mp3, mp4, wav...)",
       
       // Новые ключи для внутренностей разбора
       "status_processing": "Бейне өңделуде...",

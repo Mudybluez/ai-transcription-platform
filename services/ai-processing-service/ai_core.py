@@ -40,10 +40,11 @@ def download_youtube_audio(url):
     except Exception as e:
         raise Exception(f"Ошибка загрузки YouTube: {str(e)}")
     
-def transcribe_audio(file_path):
-    """Транскрибирует аудио/видео файл с помощью Whisper"""
+def transcribe_audio(file_path, language="ru"):
+    """Транскрибирует аудио/видео файл с помощью Whisper с указанием языка"""
     try:
-        result = whisper_model.transcribe(file_path)
+        # Для Whisper 'kk' поддерживается, передаем язык как подсказку
+        result = whisper_model.transcribe(file_path, language=language)
         return result["text"]
     except Exception as e:
         raise Exception(f"Ошибка транскрипции Whisper: {str(e)}")

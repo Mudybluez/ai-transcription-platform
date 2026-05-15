@@ -12,6 +12,13 @@ const Dashboard = () => {
     const [status, setStatus] = useState('');
     const [history, setHistory] = useState([]);
     
+    // Новые состояния для способов ввода
+    const [inputMode, setInputMode] = useState('youtube'); // 'youtube', 'file', 'record'
+    const [selectedFile, setSelectedFile] = useState(null);
+    const [isRecording, setIsRecording] = useState(false);
+    const [mediaRecorder, setMediaRecorder] = useState(null);
+    const [audioChunks, setAudioChunks] = useState([]);
+
     // Авто-обновление при загрузке
     const [pollingJobId, setPollingJobId] = useState(null);
 
@@ -69,17 +76,67 @@ const changeLanguage = (lng) => {
         }
     };
 
-    const handleYoutubeSubmit = async (e) => {
+    const handleSubmit = async (e) => {
         e.preventDefault();
-        if (!youtubeUrl) return;
-        setStatus(t('btn_loading')); // Заменил жесткий текст на перевод
+        setStatus(t('btn_loading'));
+
         try {
-            // НОВОЕ: Передаем analysisLang
-            const response = await api.post('/upload/youtube', { url: youtubeUrl, language: analysisLang });
-            setYoutubeUrl('');
-            setPollingJobId(response.data.job_id);
+            let response;
+            if (inputMode === 'youtube') {
+                if (!youtubeUrl) return;
+                response = await api.post('/upload/youtube', { url: youtubeUrl, language: analysisLang });
+                setYoutubeUrl('');
+            } else if (inputMode === 'file' || inputMode === 'record') {
+                if (!selectedFile) return;
+                const formData = new FormData();
+                formData.append('language', analysisLang); // Сначала текст
+                formData.append('mediaFile', selectedFile); // Потом файл
+                response = await api.post('/upload', formData, {
+                    headers: { 'Content-Type': 'multipart/form-data' }
+                });
+                setSelectedFile(null);
+            }
+            
+            if (response && response.data.job_id) {
+                setPollingJobId(response.data.job_id);
+            }
         } catch (err) {
-            setStatus('Ошибка добавления видео');
+            setStatus('Ошибка добавления задачи');
+            console.error(err);
+        }
+    };
+
+    // Логика записи
+    const startRecording = async () => {
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            const recorder = new MediaRecorder(stream);
+            const chunks = [];
+
+            recorder.ondataavailable = (e) => {
+                if (e.data.size > 0) chunks.push(e.data);
+            };
+
+            recorder.onstop = () => {
+                const blob = new Blob(chunks, { type: 'audio/webm' });
+                const file = new File([blob], `recorded_audio_${Date.now()}.webm`, { type: 'audio/webm' });
+                setSelectedFile(file);
+            };
+
+            recorder.start();
+            setMediaRecorder(recorder);
+            setIsRecording(true);
+        } catch (err) {
+            console.error("Ошибка доступа к микрофону", err);
+            alert("Нет доступа к микрофону");
+        }
+    };
+
+    const stopRecording = () => {
+        if (mediaRecorder) {
+            mediaRecorder.stop();
+            setIsRecording(false);
+            mediaRecorder.stream.getTracks().forEach(track => track.stop());
         }
     };
 
@@ -146,16 +203,58 @@ const changeLanguage = (lng) => {
                         <h1>{t('hero_title')}</h1>
                         <p>{t('hero_subtitle')}</p>
                         
-                        <form className="input-group" onSubmit={handleYoutubeSubmit}>
-                            <input 
-                                type="url" 
-                                className="yt-input" 
-                                placeholder={t('input_placeholder')} 
-                                value={youtubeUrl}
-                                onChange={(e) => setYoutubeUrl(e.target.value)}
-                                disabled={!!pollingJobId}
-                                required
-                            />
+                        <div className="mode-selector">
+                            <button className={inputMode === 'youtube' ? 'active' : ''} onClick={() => setInputMode('youtube')}>📺 {t('type_youtube')}</button>
+                            <button className={inputMode === 'file' ? 'active' : ''} onClick={() => setInputMode('file')}>📁 {t('type_upload')}</button>
+                            <button className={inputMode === 'record' ? 'active' : ''} onClick={() => setInputMode('record')}>🎤 {t('type_record')}</button>
+                        </div>
+
+                        <form className="input-group" onSubmit={handleSubmit}>
+                            {inputMode === 'youtube' && (
+                                <input 
+                                    type="url" 
+                                    className="yt-input" 
+                                    placeholder={t('input_placeholder')} 
+                                    value={youtubeUrl}
+                                    onChange={(e) => setYoutubeUrl(e.target.value)}
+                                    disabled={!!pollingJobId}
+                                    required
+                                />
+                            )}
+
+                            {inputMode === 'file' && (
+                                <div className="file-input-wrapper">
+                                    <input 
+                                        type="file" 
+                                        accept="audio/*,video/*"
+                                        onChange={(e) => setSelectedFile(e.target.files[0])}
+                                        disabled={!!pollingJobId}
+                                        className="file-input-hidden"
+                                        id="file-upload"
+                                    />
+                                    <label htmlFor="file-upload" className="yt-input file-label">
+                                        {selectedFile ? selectedFile.name : t('upload_placeholder')}
+                                    </label>
+                                </div>
+                            )}
+
+                            {inputMode === 'record' && (
+                                <div className="record-controls">
+                                    {!isRecording ? (
+                                        <button type="button" className="btn-record" onClick={startRecording} disabled={!!pollingJobId}>
+                                            🔴 {t('record_start')}
+                                        </button>
+                                    ) : (
+                                        <button type="button" className="btn-record recording" onClick={stopRecording}>
+                                            ⏹️ {t('record_stop')}
+                                        </button>
+                                    )}
+                                    {selectedFile && !isRecording && (
+                                        <span className="file-ready-badge">✅ {t('type_record')} готово</span>
+                                    )}
+                                </div>
+                            )}
+
                             <select 
                                 className="yt-input" 
                                 style={{ width: '140px', padding: '0 15px', cursor: 'pointer' }}
@@ -168,7 +267,7 @@ const changeLanguage = (lng) => {
                                 <option value="kk">🇰🇿 Қазақша</option>
                             </select>
                             
-                            <button type="submit" className="btn-primary" disabled={!!pollingJobId}>
+                            <button type="submit" className="btn-primary" disabled={!!pollingJobId || (inputMode !== 'youtube' && !selectedFile)}>
                                 {pollingJobId ? t('btn_loading') : t('btn_process')}
                             </button>
                         </form>

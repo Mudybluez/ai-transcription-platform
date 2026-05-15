@@ -55,6 +55,7 @@ app.post('/', getUserFromToken, upload.single('mediaFile'), async (req, res) => 
     const userId = req.userId || 0; // В идеале здесь должен быть реальный ID из токена
     const filePath = req.file.path;
     const fileName = req.file.originalname;
+    const { language } = req.body;
 
     try {
         // 1. Создаем запись в БД 
@@ -69,7 +70,8 @@ app.post('/', getUserFromToken, upload.single('mediaFile'), async (req, res) => 
             jobId: jobId,
             userId: userId,
             filePath: filePath,
-            fileName: fileName
+            fileName: fileName,
+            language: language || 'ru'
         };
         
         await publishJob(jobData);
@@ -107,11 +109,10 @@ app.get('/jobs/all', async (req, res) => {
         res.status(500).json({ message: 'Ошибка сервера' });
     }
 });
-// Роут для обработки YouTube ссылок
 // Роут для обработки YouTube ссылок (БЕЗ getUserFromToken)
-app.post('/youtube', async (req, res) => {
+app.post('/youtube', getUserFromToken, async (req, res) => {
     const { url, language } = req.body; 
-    const userId = req.headers['x-user-id'] || req.headers['user-id'] || 1;
+    const userId = req.userId || 1;
 
     if (!url || !url.includes('youtu')) {
         return res.status(400).json({ message: 'Некорректная ссылка YouTube' });
