@@ -1,8 +1,8 @@
 import axios from 'axios';
 
 const api = axios.create({
-    // Стучимся в наш API Gateway
-    baseURL: 'http://localhost:3000/api', 
+    // Стучимся в наш API Gateway через Nginx прокси
+    baseURL: '/api', 
 });
 
 // Автоматически добавляем токен ко всем запросам

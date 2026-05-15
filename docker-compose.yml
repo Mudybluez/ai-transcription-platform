@@ -51,8 +51,6 @@ services:
     build:
       context: ./api-gateway
     container_name: ai_api_gateway
-    ports:
-      - "3000:3000"
     environment:
       - PORT=3000
       - USER_SERVICE_URL=http://user-service:3001
@@ -150,7 +148,7 @@ services:
       context: ./frontend
     container_name: ai_frontend
     ports:
-      - "3005:5173"
+      - "8000:8000"
     networks:
       - ai_network
     depends_on:
