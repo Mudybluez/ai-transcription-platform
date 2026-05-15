@@ -45,7 +45,14 @@ app.use('/api/users/change-password', proxy(process.env.USER_SERVICE_URL || 'htt
 }));
 app.use('/api/users', proxy(process.env.USER_SERVICE_URL || 'http://localhost:3001'));
 
-// ... (existing code) ...
+// Запросы к микросервису загрузки файлов
+app.use('/api/upload/youtube', proxy(process.env.UPLOAD_SERVICE_URL || 'http://localhost:3002', {
+    proxyReqPathResolver: () => '/youtube'
+}));
+app.use('/api/upload', proxy(process.env.UPLOAD_SERVICE_URL || 'http://localhost:3002', {
+    proxyReqPathResolver: () => '/',
+    parseReqBody: false
+}));
 
 // Запросы к микросервису поиска
 app.use('/api/search/admin/stats', proxy(process.env.SEARCH_SERVICE_URL || 'http://localhost:3003', {

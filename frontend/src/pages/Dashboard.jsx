@@ -255,6 +255,22 @@ const changeLanguage = (lng) => {
         }
     };
 
+    const copyToClipboard = () => {
+        if (!activeItem || !activeItem.analysis) return;
+        
+        const summary = getMarkdownText(activeItem.analysis.summary);
+        const detailed = getMarkdownText(activeItem.analysis.detailed_analysis);
+        const title = activeItem.analysis.title || `Analysis #${activeItem.job_id}`;
+        
+        const textToCopy = `# ${title}\n\n## Summary\n${summary}\n\n## Detailed Analysis\n${detailed}`;
+        
+        navigator.clipboard.writeText(textToCopy).then(() => {
+            alert(t('copied_alert', 'Скопировано в буфер обмена'));
+        }).catch(err => {
+            console.error('Ошибка при копировании:', err);
+        });
+    };
+
     const openItem = (item) => {
         const analysis = typeof item.structured_analysis === 'string' 
             ? JSON.parse(item.structured_analysis) 
@@ -319,9 +335,9 @@ const changeLanguage = (lng) => {
                         <p>{t('hero_subtitle')}</p>
                         
                         <div className="mode-selector">
-                            <button className={inputMode === 'youtube' ? 'active' : ''} onClick={() => setInputMode('youtube')}>YouTube</button>
-                            <button className={inputMode === 'file' ? 'active' : ''} onClick={() => setInputMode('file')}>Файл</button>
-                            <button className={inputMode === 'record' ? 'active' : ''} onClick={() => setInputMode('record')}>Запись</button>
+                            <button className={inputMode === 'youtube' ? 'active' : ''} onClick={() => setInputMode('youtube')}>{t('type_youtube')}</button>
+                            <button className={inputMode === 'file' ? 'active' : ''} onClick={() => setInputMode('file')}>{t('type_upload')}</button>
+                            <button className={inputMode === 'record' ? 'active' : ''} onClick={() => setInputMode('record')}>{t('type_record')}</button>
                         </div>
 
                         <form className="input-group" onSubmit={handleSubmit}>
@@ -358,19 +374,19 @@ const changeLanguage = (lng) => {
                                     <div className="record-status-container">
                                         {!isRecording ? (
                                             <button type="button" className="btn-record" onClick={startRecording} disabled={!!pollingJobId}>
-                                                Начать запись
+                                                {t('record_start')}
                                             </button>
                                         ) : (
                                             <div className="recording-active-ui">
                                                 <button type="button" className="btn-record recording" onClick={stopRecording}>
-                                                    Остановить
+                                                    {t('record_stop')}
                                                 </button>
                                                 <span className="recording-timer">{formatTime(recordingTime)}</span>
                                                 <canvas ref={canvasRef} className="visualizer-canvas" width="300" height="40"></canvas>
                                             </div>
                                         )}
                                         {selectedFile && !isRecording && (
-                                            <span className="file-ready-badge">Запись готова</span>
+                                            <span className="file-ready-badge">{t('record_ready')}</span>
                                         )}
                                     </div>
                                 </div>
@@ -407,7 +423,7 @@ const changeLanguage = (lng) => {
                                 return (
                                     <div key={item.id} className={`history-card ${!isReady ? 'processing' : ''}`} onClick={() => isReady && openItem(item)}>
                                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                                            <h3>Разбор #{item.job_id}</h3>
+                                            <h3>{isReady && analysis?.title ? analysis.title : `${t('history_item_title')} #${item.job_id}`}</h3>
                                             <button 
                                                 className="delete-item-btn" 
                                                 onClick={(e) => deleteHistoryItem(e, item.id)}
@@ -430,9 +446,14 @@ const changeLanguage = (lng) => {
                 </div>
             ) : (
                 <div className="fade-in">
-                    <button className="back-btn" onClick={() => setActiveItem(null)}>
-                        Назад в библиотеку
-                    </button>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                        <button className="back-btn" onClick={() => setActiveItem(null)} style={{ marginBottom: 0 }}>
+                            {t('back_btn')}
+                        </button>
+                        <button className="btn-primary" onClick={copyToClipboard} style={{ padding: '8px 20px', fontSize: '14px' }}>
+                            {t('copy_btn')}
+                        </button>
+                    </div>
                     
                     <div className="tabs-container">
                         {['summary', 'flashcards', 'quiz', 'transcript'].map(tab => (
@@ -462,7 +483,7 @@ const changeLanguage = (lng) => {
                                 <div className="insights-grid">
                                     {activeItem.analysis?.key_topics?.map((topic, i) => (
                                         <div key={i} className="insight-card">
-                                            <div className="insight-icon">Часть {i + 1}</div>
+                                            <div className="insight-icon">{t('insight_part')} {i + 1}</div>
                                             <div>
                                                 <h4>{topic.title}</h4>
                                                 <ul className="insight-points">

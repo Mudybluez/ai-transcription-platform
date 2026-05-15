@@ -106,7 +106,7 @@ const Profile = () => {
                     <div className="profile-avatar">{user.username.charAt(0).toUpperCase()}</div>
                     <h2>{user.username}</h2>
                     <p className="profile-email">{user.email}</p>
-                    <div className="role-badge">{user.role === 'admin' ? t('admin_panel') : 'Пользователь PRO'}</div>
+                    <div className="role-badge">{user.role === 'admin' ? t('admin_panel') : t('user_role_pro')}</div>
 
                     <div className="profile-stats">
                         <div className="stat-box">
