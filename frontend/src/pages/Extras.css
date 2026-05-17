@@ -6,6 +6,9 @@
     align-items: start;
     margin-top: 30px;
 }
+@media (max-width: 900px) {
+    .profile-grid { grid-template-columns: 1fr; }
+}
 
 .profile-main-card, .profile-settings-card {
     background: linear-gradient(145deg, rgba(30,41,59,0.7), rgba(15,23,42,0.8));
@@ -14,6 +17,7 @@
     padding: 40px;
     box-shadow: 0 20px 40px rgba(0,0,0,0.5);
     backdrop-filter: blur(10px);
+    user-select: none;
 }
 
 .profile-main-card { text-align: center; }
@@ -83,6 +87,9 @@
     grid-template-columns: 1fr 1fr;
     gap: 20px;
     margin-bottom: 40px;
+}
+@media (max-width: 768px) {
+    .admin-charts-grid { grid-template-columns: 1fr; }
 }
 .chart-box { padding: 30px; display: flex; flex-direction: column; align-items: center; }
 .chart-container h4 { margin-bottom: 25px; color: #e2e8f0; font-size: 16px; text-align: center; }

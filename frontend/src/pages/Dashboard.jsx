@@ -18,6 +18,7 @@ const Dashboard = () => {
     const [isRecording, setIsRecording] = useState(false);
     const [mediaRecorder, setMediaRecorder] = useState(null);
     const [audioChunks, setAudioChunks] = useState([]);
+    const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
     const [recordingTime, setRecordingTime] = useState(0);
     const audioContextRef = useRef(null);
@@ -25,6 +26,36 @@ const Dashboard = () => {
     const animationFrameRef = useRef(null);
     const canvasRef = useRef(null);
     const timerIntervalRef = useRef(null);
+
+    const { t, i18n } = useTranslation();
+
+    const changeLanguage = (lng) => {
+        i18n.changeLanguage(lng);
+        setIsMobileMenuOpen(false);
+    };
+
+    const NavItems = () => (
+        <>
+            <select 
+                className="lang-switcher" 
+                onChange={(e) => changeLanguage(e.target.value)} 
+                value={i18n.language}
+            >
+                <option value="en">EN</option>
+                <option value="ru">RU</option>
+                <option value="kk">KK</option>
+            </select>
+
+            {localStorage.getItem('role') === 'admin' && (
+                <Link to="/admin" className="nav-link" onClick={() => setIsMobileMenuOpen(false)}>{t('admin_panel')}</Link>
+            )}
+            <Link to="/profile" className="nav-link" onClick={() => setIsMobileMenuOpen(false)}>{t('profile')}</Link>
+            <span className="nav-link logout" onClick={() => {
+                localStorage.clear();
+                window.location.href = '/login';
+            }}>{t('logout')}</span>
+        </>
+    );
 
     useEffect(() => {
         return () => {
@@ -86,11 +117,43 @@ const Dashboard = () => {
     // Состояния интерактива
     const [currentCardIndex, setCurrentCardIndex] = useState(0);
     const [isFlipped, setIsFlipped] = useState(false);
-    
+
     const [quizAnswers, setQuizAnswers] = useState({});
     const [revealedAnswers, setRevealedAnswers] = useState({}); // Для кнопки "Узнать ответ"
 
     const [showScrollTop, setShowScrollTop] = useState(false);
+
+    // Обработчик свайпа для карточек
+    const touchStartX = useRef(0);
+    const handleTouchStart = (e) => {
+        touchStartX.current = e.touches[0].clientX;
+    };
+    const handleTouchEnd = (e) => {
+        const touchEndX = e.changedTouches[0].clientX;
+        const diff = touchStartX.current - touchEndX;
+
+        if (Math.abs(diff) > 30) { 
+            if (diff > 0) { // Свайп влево = следующая
+                if (currentCardIndex < (activeItem?.analysis?.flashcards?.length - 1)) {
+                    setAnimationClass('sliding-next');
+                    setTimeout(() => {
+                        setIsFlipped(false);
+                        setCurrentCardIndex(p => p + 1);
+                        setAnimationClass('');
+                    }, 500);
+                }
+            } else { // Свайп вправо = предыдущая
+                if (currentCardIndex > 0) {
+                    setAnimationClass('sliding-prev');
+                    setTimeout(() => {
+                        setIsFlipped(false);
+                        setCurrentCardIndex(p => p - 1);
+                        setAnimationClass('');
+                    }, 500);
+                }
+            }
+        }
+    };
 
     useEffect(() => {
         const handleScroll = () => {
@@ -103,13 +166,6 @@ const Dashboard = () => {
     const scrollToTop = () => {
         window.scrollTo({ top: 0, behavior: 'smooth' });
     };
-
-    const { t, i18n } = useTranslation();
-
-// Функция для смены языка
-const changeLanguage = (lng) => {
-    i18n.changeLanguage(lng);
-};
 
     useEffect(() => {
         loadHistory();
@@ -309,13 +365,23 @@ ${detailed}`;
     };
 
     // Навигация по карточкам
+    const [animationClass, setAnimationClass] = useState('');
+
     const nextCard = () => {
-        setIsFlipped(false);
-        setTimeout(() => setCurrentCardIndex(p => p + 1), 150);
+        setAnimationClass('sliding-next');
+        setTimeout(() => {
+            setIsFlipped(false);
+            setCurrentCardIndex(p => p + 1);
+            setAnimationClass('');
+        }, 500);
     };
     const prevCard = () => {
-        setIsFlipped(false);
-        setTimeout(() => setCurrentCardIndex(p => p - 1), 150);
+        setAnimationClass('sliding-prev');
+        setTimeout(() => {
+            setIsFlipped(false);
+            setCurrentCardIndex(p => p - 1);
+            setAnimationClass('');
+        }, 500);
     };
 
     const getMarkdownText = (data) => {
@@ -328,29 +394,18 @@ ${detailed}`;
     return (
         <div className="dashboard-container fade-in">
             <header className="top-nav">
+                <button className="hamburger" onClick={() => setIsMobileMenuOpen(true)}>☰</button>
                 <div className="logo">{t('app_name')}</div>
-                <div style={{display: 'flex', alignItems: 'center', gap: '15px'}}>
-                    
-                    <select 
-                        className="lang-switcher" 
-                        onChange={(e) => changeLanguage(e.target.value)} 
-                        value={i18n.language}
-                    >
-                        <option value="en">EN</option>
-                        <option value="ru">RU</option>
-                        <option value="kk">KK</option>
-                    </select>
-
-                    {localStorage.getItem('role') === 'admin' && (
-                        <Link to="/admin" className="nav-link">{t('admin_panel')}</Link>
-                    )}
-                    <Link to="/profile" className="nav-link">{t('profile')}</Link>
-                    <span className="nav-link logout" onClick={() => {
-                        localStorage.clear();
-                        window.location.href = '/login';
-                    }}>{t('logout')}</span>
+                <div className="nav-links-desktop">
+                    <NavItems />
                 </div>
             </header>
+
+            <div className={`mobile-overlay ${isMobileMenuOpen ? 'open' : ''}`} onClick={() => setIsMobileMenuOpen(false)} />
+            <div className={`mobile-menu-drawer ${isMobileMenuOpen ? 'open' : ''}`}>
+                <button style={{background:'none', border:'none', color:'white', fontSize:'24px', alignSelf:'flex-end', marginBottom:'20px', cursor:'pointer'}} onClick={() => setIsMobileMenuOpen(false)}>×</button>
+                <NavItems />
+            </div>
 
             {!activeItem ? (
                 <div className="fade-in-up">
@@ -470,11 +525,11 @@ ${detailed}`;
                 </div>
             ) : (
                 <div className="fade-in">
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                    <div className="analysis-header">
                         <button className="back-btn" onClick={() => setActiveItem(null)} style={{ marginBottom: 0 }}>
                             {t('back_btn')}
                         </button>
-                        <button className="btn-primary" onClick={copyToClipboard} style={{ padding: '8px 20px', fontSize: '14px' }}>
+                        <button className="btn-primary copy-btn" onClick={copyToClipboard}>
                             {t('copy_btn')}
                         </button>
                     </div>
@@ -547,10 +602,9 @@ ${detailed}`;
 
                         {currentTab === 'flashcards' && (
                             <div className="carousel-section">
-                                <button className="arrow-btn prev" onClick={prevCard} disabled={currentCardIndex === 0}>{t('prev_btn')}</button>
-                                <button className="arrow-btn next" onClick={nextCard} disabled={currentCardIndex === (activeItem.analysis?.flashcards?.length - 1)}>{t('next_btn')}</button>
+                                <button className="arrow-btn prev" onClick={prevCard} disabled={currentCardIndex === 0}>‹</button>
 
-                                <div className="flashcard-scene" onClick={() => setIsFlipped(!isFlipped)}>
+                                <div className={`flashcard-scene ${animationClass}`} onClick={() => setIsFlipped(!isFlipped)} onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd}>
                                     <div className={`flashcard-inner ${isFlipped ? 'is-flipped' : ''}`}>
                                         <div className="flashcard-front">
                                             <span className="card-counter">{currentCardIndex + 1} / {activeItem.analysis?.flashcards?.length}</span>
@@ -562,6 +616,8 @@ ${detailed}`;
                                         </div>
                                     </div>
                                 </div>
+
+                                <button className="arrow-btn next" onClick={nextCard} disabled={currentCardIndex === (activeItem.analysis?.flashcards?.length - 1)}>›</button>
                             </div>
                         )}
 

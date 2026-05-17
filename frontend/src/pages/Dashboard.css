@@ -42,6 +42,22 @@ html, body {
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
 }
+.nav-links-desktop { display: flex; align-items: center; }
+.hamburger { display: none; background: none; border: none; color: white; font-size: 24px; cursor: pointer; margin-right: 15px; }
+
+/* Мобильная шторка */
+.mobile-menu-drawer {
+    display: none; position: fixed; top: 0; left: 0; width: 250px; height: 100vh;
+    background: #0f172a; padding: 20px; z-index: 1001; transition: transform 0.3s ease;
+    transform: translateX(-100%); border-right: 1px solid rgba(255,255,255,0.1);
+}
+.mobile-menu-drawer.open { transform: translateX(0); }
+.mobile-overlay {
+    display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+    background: rgba(0,0,0,0.5); z-index: 1000;
+}
+.mobile-overlay.open { display: block; }
+
 .nav-link {
     color: #94a3b8;
     margin-left: 20px;
@@ -51,6 +67,21 @@ html, body {
 }
 .nav-link:hover { color: #fff; }
 
+@media (max-width: 600px) {
+    .nav-links-desktop { display: none; }
+    .hamburger { display: block; }
+    .mobile-menu-drawer { display: flex; flex-direction: column; gap: 20px; }
+    .mobile-menu-drawer .nav-link { margin-left: 0; font-size: 18px; }
+    
+    .dashboard-container { padding: 20px 5%; }
+    .hero-section { padding: 40px 0; }
+    .hero-section h1 { font-size: 36px; }
+    .hero-section p { font-size: 16px; margin-bottom: 25px; }
+    .input-group { flex-direction: column; gap: 10px; }
+    .yt-input { padding: 12px 16px; }
+    .btn-primary { width: 100%; }
+}
+
 /* Форма и Статус */
 .hero-section { text-align: center; padding: 60px 0; }
 .hero-section h1 { font-size: 52px; margin-bottom: 15px; letter-spacing: -1px;}
@@ -58,7 +89,7 @@ html, body {
 
 .input-group { display: flex; justify-content: center; gap: 15px; }
 .yt-input {
-    width: 500px; padding: 16px 24px; border-radius: 12px;
+    width: 100%; max-width: 500px; padding: 16px 24px; border-radius: 12px;
     border: 1px solid rgba(255,255,255,0.1); background: rgba(0,0,0,0.3);
     color: white; font-size: 16px; outline: none;
     transition: all 0.3s; box-shadow: inset 0 2px 4px rgba(0,0,0,0.5);
@@ -106,7 +137,7 @@ html, body {
 /* File Input Styles */
 .file-input-wrapper {
     position: relative;
-    width: 500px;
+    width: 100%; max-width: 500px;
 }
 .file-input-hidden {
     display: none;
@@ -125,7 +156,7 @@ html, body {
     display: flex;
     align-items: center;
     gap: 15px;
-    width: 500px;
+    width: 100%; max-width: 500px;
     background: rgba(0,0,0,0.3);
     border: 1px solid rgba(255,255,255,0.1);
     border-radius: 12px;
@@ -214,10 +245,36 @@ html, body {
 .card-link { color: #a855f7; font-size: 14px; font-weight: 600; display: inline-block; margin-top: 15px; }
 
 /* Вкладки и контент */
+.analysis-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    gap: 15px;
+}
+
 .back-btn { background: none; border: none; color: #a855f7; cursor: pointer; font-size: 16px; margin-bottom: 20px; transition: color 0.3s;}
 .back-btn:hover { color: #d8b4fe; }
 
-.tabs-container { display: flex; justify-content: center; gap: 15px; margin-bottom: 40px; }
+.tabs-container {
+    display: flex;
+    gap: 15px;
+    margin-bottom: 40px;
+    overflow-x: auto;
+    padding: 0 10px;
+    -webkit-overflow-scrolling: touch;
+}
+.tabs-container::-webkit-scrollbar {
+    height: 4px;
+}
+.tabs-container::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 2px;
+}
+.tabs-container::-webkit-scrollbar-thumb {
+    background: rgba(168, 85, 247, 0.3);
+    border-radius: 2px;
+}
 .tab-btn {
     background: transparent; border: none; color: #94a3b8; font-size: 18px;
     padding: 10px 20px; cursor: pointer; border-bottom: 3px solid transparent; transition: all 0.3s;
@@ -225,7 +282,7 @@ html, body {
 .tab-btn:hover { color: #fff; }
 .tab-btn.active { color: #fff; border-bottom-color: #a855f7; font-weight: 600; text-shadow: 0 0 10px rgba(255,255,255,0.3); }
 
-.content-box { background: rgba(0,0,0,0.3); padding: 40px; border-radius: 24px; border: 1px solid rgba(255,255,255,0.05); }
+.content-box { background: rgba(0,0,0,0.3); padding: 40px; border-radius: 24px; border: 1px solid rgba(255,255,255,0.05); overflow-x: hidden; }
 
 /* Резюме */
 .lead-text { font-size: 18px; color: #cbd5e1; margin-bottom: 40px; line-height: 1.7; }
@@ -242,7 +299,6 @@ html, body {
 .flashcard-inner {
     width: 100%; height: 100%; position: relative;
     transition: transform 0.6s cubic-bezier(0.4, 0.2, 0.2, 1);
-    transform-style: preserve-3d;
 }
 .flashcard-inner.is-flipped { transform: rotateY(180deg); }
 .flashcard-front, .flashcard-back {
@@ -277,8 +333,165 @@ html, body {
 }
 .reveal-btn:hover { background: rgba(239, 68, 68, 0.1); }
 
-/* --- СТИЛИ ДЛЯ АНАЛИЗА И MARKDOWN --- */
-.analysis-layout { display: flex; flex-direction: column; gap: 20px; }
+/* --- АДАПТИВ ДЛЯ МОБИЛОК И ПЛАНШЕТОВ --- */
+@media (max-width: 768px) {
+    .dashboard-container { padding: 20px 5%; }
+    .hero-section { padding: 40px 0; }
+    .hero-section h1 { font-size: 36px; }
+    .hero-section p { font-size: 16px; margin-bottom: 25px; }
+    .input-group { flex-direction: column; gap: 10px; }
+    .yt-input { padding: 12px 16px; }
+    .btn-primary { padding: 10px 16px; font-size: 14px; }
+
+    /* Header с кнопками */
+    .analysis-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 10px;
+        margin-bottom: 15px;
+    }
+    .back-btn {
+        margin-bottom: 0;
+        font-size: 14px;
+    }
+    .copy-btn {
+        padding: 8px 12px !important;
+        font-size: 12px !important;
+        white-space: nowrap;
+    }
+
+    /* Вкладки */
+    .tabs-container {
+        display: flex;
+        overflow-x: auto;
+        gap: 10px;
+        margin-bottom: 30px;
+        padding: 0 5px;
+        -webkit-overflow-scrolling: touch;
+        scroll-behavior: smooth;
+    }
+    .tabs-container::-webkit-scrollbar {
+        height: 4px;
+    }
+    .tabs-container::-webkit-scrollbar-track {
+        background: rgba(255, 255, 255, 0.05);
+        border-radius: 2px;
+    }
+    .tabs-container::-webkit-scrollbar-thumb {
+        background: rgba(168, 85, 247, 0.3);
+        border-radius: 2px;
+    }
+    .tab-btn {
+        white-space: nowrap;
+        flex-shrink: 0;
+        padding: 8px 16px;
+        font-size: 14px;
+    }
+
+    /* Content box */
+    .content-box {
+        padding: 20px;
+    }
+
+    /* Key Insights для мобильного */
+    .insights-grid {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 15px;
+    }
+    .insight-card {
+        padding: 15px;
+        gap: 10px;
+    }
+    .insight-card h4 {
+        font-size: 16px;
+        margin-bottom: 10px;
+    }
+    .insight-points {
+        padding-left: 15px;
+        font-size: 13px;
+        margin-bottom: 10px;
+    }
+    .insight-relevance {
+        padding: 10px;
+        font-size: 12px;
+    }
+
+    /* Таблицы для мобильного */
+    .markdown-body table {
+        font-size: 12px;
+        margin: 15px 0;
+        width: 100%;
+        overflow-x: auto;
+    }
+    .markdown-body th, .markdown-body td {
+        padding: 10px 6px;
+        font-size: 11px;
+    }
+    .markdown-body th {
+        padding: 10px 6px;
+    }
+
+    /* Flashcards для мобильного */
+    .carousel-section {
+        padding: 15px;
+        min-height: 280px;
+        gap: 0;
+    }
+    .arrow-btn {
+        display: none !important;
+    }
+    .flashcard-scene {
+        max-width: 100%;
+        flex: 1;
+        height: 240px;
+        touch-action: none;
+    }
+    .flashcard-front, .flashcard-back {
+        padding: 15px;
+        border-radius: 16px;
+    }
+    .flashcard-front h3 {
+        font-size: 14px;
+        line-height: 1.3;
+    }
+    .flashcard-back p {
+        font-size: 12px;
+        line-height: 1.4;
+    }
+    .card-counter {
+        top: 10px;
+        right: 12px;
+        font-size: 10px;
+    }
+    .flip-hint {
+        bottom: 10px;
+        font-size: 8px;
+    }
+
+    /* Lead текст */
+    .lead-text {
+        font-size: 14px;
+        margin-bottom: 30px;
+    }
+
+    /* Topics grid */
+    .topics-grid {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 15px;
+    }
+    .topic-card {
+        padding: 15px;
+    }
+    .topic-card h4 {
+        font-size: 15px;
+    }
+    .topic-card ul {
+        font-size: 13px;
+    }
+}
 
 /* Текст Markdown */
 .markdown-body {
@@ -328,7 +541,7 @@ html, body {
 .markdown-body tr:hover td { background: rgba(255,255,255,0.03); }
 
 /* Новые карточки инсайтов */
-.insights-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(400px, 1fr)); gap: 25px; }
+.insights-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(350px, 1fr)); gap: 25px; }
 .insight-card {
     background: linear-gradient(145deg, rgba(30,41,59,0.7), rgba(15,23,42,0.8));
     border: 1px solid rgba(255,255,255,0.1);
@@ -357,29 +570,68 @@ html, body {
     justify-content: center;
     align-items: center;
     width: 100%;
-    min-height: 480px; /* Увеличили высоту, чтобы карточка 100% влезала */
-    padding: 20px 80px; /* Отступы по бокам для стрелок */
+    min-height: 400px;
+    padding: 20px;
+    gap: 30px;
+    perspective: 1500px;
 }
 
 /* Сцена для 3D. Жестко фиксируем размеры, чтобы не было смещений */
+/* Сцена и контейнер для сдвига (слайда) */
 .flashcard-scene {
     width: 100%;
-    max-width: 650px;
-    height: 400px; /* Точная высота карты */
-    perspective: 1500px;
-    margin: 0 auto;
+    max-width: 500px;
+    height: 320px;
+    position: relative;
+    perspective: 1500px; /* Perspective здесь для переворота */
 }
 
+/* Вращающийся контейнер */
 .flashcard-inner {
-    position: relative;
     width: 100%;
     height: 100%;
-    transition: transform 0.7s cubic-bezier(0.4, 0.2, 0.2, 1);
+    position: relative;
+    transition: transform 0.6s cubic-bezier(0.4, 0.2, 0.2, 1);
     transform-style: preserve-3d;
 }
 
-.flashcard-inner.is-flipped {
-    transform: rotateY(180deg);
+/* Переворот */
+.flashcard-inner.is-flipped { transform: rotateY(180deg); }
+
+/* Анимации слайда применяем к самой сцене или обертке, если нужно */
+.flashcard-scene.sliding-next {
+    animation: slideInRight 0.5s cubic-bezier(0.4, 0.2, 0.2, 1) forwards;
+}
+.flashcard-scene.sliding-prev {
+    animation: slideInLeft 0.5s cubic-bezier(0.4, 0.2, 0.2, 1) forwards;
+}
+
+.flashcard-inner.slide-left {
+    animation: slideOutLeft 0.5s cubic-bezier(0.4, 0.2, 0.2, 1) forwards;
+}
+
+.flashcard-inner.slide-right {
+    animation: slideOutRight 0.5s cubic-bezier(0.4, 0.2, 0.2, 1) forwards;
+}
+
+@keyframes slideOutLeft {
+    0% { transform: translateX(0); opacity: 1; }
+    100% { transform: translateX(100%); opacity: 0; }
+}
+
+@keyframes slideOutRight {
+    0% { transform: translateX(0); opacity: 1; }
+    100% { transform: translateX(-100%); opacity: 0; }
+}
+
+@keyframes slideInLeft {
+    0% { transform: translateX(-100%); opacity: 0; }
+    100% { transform: translateX(0); opacity: 1; }
+}
+
+@keyframes slideInRight {
+    0% { transform: translateX(100%); opacity: 0; }
+    100% { transform: translateX(0); opacity: 1; }
 }
 
 .flashcard-front, .flashcard-back {
@@ -391,7 +643,7 @@ html, body {
     backface-visibility: hidden;
     -webkit-backface-visibility: hidden; /* Фикс для Safari */
     border-radius: 24px;
-    padding: 40px;
+    padding: 25px;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -413,24 +665,23 @@ html, body {
     transform: rotateY(180deg);
 }
 
+
 /* Текст на карточках */
-.flashcard-front h3 { font-size: 30px; margin: 0; line-height: 1.4; }
-.flashcard-back p { font-size: 22px; line-height: 1.5; margin: 0; }
-.card-counter { position: absolute; top: 25px; right: 30px; font-weight: 700; opacity: 0.6; }
-.flip-hint { position: absolute; bottom: 25px; font-size: 13px; opacity: 0.6; letter-spacing: 1px; text-transform: uppercase; }
+.flashcard-front h3 { font-size: 22px; margin: 0; line-height: 1.4; user-select: none; }
+.flashcard-back p { font-size: 16px; line-height: 1.5; margin: 0; user-select: none; }
+.card-counter { position: absolute; top: 25px; right: 30px; font-weight: 700; opacity: 0.6; user-select: none; }
+.flip-hint { position: absolute; bottom: 25px; font-size: 13px; opacity: 0.6; letter-spacing: 1px; text-transform: uppercase; user-select: none; }
 
 /* Стрелки (Точное позиционирование) */
 .arrow-btn {
-    position: absolute;
-    top: 50%;
-    transform: translateY(-50%);
+    position: relative;
     background: rgba(255,255,255,0.05);
     border: 1px solid rgba(255,255,255,0.1);
     color: white;
     width: 50px;
     height: 50px;
     border-radius: 50%;
-    font-size: 14px;
+    font-size: 24px;
     font-weight: bold;
     cursor: pointer;
     transition: all 0.3s;
@@ -438,15 +689,16 @@ html, body {
     display: flex;
     align-items: center;
     justify-content: center;
+    flex-shrink: 0;
 }
 
-.arrow-btn.prev { left: 20px; }
-.arrow-btn.next { right: 20px; }
+.arrow-btn.prev { order: -1; }
+.arrow-btn.next { order: 1; }
 
 .arrow-btn:hover:not(:disabled) {
     background: #a855f7;
     border-color: #a855f7;
-    transform: translateY(-50%) scale(1.1); /* Масштабируем, не теряя центр */
+    transform: scale(1.1);
     box-shadow: 0 0 20px rgba(168, 85, 247, 0.5);
 }
 
