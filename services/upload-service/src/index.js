@@ -109,16 +109,68 @@ app.get('/jobs/all', async (req, res) => {
         res.status(500).json({ message: 'Ошибка сервера' });
     }
 });
-// Роут для обработки YouTube ссылок (БЕЗ getUserFromToken)
+// Хелпер для извлечения ID видео из YouTube ссылки
+const extractYoutubeId = (url) => {
+    const regex = /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/;
+    const match = url.match(regex);
+    return match ? match[1] : null;
+};
+
+// Роут для обработки YouTube ссылок
 app.post('/youtube', getUserFromToken, async (req, res) => {
     const { url, language } = req.body; 
     const userId = req.userId || 1;
+    const targetLang = language || 'ru';
 
-    if (!url || !url.includes('youtu')) {
-        return res.status(400).json({ message: 'Некорректная ссылка YouTube' });
+    const videoId = extractYoutubeId(url);
+    if (!videoId) {
+        return res.status(400).json({ message: 'Некорректная ссылка YouTube. Не удалось извлечь ID видео.' });
     }
 
     try {
+        // --- Оптимизация: Поиск кешированного результата по ID видео ---
+        // Ищем в БД уже выполненную транскрипцию по ID видео и языку
+        const existingTranscription = await db.query(
+            `SELECT t.raw_text, t.structured_analysis 
+             FROM transcriptions t
+             JOIN jobs j ON t.job_id = j.id
+             WHERE j.file_path ILIKE $1 
+             AND j.status = 'COMPLETED'
+             AND (
+                t.structured_analysis->>'language' = $2 
+                OR (t.structured_analysis->>'language' IS NULL AND $2 = 'ru')
+             )
+             LIMIT 1`,
+            [`%${videoId}%`, targetLang]
+        );
+
+        if (existingTranscription.rows.length > 0) {
+            console.log(`♻️ [Cache Hit] Найдена готовая аналитика для видео ID: ${videoId}`);
+            const cached = existingTranscription.rows[0];
+
+            // 1. Создаем новую запись в jobs со статусом COMPLETED для текущего пользователя
+            const jobResult = await db.query(
+                'INSERT INTO jobs (user_id, file_name, file_path, status) VALUES ($1, $2, $3, $4) RETURNING id',
+                [userId, `YouTube Video (Cached: ${videoId})`, url, 'COMPLETED']
+            );
+            const newJobId = jobResult.rows[0].id;
+
+            // 2. Копируем расшифровку и анализ в новую запись для текущего пользователя
+            await db.query(
+                'INSERT INTO transcriptions (job_id, user_id, raw_text, structured_analysis) VALUES ($1, $2, $3, $4)',
+                [newJobId, userId, cached.raw_text, cached.structured_analysis]
+            );
+
+            return res.status(200).json({ 
+                message: 'Анализ получен из базы данных (кеш)', 
+                job_id: newJobId,
+                cached: true 
+            });
+        }
+        
+        console.log(`🔍 [Cache Miss] Видео ${videoId} не найдено в БД, отправляем на обработку...`);
+        // --- Конец оптимизации ---
+
         const jobResult = await db.query(
             'INSERT INTO jobs (user_id, file_name, file_path, status) VALUES ($1, $2, $3, $4) RETURNING id',
             [userId, 'YouTube Video', url, 'PENDING']
@@ -131,12 +183,12 @@ app.post('/youtube', getUserFromToken, async (req, res) => {
             filePath: url,
             fileName: 'YouTube Video',
             isYoutube: true ,
-            language: language || 'ru'
+            language: targetLang
         });
 
         res.status(202).json({ message: 'YouTube ссылка принята в обработку', job_id: jobId });
     } catch (error) {
-        console.error(error);
+        console.error('Ошибка при обработке YouTube ссылки:', error);
         res.status(500).json({ message: 'Ошибка обработки ссылки' });
     }
 });

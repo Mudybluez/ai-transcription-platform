@@ -9,7 +9,7 @@ const pool = new Pool({
 });
 
 const initDB = async () => {
-    const queryText = `
+    const jobsTable = `
       CREATE TABLE IF NOT EXISTS jobs (
         id SERIAL PRIMARY KEY,
         user_id INTEGER NOT NULL,
@@ -20,11 +20,22 @@ const initDB = async () => {
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
     `;
+    const transcriptionsTable = `
+      CREATE TABLE IF NOT EXISTS transcriptions (
+        id SERIAL PRIMARY KEY,
+        job_id INTEGER NOT NULL,
+        user_id INTEGER NOT NULL,
+        raw_text TEXT NOT NULL,
+        structured_analysis JSONB,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `;
     try {
-        await pool.query(queryText);
-        console.log('✅ Таблица jobs (задач) готова');
+        await pool.query(jobsTable);
+        await pool.query(transcriptionsTable);
+        console.log('✅ Таблицы БД (jobs, transcriptions) готовы');
     } catch (err) {
-        console.error('❌ Ошибка инициализации БД (jobs):', err);
+        console.error('❌ Ошибка инициализации БД:', err);
     }
 };
 

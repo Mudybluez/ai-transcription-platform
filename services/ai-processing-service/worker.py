@@ -56,8 +56,12 @@ def callback(ch, method, properties, body):
 
         print(f"Анализ в Gemini на языке: {language}...")
         
-        # 2. ИСПРАВЛЕНИЕ: Передаем переменную language в ядро ИИ!
+        # 2. Передаем переменную language в ядро ИИ!
         analysis_data = analyze_content(raw_text, language)
+        
+        # 3. Сохраняем язык в JSON для кеширования
+        if isinstance(analysis_data, dict):
+            analysis_data['language'] = language
         
         save_result(job_id, user_id, raw_text, analysis_data)
         update_job_status(job_id, "COMPLETED")
