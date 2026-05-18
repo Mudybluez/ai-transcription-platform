@@ -15,6 +15,9 @@ const Profile = () => {
     const [newPassword, setNewPassword] = useState('');
     const [isChanging, setIsChanging] = useState(false);
     
+    const [newUsername, setNewUsername] = useState(localStorage.getItem('username') || '');
+    const [isUpdatingUsername, setIsUpdatingUsername] = useState(false);
+
     const { t, i18n } = useTranslation();
 
     const changeLanguage = (lng) => {
@@ -83,6 +86,26 @@ const Profile = () => {
         }
     };
 
+    const handleUpdateUsername = async (e) => {
+        e.preventDefault();
+        if (!newUsername || newUsername.trim() === '') {
+            alert(t('fill_fields_alert', 'Заполните поля'));
+            return;
+        }
+        setIsUpdatingUsername(true);
+        try {
+            const response = await api.post('/users/update-username', { userId: user.id, newUsername });
+            alert(t('username_updated_alert', 'Имя пользователя успешно обновлено'));
+            localStorage.setItem('username', response.data.user.username);
+            // Форсируем обновление страницы для применения изменений везде
+            window.location.reload();
+        } catch (error) {
+            alert(error.response?.data?.message || t('error_alert', 'Ошибка'));
+        } finally {
+            setIsUpdatingUsername(false);
+        }
+    };
+
     return (
         <div className="dashboard-container fade-in">
             <header className="top-nav">
@@ -135,6 +158,19 @@ const Profile = () => {
                 </div>
 
                 <div className="profile-settings-card">
+                    <h3>{t('profile_settings', 'Настройки профиля')}</h3>
+                    <form onSubmit={handleUpdateUsername} className="settings-form" style={{marginBottom: '30px'}}>
+                        <div className="form-group">
+                            <label>{t('username_label', 'Имя пользователя')}</label>
+                            <input type="text" value={newUsername} onChange={(e) => setNewUsername(e.target.value)} className="yt-input" />
+                        </div>
+                        <button type="submit" className="btn-primary" disabled={isUpdatingUsername}>
+                            {isUpdatingUsername ? t('btn_loading') : t('save_btn', 'Сохранить')}
+                        </button>
+                    </form>
+
+                    <hr style={{borderColor: 'rgba(255,255,255,0.1)', marginBottom: '30px'}} />
+
                     <h3>{t('security_title')}</h3>
                     <form onSubmit={handleChangePassword} className="settings-form">
                         <div className="form-group">

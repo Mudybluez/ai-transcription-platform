@@ -8,7 +8,6 @@ import { useTranslation } from 'react-i18next';
 
 const Dashboard = () => {
     const [youtubeUrl, setYoutubeUrl] = useState('');
-    const [analysisLang, setAnalysisLang] = useState('ru'); 
     const [status, setStatus] = useState('');
     const [history, setHistory] = useState([]);
     
@@ -28,6 +27,9 @@ const Dashboard = () => {
     const timerIntervalRef = useRef(null);
 
     const { t, i18n } = useTranslation();
+
+    // Текущий язык приложения
+    const currentLang = i18n.language || 'ru';
 
     const changeLanguage = (lng) => {
         i18n.changeLanguage(lng);
@@ -222,7 +224,8 @@ const Dashboard = () => {
                     alert("Пожалуйста, введите ссылку на YouTube");
                     return;
                 }
-                response = await api.post('/upload/youtube', { url: youtubeUrl, language: analysisLang });
+                // Больше не передаем language, так как анализ теперь мультиязычный
+                response = await api.post('/upload/youtube', { url: youtubeUrl });
                 setYoutubeUrl('');
             } else if (inputMode === 'file' || inputMode === 'record') {
                 if (!selectedFile) {
@@ -230,8 +233,9 @@ const Dashboard = () => {
                     return;
                 }
                 const formData = new FormData();
-                formData.append('language', analysisLang); // Сначала текст
-                formData.append('mediaFile', selectedFile); // Потом файл
+                // language здесь можно оставить как подсказку для Whisper (транскрибации)
+                formData.append('language', currentLang); 
+                formData.append('mediaFile', selectedFile); 
                 response = await api.post('/upload', formData, {
                     headers: { 'Content-Type': 'multipart/form-data' }
                 });
@@ -332,9 +336,9 @@ const Dashboard = () => {
     const copyToClipboard = () => {
         if (!activeItem || !activeItem.analysis) return;
         
-        const summary = getMarkdownText(activeItem.analysis.summary);
-        const detailed = getMarkdownText(activeItem.analysis.detailed_analysis);
-        const title = activeItem.analysis.title || `Analysis #${activeItem.job_id}`;
+        const summary = getMarkdownText(activeItem.analysis.summary?.[currentLang] || activeItem.analysis.summary);
+        const detailed = getMarkdownText(activeItem.analysis.detailed_analysis?.[currentLang] || activeItem.analysis.detailed_analysis);
+        const title = (activeItem.analysis.title?.[currentLang] || activeItem.analysis.title) || `Analysis #${activeItem.job_id}`;
         
         const textToCopy = `# ${title}
 
@@ -388,7 +392,14 @@ ${detailed}`;
         if (!data) return '';
         if (typeof data === 'string') return data;
         if (Array.isArray(data)) return data.join('\n\n'); 
-        return JSON.stringify(data, null, 2); // На крайний случай, если это объект
+        return JSON.stringify(data, null, 2); 
+    };
+
+    // Хелпер для получения текста на нужном языке (с фолбеком на строку)
+    const getLangText = (obj) => {
+        if (!obj) return '';
+        if (typeof obj === 'string') return obj;
+        return obj[currentLang] || obj['ru'] || '';
     };
 
     return (
@@ -471,18 +482,6 @@ ${detailed}`;
                                 </div>
                             )}
 
-                            <select 
-                                className="yt-input" 
-                                style={{ width: '140px', padding: '0 15px', cursor: 'pointer' }}
-                                value={analysisLang}
-                                onChange={(e) => setAnalysisLang(e.target.value)}
-                                disabled={!!pollingJobId}
-                            >
-                                <option value="ru">Русский</option>
-                                <option value="en">English</option>
-                                <option value="kk">Қазақша</option>
-                            </select>
-                            
                             <button type="submit" className="btn-primary" disabled={!!pollingJobId || (inputMode !== 'youtube' && !selectedFile)}>
                                 {pollingJobId ? t('btn_loading') : t('btn_process')}
                             </button>
@@ -502,7 +501,7 @@ ${detailed}`;
                                 return (
                                     <div key={item.id} className={`history-card ${!isReady ? 'processing' : ''}`} onClick={() => isReady && openItem(item)}>
                                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                                            <h3>{isReady && analysis?.title ? analysis.title : `${t('history_item_title')} #${item.job_id}`}</h3>
+                                            <h3>{isReady ? getLangText(analysis.title) : `${t('history_item_title')} #${item.job_id}`}</h3>
                                             <button 
                                                 className="delete-item-btn" 
                                                 onClick={(e) => deleteHistoryItem(e, item.id)}
@@ -514,7 +513,7 @@ ${detailed}`;
                                         <p>
                                             {!isReady 
                                                 ? t('status_processing', 'Видео в процессе обработки...') 
-                                                : (analysis?.summary?.substring(0, 80) + '...')}
+                                                : (getLangText(analysis.summary).substring(0, 80) + '...')}
                                         </p>
                                         {isReady && <span className="card-link">{t('open_btn', 'Открыть')}</span>}
                                     </div>
@@ -554,7 +553,7 @@ ${detailed}`;
                             <div className="analysis-layout">
                                 <div className="markdown-body hero-summary">
                                     <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                                        {getMarkdownText(activeItem.analysis?.summary)}
+                                        {getMarkdownText(getLangText(activeItem.analysis?.summary))}
                                     </ReactMarkdown>
                                 </div>
 
@@ -564,12 +563,12 @@ ${detailed}`;
                                         <div key={i} className="insight-card">
                                             <div className="insight-icon">{t('insight_part')} {i + 1}</div>
                                             <div>
-                                                <h4>{topic.title}</h4>
+                                                <h4>{getLangText(topic.title)}</h4>
                                                 <ul className="insight-points">
-                                                    {topic.key_points?.map((pt, j) => <li key={j}>{pt}</li>)}
+                                                    {(topic.key_points?.[currentLang] || topic.key_points?.['ru'] || topic.key_points)?.map((pt, j) => <li key={j}>{pt}</li>)}
                                                 </ul>
                                                 <div className="insight-relevance">
-                                                    <strong>{t('why_important', 'Почему это важно:')}</strong> {topic.relevance}
+                                                    <strong>{t('why_important', 'Почему это важно:')}</strong> {getLangText(topic.relevance)}
                                                 </div>
                                             </div>
                                         </div>
@@ -579,14 +578,14 @@ ${detailed}`;
                                 <h2 className="section-title" style={{marginTop: '50px'}}>{t('detailed_analysis')}</h2>
                                 <div className="markdown-body detailed-content">
                                     <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                                        {getMarkdownText(activeItem.analysis?.detailed_analysis)}
+                                        {getMarkdownText(getLangText(activeItem.analysis?.detailed_analysis))}
                                     </ReactMarkdown>
                                 </div>
 
                                 <div className="takeaways-box">
                                     <h3>{t('takeaways', 'Главные выводы')}</h3>
                                     <ul>
-                                        {activeItem.analysis?.takeaways?.map((item, i) => (
+                                        {(activeItem.analysis?.takeaways?.[currentLang] || activeItem.analysis?.takeaways?.['ru'] || activeItem.analysis?.takeaways)?.map((item, i) => (
                                             <li key={i}>{item}</li>
                                         ))}
                                     </ul>
@@ -608,11 +607,11 @@ ${detailed}`;
                                     <div className={`flashcard-inner ${isFlipped ? 'is-flipped' : ''}`}>
                                         <div className="flashcard-front">
                                             <span className="card-counter">{currentCardIndex + 1} / {activeItem.analysis?.flashcards?.length}</span>
-                                            <h3>{activeItem.analysis?.flashcards?.[currentCardIndex]?.question}</h3>
+                                            <h3>{getLangText(activeItem.analysis?.flashcards?.[currentCardIndex]?.question)}</h3>
                                             <span className="flip-hint">{t('click_to_flip', 'Нажми, чтобы перевернуть')}</span>
                                         </div>
                                         <div className="flashcard-back">
-                                            <p>{activeItem.analysis?.flashcards?.[currentCardIndex]?.answer}</p>
+                                            <p>{getLangText(activeItem.analysis?.flashcards?.[currentCardIndex]?.answer)}</p>
                                         </div>
                                     </div>
                                 </div>
@@ -624,18 +623,21 @@ ${detailed}`;
                         {currentTab === 'quiz' && (
                             <div className="quiz-container">
                                 {activeItem.analysis?.quiz?.map((q, qIndex) => {
+                                    const options = q.options?.[currentLang] || q.options?.['ru'] || q.options;
+                                    const correctAnswer = getLangText(q.correct_answer);
+                                    
                                     const isAnswered = quizAnswers[qIndex] !== undefined;
-                                    const isCorrect = quizAnswers[qIndex] === q.correct_answer;
+                                    const isCorrect = quizAnswers[qIndex] === correctAnswer;
                                     const isRevealed = revealedAnswers[qIndex];
 
                                     return (
                                         <div key={qIndex} className="quiz-card">
-                                            <h3><span className="q-num">{qIndex + 1}</span> {q.question}</h3>
+                                            <h3><span className="q-num">{qIndex + 1}</span> {getLangText(q.question)}</h3>
                                             <div className="options-grid">
-                                                {q.options?.map((opt, optIndex) => {
+                                                {options?.map((opt, optIndex) => {
                                                     let btnClass = "quiz-option";
                                                     if (isAnswered || isRevealed) {
-                                                        if (opt === q.correct_answer && (isCorrect || isRevealed)) btnClass += " correct";
+                                                        if (opt === correctAnswer && (isCorrect || isRevealed)) btnClass += " correct";
                                                         else if (quizAnswers[qIndex] === opt && !isCorrect) btnClass += " wrong";
                                                         else btnClass += " disabled";
                                                     }

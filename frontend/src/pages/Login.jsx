@@ -4,6 +4,8 @@ import api from '../api';
 import { useTranslation } from 'react-i18next';
 
 const Login = () => {
+    const { t, i18n } = useTranslation();
+    
     // Состояния формы
     const [isLoginMode, setIsLoginMode] = useState(true);
     const [email, setEmail] = useState('');
@@ -12,8 +14,36 @@ const Login = () => {
     const [message, setMessage] = useState('');
     const [isError, setIsError] = useState(false);
     
+    const [passwordScore, setPasswordScore] = useState(0);
+
+    const checkPasswordScore = (pass) => {
+        if (!pass) return 0;
+        
+        let score = 0;
+        if (pass.length >= 8) score++;
+        if (/[A-Z]/.test(pass)) score++;
+        if (/[a-z]/.test(pass)) score++;
+        if (/\d/.test(pass)) score++;
+        if (/[!@#$%^&*(),.?":{}|<>]/.test(pass)) score++;
+
+        return score;
+    };
+
+    const getStrengthDetails = (score) => {
+        const labels = ['', t('password_strength_1'), t('password_strength_2'), t('password_strength_3'), t('password_strength_4'), t('password_strength_5')];
+        const colors = ['gray', '#ef4444', '#f59e0b', '#facc15', '#22c55e', '#10b981'];
+        return { label: labels[score], color: colors[score] };
+    };
+
+    const handlePasswordChange = (e) => {
+        const pass = e.target.value;
+        setPassword(pass);
+        if (!isLoginMode) {
+            setPasswordScore(checkPasswordScore(pass));
+        }
+    };
+
     const navigate = useNavigate();
-    const { t, i18n } = useTranslation();
 
     const changeLanguage = (lng) => {
         i18n.changeLanguage(lng);
@@ -48,13 +78,13 @@ const Login = () => {
                 
                 setIsLoginMode(true);
                 setIsError(false);
-                setMessage('Регистрация прошла успешно! Теперь вы можете войти.');
+                setMessage(t('registration_success'));
                 // Очищаем поля
                 setPassword(''); 
             }
         } catch (error) {
             setIsError(true);
-            setMessage(error.response?.data?.message || 'Произошла ошибка соединения с сервером');
+            setMessage(error.response?.data?.message || t('server_error', 'Произошла ошибка соединения с сервером'));
         }
     };
 
@@ -128,15 +158,37 @@ const Login = () => {
                         type="password" 
                         placeholder={t('password_label')} 
                         value={password}
-                        onChange={(e) => setPassword(e.target.value)}
+                        onChange={handlePasswordChange}
                         required
                         className="yt-input"
                         style={{ width: '100%' }}
                     />
+                    {!isLoginMode && password && (
+                        <div style={{ marginTop: '-10px' }}>
+                            <div style={{ 
+                                height: '4px', 
+                                width: '100%', 
+                                backgroundColor: 'rgba(255,255,255,0.1)', 
+                                borderRadius: '2px',
+                                overflow: 'hidden'
+                            }}>
+                                <div style={{ 
+                                    height: '100%', 
+                                    width: `${(passwordScore / 5) * 100}%`, 
+                                    backgroundColor: getStrengthDetails(passwordScore).color,
+                                    transition: 'width 0.3s ease, background-color 0.3s ease'
+                                }} />
+                            </div>
+                            <span style={{ fontSize: '12px', color: getStrengthDetails(passwordScore).color }}>
+                                {getStrengthDetails(passwordScore).label}
+                            </span>
+                        </div>
+                    )}
                     <button 
                         type="submit" 
                         className="btn-primary"
                         style={{ padding: '14px', width: '100%' }}
+                        disabled={!isLoginMode && passwordScore < 3}
                     >
                         {isLoginMode ? t('login_btn') : t('register_btn')}
                     </button>

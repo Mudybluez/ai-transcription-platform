@@ -118,9 +118,8 @@ const extractYoutubeId = (url) => {
 
 // Роут для обработки YouTube ссылок
 app.post('/youtube', getUserFromToken, async (req, res) => {
-    const { url, language } = req.body; 
+    const { url } = req.body; 
     const userId = req.userId || 1;
-    const targetLang = language || 'ru';
 
     const videoId = extractYoutubeId(url);
     if (!videoId) {
@@ -129,33 +128,27 @@ app.post('/youtube', getUserFromToken, async (req, res) => {
 
     try {
         // --- Оптимизация: Поиск кешированного результата по ID видео ---
-        // Ищем в БД уже выполненную транскрипцию по ID видео и языку
+        // Теперь ищем любой завершенный анализ, так как он содержит все 3 языка
         const existingTranscription = await db.query(
             `SELECT t.raw_text, t.structured_analysis 
              FROM transcriptions t
              JOIN jobs j ON t.job_id = j.id
              WHERE j.file_path ILIKE $1 
              AND j.status = 'COMPLETED'
-             AND (
-                t.structured_analysis->>'language' = $2 
-                OR (t.structured_analysis->>'language' IS NULL AND $2 = 'ru')
-             )
              LIMIT 1`,
-            [`%${videoId}%`, targetLang]
+            [`%${videoId}%`]
         );
 
         if (existingTranscription.rows.length > 0) {
-            console.log(`♻️ [Cache Hit] Найдена готовая аналитика для видео ID: ${videoId}`);
+            console.log(`♻️ [Cache Hit] Найдена готовая мультиязычная аналитика для: ${videoId}`);
             const cached = existingTranscription.rows[0];
 
-            // 1. Создаем новую запись в jobs со статусом COMPLETED для текущего пользователя
             const jobResult = await db.query(
                 'INSERT INTO jobs (user_id, file_name, file_path, status) VALUES ($1, $2, $3, $4) RETURNING id',
                 [userId, `YouTube Video (Cached: ${videoId})`, url, 'COMPLETED']
             );
             const newJobId = jobResult.rows[0].id;
 
-            // 2. Копируем расшифровку и анализ в новую запись для текущего пользователя
             await db.query(
                 'INSERT INTO transcriptions (job_id, user_id, raw_text, structured_analysis) VALUES ($1, $2, $3, $4)',
                 [newJobId, userId, cached.raw_text, cached.structured_analysis]
@@ -168,7 +161,7 @@ app.post('/youtube', getUserFromToken, async (req, res) => {
             });
         }
         
-        console.log(`🔍 [Cache Miss] Видео ${videoId} не найдено в БД, отправляем на обработку...`);
+        console.log(`🔍 [Cache Miss] Видео ${videoId} не найдено, запускаем полный мультиязычный анализ...`);
         // --- Конец оптимизации ---
 
         const jobResult = await db.query(
@@ -182,8 +175,7 @@ app.post('/youtube', getUserFromToken, async (req, res) => {
             userId: userId,
             filePath: url,
             fileName: 'YouTube Video',
-            isYoutube: true ,
-            language: targetLang
+            isYoutube: true 
         });
 
         res.status(202).json({ message: 'YouTube ссылка принята в обработку', job_id: jobId });

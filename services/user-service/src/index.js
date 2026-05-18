@@ -9,10 +9,28 @@ const JWT_SECRET = process.env.JWT_SECRET || 'super_secret_jwt_key';
 
 app.use(express.json());
 
+// Функция для проверки силы пароля
+const isPasswordStrongEnough = (password) => {
+    let score = 0;
+    if (password.length >= 8) score++;
+    if (/[A-Z]/.test(password)) score++;
+    if (/[a-z]/.test(password)) score++;
+    if (/\d/.test(password)) score++;
+    if (/[!@#$%^&*(),.?":{}|<>]/.test(password)) score++;
+    
+    return score >= 3; // Минимум "Средний" уровень
+};
+
 app.post('/register', async (req, res) => {
     const { username, email, password } = req.body;
 
     try {
+        if (!isPasswordStrongEnough(password)) {
+            return res.status(400).json({ 
+                message: 'Пароль слишком слабый. Он должен содержать как минимум 3 из следующих условий: 8 символов, заглавная буква, строчная буква, цифра, специальный символ.' 
+            });
+        }
+
         const userExists = await db.query('SELECT * FROM users WHERE email = $1', [email]);
         if (userExists.rows.length > 0) {
             return res.status(400).json({ message: 'Пользователь с таким email уже существует' });
@@ -116,6 +134,34 @@ app.post('/change-password', async (req, res) => {
     } catch (error) {
         console.error(error);
         res.status(500).json({ message: 'Ошибка сервера при смене пароля' });
+    }
+});
+
+// Обновление имени пользователя
+app.post('/update-username', async (req, res) => {
+    const { userId, newUsername } = req.body;
+
+    if (!newUsername || newUsername.trim() === '') {
+        return res.status(400).json({ message: 'Имя пользователя не может быть пустым' });
+    }
+
+    try {
+        const result = await db.query(
+            'UPDATE users SET username = $1 WHERE id = $2 RETURNING id, username, email, role',
+            [newUsername, userId]
+        );
+
+        if (result.rows.length === 0) {
+            return res.status(404).json({ message: 'Пользователь не найден' });
+        }
+
+        res.status(200).json({ 
+            message: 'Имя пользователя успешно обновлено', 
+            user: result.rows[0] 
+        });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: 'Ошибка сервера при обновлении имени пользователя' });
     }
 });
 

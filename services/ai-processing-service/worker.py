@@ -54,15 +54,12 @@ def callback(ch, method, properties, body):
         if is_youtube and os.path.exists(audio_to_process):
             os.remove(audio_to_process)
 
-        print(f"Анализ в Gemini на языке: {language}...")
+        print(f"Анализ в Gemini (мультиязычный)...")
         
-        # 2. Передаем переменную language в ядро ИИ!
-        analysis_data = analyze_content(raw_text, language)
+        # 2. Анализируем контент (теперь сразу на 3 языках)
+        analysis_data = analyze_content(raw_text)
         
-        # 3. Сохраняем язык в JSON для кеширования
-        if isinstance(analysis_data, dict):
-            analysis_data['language'] = language
-        
+        # 3. Сохраняем результат
         save_result(job_id, user_id, raw_text, analysis_data)
         update_job_status(job_id, "COMPLETED")
         print(f"Задача {job_id} успешно выполнена и сохранена!")
