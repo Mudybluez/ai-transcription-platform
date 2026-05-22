@@ -215,12 +215,15 @@ const SolarSystemBackground = ({ history = [], introState = 'playing', onIntroCo
         // Переменная угла левитации (будет рассчитываться прямо в JS)
         let wobbleAngle = 0;
 
-        // Отслеживаем время начала интро-анимации
+        // Отслеживаем время начала интро-анимации и время последнего кадра для ограничения FPS
         const startTime = performance.now();
+        let lastFrameTime = performance.now();
         let introTriggered = false;
 
         // Анимационный цикл
         const render = () => {
+            const now = performance.now();
+
             // Если страница прокручивается и интро завершено, временно приостанавливаем перерисовку Canvas.
             // Предыдущий кадр остается на экране без нагрузки на CPU/GPU, сохраняя 60+ FPS при скролле!
             if (isScrollingRef.current && introStateRef.current === 'completed') {
@@ -228,11 +231,23 @@ const SolarSystemBackground = ({ history = [], introState = 'playing', onIntroCo
                 return;
             }
 
+            // Ограничиваем FPS фоновой анимации до 20 кадров в секунду (интервал 50мс) только в режиме "completed" (размытый фон).
+            // Это кратно снижает нагрузку на GPU от вычисления тяжелого CSS filter: blur() (на 66%),
+            // освобождая все ресурсы системы для поддержания безупречных и стабильных 60+ FPS интерфейса сайта!
+            if (introStateRef.current === 'completed') {
+                const elapsedSinceLast = now - lastFrameTime;
+                if (elapsedSinceLast < 50) { // 20 FPS
+                    animationFrameId = requestAnimationFrame(render);
+                    return;
+                }
+                lastFrameTime = now - (elapsedSinceLast % 50);
+            }
+
             // Очищаем холст с легким motion-blur эффектом
             ctx.fillStyle = 'rgba(5, 5, 8, 0.08)';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-            const elapsed = performance.now() - startTime;
+            const elapsed = now - startTime;
             const isCompleted = introStateRef.current === 'completed';
 
             ctx.save();
