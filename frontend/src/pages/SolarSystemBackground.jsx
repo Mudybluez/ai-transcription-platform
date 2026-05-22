@@ -13,12 +13,13 @@ const SolarSystemBackground = ({ history = [] }) => {
         let width = window.innerWidth;
         let height = window.innerHeight;
 
-        // Настройка размеров под экран (с 4x даунскейлом для 60+ FPS и бесплатного сглаженного размытия)
+        // Настройка размеров под экран (ограничение DPR до 1.0 для исключения просадок FPS на Retina/4K дисплеях)
         const resizeCanvas = () => {
             width = window.innerWidth;
             height = window.innerHeight;
-            canvas.width = Math.ceil(width / 4);
-            canvas.height = Math.ceil(height / 4);
+            const dpr = Math.min(1.0, window.devicePixelRatio || 1);
+            canvas.width = Math.ceil(width * dpr);
+            canvas.height = Math.ceil(height * dpr);
         };
         resizeCanvas();
         window.addEventListener('resize', resizeCanvas);
@@ -109,6 +110,19 @@ const SolarSystemBackground = ({ history = [] }) => {
             });
         }
 
+        // Генерация мерцающих звезд для глубокого космического пространства
+        const stars = [];
+        const starsCount = 80;
+        for (let i = 0; i < starsCount; i++) {
+            stars.push({
+                x: Math.random(),
+                y: Math.random(),
+                size: Math.random() * 1.3 + 0.3,
+                twinkleSpeed: 0.003 + Math.random() * 0.007,
+                phase: Math.random() * Math.PI * 2
+            });
+        }
+
         // Анимационный цикл
         const render = () => {
             // Очищаем экран с легким стиранием для красивого шлейфа (motion blur)
@@ -116,13 +130,60 @@ const SolarSystemBackground = ({ history = [] }) => {
             ctx.fillRect(0, 0, canvas.width, canvas.height);
 
             ctx.save();
-            ctx.scale(0.25, 0.25); // Рисуем в оригинальных координатах на 4x меньшем холсте
+            const scaleX = canvas.width / width;
+            const scaleY = canvas.height / height;
+            ctx.scale(scaleX, scaleY); // Рисуем в оригинальных координатах
+
+            // 1. Отрисовка мерцающих звезд
+            stars.forEach(star => {
+                star.phase += star.twinkleSpeed;
+                const alpha = 0.1 + Math.abs(Math.sin(star.phase)) * 0.65;
+                ctx.beginPath();
+                ctx.arc(star.x * width, star.y * height, star.size, 0, Math.PI * 2);
+                ctx.fillStyle = `rgba(255, 255, 255, ${alpha})`;
+                ctx.fill();
+            });
+
+            // 2. Отрисовка космических туманностей (Nebulas) для глубокого красивого фона
+            // Туманность 1 (Фиолетовая)
+            ctx.beginPath();
+            const nebula1 = ctx.createRadialGradient(
+                width * 0.25,
+                height * 0.35,
+                0,
+                width * 0.25,
+                height * 0.35,
+                width * 0.45
+            );
+            nebula1.addColorStop(0, 'rgba(168, 85, 247, 0.05)');
+            nebula1.addColorStop(0.5, 'rgba(129, 140, 248, 0.015)');
+            nebula1.addColorStop(1, 'rgba(0, 0, 0, 0)');
+            ctx.arc(width * 0.25, height * 0.35, width * 0.45, 0, Math.PI * 2);
+            ctx.fillStyle = nebula1;
+            ctx.fill();
+
+            // Туманность 2 (Бирюзовая)
+            ctx.beginPath();
+            const nebula2 = ctx.createRadialGradient(
+                width * 0.75,
+                height * 0.65,
+                0,
+                width * 0.75,
+                height * 0.65,
+                width * 0.45
+            );
+            nebula2.addColorStop(0, 'rgba(45, 212, 191, 0.035)');
+            nebula2.addColorStop(0.5, 'rgba(56, 189, 248, 0.01)');
+            nebula2.addColorStop(1, 'rgba(0, 0, 0, 0)');
+            ctx.arc(width * 0.75, height * 0.65, width * 0.45, 0, Math.PI * 2);
+            ctx.fillStyle = nebula2;
+            ctx.fill();
 
             // Центр нашей системы (Солнце)
             const sunX = width / 2;
             const sunY = height / 2;
 
-            // 1. Отрисовка Солнца (Фиолетово-розовый космический гигант с очень мягкими границами)
+            // 3. Отрисовка Солнца (Фиолетово-розовый космический гигант с очень мягкими границами)
             ctx.beginPath();
             const sunGrad = ctx.createRadialGradient(sunX, sunY, 0, sunX, sunY, 150);
             sunGrad.addColorStop(0, '#c084fc');
@@ -134,7 +195,7 @@ const SolarSystemBackground = ({ history = [] }) => {
             ctx.fillStyle = sunGrad;
             ctx.fill();
 
-            // 2. Отрисовка орбит и планет со спутниками
+            // 4. Отрисовка орбит и планет со спутниками
             planets.forEach((planet) => {
                 // Рисуем тонкую пунктирную орбиту планеты
                 ctx.beginPath();
@@ -172,7 +233,7 @@ const SolarSystemBackground = ({ history = [] }) => {
                 ctx.fill();
                 ctx.globalAlpha = 1.0;
 
-                // 3. Рисуем спутники (Луны) вокруг планеты
+                // 5. Рисуем спутники (Луны) вокруг планеты
                 for (let j = 0; j < planet.moonsCount; j++) {
                     const moonOrbitRadius = planet.size + 12 + j * 6;
                     // Каждый спутник вращается со своей индивидуальной скоростью
