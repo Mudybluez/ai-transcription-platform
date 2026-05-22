@@ -141,7 +141,7 @@ const MindMap = ({ data, onNavigateToTopic }) => {
                                 className="btn-primary" 
                                 onClick={() => {
                                     if (onNavigateToTopic) {
-                                        onNavigateToTopic(selectedNodeForModal.name);
+                                        onNavigateToTopic(selectedNodeForModal.name, selectedNodeForModal);
                                     }
                                     setSelectedNodeForModal(null);
                                 }}
