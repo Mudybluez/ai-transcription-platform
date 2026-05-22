@@ -33,6 +33,18 @@ const Dashboard = () => {
     const [revealedAnswers, setRevealedAnswers] = useState({}); 
     const [showScrollTop, setShowScrollTop] = useState(false);
     const [highlightText, setHighlightText] = useState(null);
+    const [introState, setIntroState] = useState('playing');
+
+    const handleIntroComplete = () => {
+        setIntroState('blurring');
+        setTimeout(() => {
+            setIntroState('completed');
+        }, 1000);
+    };
+
+    const skipIntro = () => {
+        setIntroState('completed');
+    };
 
     const audioContextRef = useRef(null);
     const analyserRef = useRef(null);
@@ -560,8 +572,17 @@ ${detailed}`;
 
     return (
         <>
-            <SolarSystemBackground history={history} />
-            <div className="dashboard-container fade-in">
+            <SolarSystemBackground 
+                history={history} 
+                introState={introState} 
+                onIntroComplete={handleIntroComplete} 
+            />
+            {introState === 'playing' && (
+                <button className="skip-intro-btn" onClick={skipIntro}>
+                    {t('skip_intro', 'Пропустить')}
+                </button>
+            )}
+            <div className={`dashboard-container ${introState === 'playing' ? 'intro-active' : 'intro-fade-in'}`}>
             <header className="top-nav">
                 <button className="hamburger" onClick={() => setIsMobileMenuOpen(true)}>☰</button>
                 <div className="logo">{t('app_name')}</div>

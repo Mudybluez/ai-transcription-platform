@@ -827,6 +827,131 @@ html, body {
     z-index: 0;
     pointer-events: none;
     overflow: hidden;
+    transition: filter 2.0s cubic-bezier(0.25, 1, 0.5, 1), opacity 2.0s ease;
+    filter: blur(0px) brightness(1);
+}
+
+.solar-system-container.blurred {
+    filter: blur(3px) brightness(0.85); /* Премиальный размытый кинематографический фон */
+}
+
+/* Кнопка пропуска интро */
+.skip-intro-btn {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    z-index: 1000;
+    background: rgba(15, 23, 42, 0.45);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: rgba(255, 255, 255, 0.7);
+    padding: 8px 18px;
+    font-size: 14px;
+    font-weight: 600;
+    border-radius: 20px;
+    cursor: pointer;
+    backdrop-filter: blur(8px);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    animation: fadeIn 0.8s ease-out;
+}
+
+.skip-intro-btn:hover {
+    background: rgba(168, 85, 247, 0.15);
+    color: #ffffff;
+    border-color: rgba(168, 85, 247, 0.45);
+    box-shadow: 0 0 15px rgba(168, 85, 247, 0.3);
+    transform: translateY(-1px);
+}
+
+.skip-intro-btn:active {
+    transform: translateY(1px);
+}
+
+/* Стили для кинематографического плавного появления UI элементов по очереди */
+.dashboard-container.intro-active {
+    pointer-events: none; /* Отключаем клики во время анимации */
+}
+
+.dashboard-container.intro-active .top-nav,
+.dashboard-container.intro-active .hero-section h1,
+.dashboard-container.intro-active .hero-section p,
+.dashboard-container.intro-active .mode-selector,
+.dashboard-container.intro-active .input-group,
+.dashboard-container.intro-active .status-pulse,
+.dashboard-container.intro-active h2.section-title,
+.dashboard-container.intro-active .history-grid {
+    opacity: 0 !important;
+    transform: translateY(24px) !important;
+    animation: none !important;
+}
+
+/* Запускаем анимации при смене класса */
+.dashboard-container.intro-fade-in .top-nav {
+    animation: cinemaFadeInDown 1.0s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.dashboard-container.intro-fade-in .hero-section h1 {
+    animation: cinemaFadeInUp 1.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    animation-delay: 0.15s;
+    opacity: 0;
+}
+
+.dashboard-container.intro-fade-in .hero-section p {
+    animation: cinemaFadeInUp 1.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    animation-delay: 0.35s;
+    opacity: 0;
+}
+
+.dashboard-container.intro-fade-in .mode-selector {
+    animation: cinemaFadeInUp 1.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    animation-delay: 0.5s;
+    opacity: 0;
+}
+
+.dashboard-container.intro-fade-in .input-group {
+    animation: cinemaFadeInUp 1.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    animation-delay: 0.65s;
+    opacity: 0;
+}
+
+.dashboard-container.intro-fade-in .status-pulse {
+    animation: cinemaFadeInUp 1.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    animation-delay: 0.75s;
+    opacity: 0;
+}
+
+.dashboard-container.intro-fade-in h2.section-title {
+    animation: cinemaFadeInUp 1.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    animation-delay: 0.8s;
+    opacity: 0;
+}
+
+.dashboard-container.intro-fade-in .history-grid {
+    animation: cinemaFadeInUp 1.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    animation-delay: 0.95s;
+    opacity: 0;
+}
+
+@keyframes cinemaFadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(24px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes cinemaFadeInDown {
+    from {
+        opacity: 0;
+        transform: translateY(-24px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
 }
 
 /* ==========================================================================
