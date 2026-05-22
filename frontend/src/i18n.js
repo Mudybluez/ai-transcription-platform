@@ -94,7 +94,10 @@ const resources = {
       "admin_col_reg": "Регистрация",
       "admin_col_actions": "Действия",
       "admin_block_btn": "Блокировать",
-      "admin_no_data": "Нет данных для графика"
+      "admin_no_data": "Нет данных для графика",
+      "navigate_question": "Вы хотите перейти к анализу этой темы?",
+      "navigate_confirm": "Перейти",
+      "navigate_cancel": "Отклонить"
     }
   },
   en: {
@@ -187,7 +190,10 @@ const resources = {
       "admin_col_reg": "Registration",
       "admin_col_actions": "Actions",
       "admin_block_btn": "Block",
-      "admin_no_data": "No data for chart"
+      "admin_no_data": "No data for chart",
+      "navigate_question": "Do you want to navigate to the analysis of this topic?",
+      "navigate_confirm": "Navigate",
+      "navigate_cancel": "Cancel"
     }
   },
   kk: {
@@ -280,7 +286,10 @@ const resources = {
       "admin_col_reg": "Тіркелу",
       "admin_col_actions": "Әрекеттер",
       "admin_block_btn": "Блоктау",
-      "admin_no_data": "График үшін деректер жоқ"
+      "admin_no_data": "График үшін деректер жоқ",
+      "navigate_question": "Бұл тақырыптың талдауына өткіңіз келе ме?",
+      "navigate_confirm": "Өту",
+      "navigate_cancel": "Бас тарту"
     }
   }
 };

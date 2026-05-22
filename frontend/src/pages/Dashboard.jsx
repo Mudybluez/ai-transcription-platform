@@ -30,6 +30,7 @@ const Dashboard = () => {
     const [quizAnswers, setQuizAnswers] = useState({});
     const [revealedAnswers, setRevealedAnswers] = useState({}); 
     const [showScrollTop, setShowScrollTop] = useState(false);
+    const [highlightText, setHighlightText] = useState(null);
 
     const audioContextRef = useRef(null);
     const analyserRef = useRef(null);
@@ -168,6 +169,77 @@ const Dashboard = () => {
         loadHistory();
     }, []);
 
+    // Эффект для подсветки предложений и прокрутки при клике на ноду карты связей
+    useEffect(() => {
+        if (!highlightText || !activeItem) return;
+
+        const timer = setTimeout(() => {
+            // Очищаем предыдущую подсветку
+            const prevMarks = document.querySelectorAll('mark.highlight-mark');
+            prevMarks.forEach(mark => {
+                const parent = mark.parentNode;
+                if (parent) {
+                    parent.replaceChild(document.createTextNode(mark.textContent), mark);
+                    parent.normalize();
+                }
+            });
+
+            const query = highlightText.trim();
+            if (!query) return;
+
+            // Контейнеры с текстом анализа
+            const containers = document.querySelectorAll('.markdown-body, .insight-card, .takeaways-box');
+            let foundElement = null;
+
+            containers.forEach(container => {
+                const walk = document.createTreeWalker(container, NodeFilter.SHOW_TEXT, null, false);
+                const nodesToReplace = [];
+                let node;
+                while (node = walk.nextNode()) {
+                    const text = node.nodeValue;
+                    const index = text.toLowerCase().indexOf(query.toLowerCase());
+                    if (index >= 0) {
+                        nodesToReplace.push({ node, text, index });
+                    }
+                }
+
+                nodesToReplace.forEach(({ node, text, index }) => {
+                    const parent = node.parentNode;
+                    if (!parent || parent.tagName === 'MARK' || parent.classList.contains('highlight-mark')) return;
+
+                    const before = text.substring(0, index);
+                    const match = text.substring(index, index + query.length);
+                    const after = text.substring(index + query.length);
+
+                    const fragment = document.createDocumentFragment();
+                    if (before) fragment.appendChild(document.createTextNode(before));
+
+                    const mark = document.createElement('mark');
+                    mark.className = 'highlight-mark';
+                    mark.textContent = match;
+                    fragment.appendChild(mark);
+
+                    if (after) fragment.appendChild(document.createTextNode(after));
+
+                    parent.replaceChild(fragment, node);
+                    if (!foundElement) {
+                        foundElement = mark;
+                    }
+                });
+            });
+
+            if (foundElement) {
+                foundElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                foundElement.classList.add('pulse-highlight');
+                setTimeout(() => {
+                    foundElement.classList.remove('pulse-highlight');
+                }, 3000);
+            }
+        }, 200);
+
+        return () => clearTimeout(timer);
+    }, [highlightText, activeItem, currentTab]);
+
     // авто-перенаправления
     useEffect(() => {
         let interval;
@@ -230,6 +302,7 @@ const Dashboard = () => {
         setIsFlipped(false);
         setQuizAnswers({});
         setRevealedAnswers({});
+        setHighlightText(null);
     };
 
     const handleSubmit = async (e) => {
@@ -526,7 +599,7 @@ ${detailed}`;
             ) : (
                 <div className="fade-in">
                     <div className="analysis-header">
-                        <button className="back-btn" onClick={() => setActiveItem(null)} style={{ marginBottom: 0 }}>
+                        <button className="back-btn" onClick={() => { setActiveItem(null); setHighlightText(null); }} style={{ marginBottom: 0 }}>
                             {t('back_btn')}
                         </button>
                         <button className="btn-primary copy-btn" onClick={copyToClipboard}>
@@ -596,7 +669,13 @@ ${detailed}`;
                         )}
 
                         {currentTab === 'mindmap' && activeItem.mindmap && (
-                            <MindMap data={activeItem.mindmap} />
+                            <MindMap 
+                                data={activeItem.mindmap} 
+                                onNavigateToTopic={(topicName) => {
+                                    setCurrentTab('summary');
+                                    setHighlightText(topicName);
+                                }}
+                            />
                         )}
 
                         {currentTab === 'transcript' && (

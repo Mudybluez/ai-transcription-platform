@@ -2,11 +2,12 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import ForceGraph2D from 'react-force-graph-2d';
 
-const MindMap = ({ data }) => {
+const MindMap = ({ data, onNavigateToTopic }) => {
     const { t, i18n } = useTranslation();
     const currentLang = i18n.language || 'ru';
     const [searchQuery, setSearchQuery] = useState('');
     const [graphData, setGraphData] = useState({ nodes: [], links: [] });
+    const [selectedNodeForModal, setSelectedNodeForModal] = useState(null);
     const fgRef = useRef();
 
     // Хелпер для текста
@@ -126,8 +127,37 @@ const MindMap = ({ data }) => {
                 onNodeClick={node => {
                     fgRef.current.centerAt(node.x, node.y, 1000);
                     fgRef.current.zoom(3, 1000);
+                    setSelectedNodeForModal(node);
                 }}
             />
+
+            {selectedNodeForModal && (
+                <div className="mindmap-modal-overlay fade-in">
+                    <div className="mindmap-modal-content slide-up">
+                        <h3>{t('navigate_question', 'Вы хотите перейти к анализу этой темы?')}</h3>
+                        <p className="topic-highlight">"{selectedNodeForModal.name}"</p>
+                        <div className="modal-actions">
+                            <button 
+                                className="btn-primary" 
+                                onClick={() => {
+                                    if (onNavigateToTopic) {
+                                        onNavigateToTopic(selectedNodeForModal.name);
+                                    }
+                                    setSelectedNodeForModal(null);
+                                }}
+                            >
+                                {t('navigate_confirm', 'Перейти')}
+                            </button>
+                            <button 
+                                className="btn-secondary" 
+                                onClick={() => setSelectedNodeForModal(null)}
+                            >
+                                {t('navigate_cancel', 'Отклонить')}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

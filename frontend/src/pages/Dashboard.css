@@ -747,3 +747,118 @@ html, body {
     font-weight: 500;
     padding: 10px;
 }
+
+/* ==========================================================================
+   MINDMAP INTERACTIVE MODAL & SEARCH HIGHLIGHTING STYLES
+   ========================================================================== */
+
+/* Модальное окно подтверждения перехода в MindMap */
+.mindmap-modal-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(15, 23, 42, 0.65);
+    backdrop-filter: blur(8px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10000;
+}
+
+.mindmap-modal-content {
+    background: linear-gradient(135deg, rgba(30, 27, 46, 0.95), rgba(15, 23, 42, 0.95));
+    border: 1px solid rgba(168, 85, 247, 0.3);
+    padding: 30px;
+    border-radius: 16px;
+    width: 90%;
+    max-width: 450px;
+    text-align: center;
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+    transform: scale(0.95);
+    animation: mindmapModalScale 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+@keyframes mindmapModalScale {
+    to {
+        transform: scale(1);
+    }
+}
+
+.mindmap-modal-content h3 {
+    margin: 0 0 15px 0;
+    font-size: 20px;
+    font-weight: 700;
+    color: #ffffff;
+    line-height: 1.4;
+}
+
+.topic-highlight {
+    font-size: 16px;
+    color: #a855f7;
+    font-weight: 600;
+    margin: 0 auto 25px auto;
+    background: rgba(168, 85, 247, 0.1);
+    padding: 10px 15px;
+    border-radius: 8px;
+    border-left: 3px solid #6366f1;
+    display: inline-block;
+    max-width: 100%;
+    word-break: break-word;
+}
+
+.modal-actions {
+    display: flex;
+    justify-content: center;
+    gap: 15px;
+}
+
+.modal-actions .btn-primary {
+    padding: 12px 24px;
+    font-size: 15px;
+}
+
+.modal-actions .btn-secondary {
+    background: rgba(255, 255, 255, 0.05);
+    color: #94a3b8;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    padding: 12px 24px;
+    border-radius: 12px;
+    font-weight: 600;
+    font-size: 15px;
+    cursor: pointer;
+    transition: all 0.3s;
+}
+
+.modal-actions .btn-secondary:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: white;
+    transform: translateY(-2px);
+}
+
+/* Стили подсветки */
+.highlight-mark {
+    background: linear-gradient(90deg, rgba(168, 85, 247, 0.3), rgba(99, 102, 241, 0.3));
+    color: #ffffff;
+    border-bottom: 2px solid #a855f7;
+    padding: 2px 4px;
+    border-radius: 4px;
+    font-weight: 600;
+    transition: all 0.3s ease;
+}
+
+.pulse-highlight {
+    animation: highlightGlow 1.5s ease-in-out infinite alternate;
+}
+
+@keyframes highlightGlow {
+    from {
+        box-shadow: 0 0 4px rgba(168, 85, 247, 0.5);
+        background-color: rgba(168, 85, 247, 0.45);
+    }
+    to {
+        box-shadow: 0 0 16px rgba(99, 102, 241, 0.8);
+        background-color: rgba(99, 102, 241, 0.55);
+    }
+}
