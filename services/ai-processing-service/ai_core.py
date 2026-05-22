@@ -84,7 +84,6 @@ def normalize_analysis_data(data):
         for lang in ["ru", "en", "kk"]:
             if lang not in normalized[field] or normalized[field][lang] is None:
                 normalized[field][lang] = ""
-                
     # Проверяем takeaways
     if not isinstance(normalized["takeaways"], dict):
         normalized["takeaways"] = default_localized_list.copy()
@@ -93,6 +92,16 @@ def normalize_analysis_data(data):
     for lang in ["ru", "en", "kk"]:
         if lang not in normalized["takeaways"] or not isinstance(normalized["takeaways"][lang], list):
             normalized["takeaways"][lang] = []
+            
+    # Проверяем mind_map
+    if not isinstance(normalized["mind_map"], dict):
+        normalized["mind_map"] = {"nodes": [], "links": []}
+    else:
+        normalized["mind_map"] = normalized["mind_map"].copy()
+        if "nodes" not in normalized["mind_map"] or not isinstance(normalized["mind_map"]["nodes"], list):
+            normalized["mind_map"]["nodes"] = []
+        if "links" not in normalized["mind_map"] or not isinstance(normalized["mind_map"]["links"], list):
+            normalized["mind_map"]["links"] = []
             
     return normalized
 
