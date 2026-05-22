@@ -6,6 +6,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { useTranslation } from 'react-i18next';
 import MindMap from './MindMap';
+import SolarSystemBackground from './SolarSystemBackground';
 import { downloadYoutubeClientSide } from '../utils/youtubeDownloader';
 
 const Dashboard = () => {
@@ -558,7 +559,9 @@ ${detailed}`;
     };
 
     return (
-        <div className="dashboard-container fade-in">
+        <>
+            <SolarSystemBackground history={history} />
+            <div className="dashboard-container fade-in">
             <header className="top-nav">
                 <button className="hamburger" onClick={() => setIsMobileMenuOpen(true)}>☰</button>
                 <div className="logo">{t('app_name')}</div>
@@ -862,6 +865,7 @@ ${detailed}`;
                 </button>
             )}
         </div>
+        </>
     );
 };
 

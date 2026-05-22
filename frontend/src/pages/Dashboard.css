@@ -5,9 +5,27 @@
 html, body {
     margin: 0;
     padding: 0;
-    background-color: #050505; /* Черный фон на весь экран */
+    background-color: #050508; /* Глубокий черный цвет космоса */
     min-height: 100vh;
     overflow-x: hidden; /* Убираем горизонтальную прокрутку */
+    scroll-behavior: smooth;
+}
+
+/* Кастомный премиальный скроллбар в стиле глубокого космоса */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+::-webkit-scrollbar-track {
+    background: rgba(5, 5, 8, 0.95);
+}
+::-webkit-scrollbar-thumb {
+    background: linear-gradient(180deg, #a855f7, #6366f1);
+    border-radius: 4px;
+    border: 2px solid #050508;
+}
+::-webkit-scrollbar-thumb:hover {
+    background: linear-gradient(180deg, #c084fc, #818cf8);
 }
 /* Базовые стили и анимации */
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
@@ -19,11 +37,15 @@ html, body {
 .slide-up { animation: fadeInUp 0.4s ease-out; }
 
 .dashboard-container {
-    background: radial-gradient(circle at top, #13111c, #0b0b0f);
+    background: radial-gradient(circle at top, rgba(19, 17, 28, 0.4), rgba(11, 11, 15, 0.4));
+    backdrop-filter: blur(2px);
+    -webkit-backdrop-filter: blur(2px);
     color: #ffffff;
     min-height: 100vh;
     font-family: 'Inter', sans-serif;
     padding: 30px 10%;
+    position: relative;
+    z-index: 1; /* Помещаем контент поверх фонового Canvas */
 }
 
 /* Навигация */
@@ -43,7 +65,21 @@ html, body {
     -webkit-text-fill-color: transparent;
 }
 .nav-links-desktop { display: flex; align-items: center; }
-.hamburger { display: none; background: none; border: none; color: white; font-size: 24px; cursor: pointer; margin-right: 15px; }
+.hamburger {
+    display: none;
+    background: none;
+    border: none;
+    color: white;
+    font-size: 24px;
+    cursor: pointer;
+    margin-right: 15px;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.hamburger:hover {
+    color: #a855f7;
+    transform: scale(1.15) rotate(90deg);
+    text-shadow: 0 0 10px rgba(168, 85, 247, 0.6);
+}
 
 /* Мобильная шторка */
 .mobile-menu-drawer {
@@ -63,9 +99,41 @@ html, body {
     margin-left: 20px;
     text-decoration: none;
     cursor: pointer;
-    transition: color 0.3s;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
+    padding: 6px 0;
+    display: inline-block;
 }
-.nav-link:hover { color: #fff; }
+.nav-link::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 0;
+    height: 2px;
+    background: linear-gradient(90deg, #a855f7, #6366f1);
+    transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 0 8px rgba(168, 85, 247, 0.6);
+}
+.nav-link:hover {
+    color: #ffffff;
+    transform: scale(1.05) translateY(-1px);
+    text-shadow: 0 0 8px rgba(255, 255, 255, 0.3);
+}
+.nav-link:hover::after {
+    width: 100%;
+}
+.nav-link.logout {
+    color: #f87171;
+}
+.nav-link.logout::after {
+    background: linear-gradient(90deg, #f87171, #ef4444);
+    box-shadow: 0 0 8px rgba(239, 68, 68, 0.6);
+}
+.nav-link.logout:hover {
+    color: #fca5a5;
+    text-shadow: 0 0 8px rgba(239, 68, 68, 0.3);
+}
 
 @media (max-width: 600px) {
     .nav-links-desktop { display: none; }
@@ -746,6 +814,35 @@ html, body {
     color: #ffffff;
     font-weight: 500;
     padding: 10px;
+}
+
+/* Контейнер для трехмерной анимированной солнечной системы на фоне */
+.solar-system-container {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    z-index: 0;
+    pointer-events: none;
+    overflow: hidden;
+    filter: blur(35px);
+    -webkit-filter: blur(35px);
+    transform: translate3d(0, 0, 0);
+    will-change: transform;
+    animation: cosmicWobble 25s ease-in-out infinite alternate;
+}
+
+@keyframes cosmicWobble {
+    0% {
+        transform: translateY(0) rotate(0deg) scale(1);
+    }
+    50% {
+        transform: translateY(-15px) rotate(0.5deg) scale(1.02);
+    }
+    100% {
+        transform: translateY(15px) rotate(-0.5deg) scale(0.98);
+    }
 }
 
 /* ==========================================================================
