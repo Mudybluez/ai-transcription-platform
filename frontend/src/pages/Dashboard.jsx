@@ -565,13 +565,14 @@ ${detailed}`;
                     </div>
                     
                     <div className="tabs-container">
-                        {['summary', 'flashcards', 'quiz', 'transcript'].map(tab => (
+                        {['summary', 'mindmap', 'flashcards', 'quiz', 'transcript'].map(tab => (
                             <button 
                                 key={tab}
                                 className={`tab-btn ${currentTab === tab ? 'active' : ''}`} 
                                 onClick={() => setCurrentTab(tab)}
                             >
                                 {tab === 'summary' && t('tab_summary', 'Анализ')}
+                                {tab === 'mindmap' && t('tab_mindmap', 'Карта')}
                                 {tab === 'flashcards' && t('tab_flashcards', 'Карточки')}
                                 {tab === 'quiz' && t('tab_quiz', 'Тест')}
                                 {tab === 'transcript' && t('tab_text', 'Текст')}
@@ -622,6 +623,10 @@ ${detailed}`;
                                     </ul>
                                 </div>
                             </div>
+                        )}
+
+                        {currentTab === 'mindmap' && activeItem.mindmap && (
+                            <MindMap data={activeItem.mindmap} />
                         )}
 
                         {currentTab === 'transcript' && (
