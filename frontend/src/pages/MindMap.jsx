@@ -15,6 +15,7 @@ const MindMap = ({ data, onNavigateToTopic }) => {
     const [dimensions, setDimensions] = useState({ width: 800, height: 700 });
     const wrapperRef = useRef(null);
     const originalTopRef = useRef(null);
+    const initialScrollYRef = useRef(window.scrollY);
 
     // Хелпер для текста
     const getLangText = (obj) => {
@@ -72,17 +73,20 @@ const MindMap = ({ data, onNavigateToTopic }) => {
             
             const rect = wrapperRef.current.getBoundingClientRect();
             
-            // Если верхняя граница поднялась близко к верху (<= 100px) при скролле вниз
-            if (!isImmersive && rect.top <= 100 && window.scrollY > 200) {
-                originalTopRef.current = window.scrollY;
-                setIsImmersive(true);
-            }
-            
-            // Если мы в полноэкранном режиме и пользователь отскроллил вверх выше триггера
-            if (isImmersive && originalTopRef.current !== null) {
-                if (window.scrollY < originalTopRef.current - 120) {
-                    setIsImmersive(false);
-                    originalTopRef.current = null;
+            if (!isImmersive) {
+                const deltaScroll = window.scrollY - initialScrollYRef.current;
+                
+                // Срабатывает если пользователь скроллит вниз (на >40px)
+                // И верхняя граница карты подошла к верху экрана (<= 150px)
+                // И карта всё еще видна в нижней части экрана (rect.bottom > 200)
+                if (deltaScroll > 40 && rect.top <= 150 && rect.bottom > 200) {
+                    originalTopRef.current = window.scrollY;
+                    setIsImmersive(true);
+                }
+            } else {
+                // Если мы в иммерсивном режиме и пользователь отскроллил вверх выше точки входа
+                if (originalTopRef.current !== null && window.scrollY < originalTopRef.current - 80) {
+                    handleCloseImmersive();
                 }
             }
         };
@@ -105,6 +109,7 @@ const MindMap = ({ data, onNavigateToTopic }) => {
     const handleCloseImmersive = () => {
         setIsImmersive(false);
         originalTopRef.current = null;
+        initialScrollYRef.current = window.scrollY; // Сбрасываем скролл отсчета, чтобы избежать мгновенного авто-разворачивания
         setTimeout(() => {
             if (wrapperRef.current) {
                 wrapperRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
