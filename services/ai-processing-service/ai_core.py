@@ -40,11 +40,18 @@ def download_youtube_audio(url):
     except Exception as e:
         raise Exception(f"Ошибка загрузки YouTube: {str(e)}")
     
-def transcribe_audio(file_path, language="ru"):
+def transcribe_audio(file_path, language='ru'):
     """Транскрибирует аудио/видео файл с помощью Whisper с указанием языка"""
     try:
-        # Для Whisper 'kk' поддерживается, передаем язык как подсказку
-        result = whisper_model.transcribe(file_path, language=language)
+        # Нормализуем код языка (например, 'en-US' -> 'en', 'ru-RU' -> 'ru')
+        lang_code = language.split('-')[0].lower()
+        
+        # Whisper ожидает двухбуквенный код. Если код не поддерживается, он сам попытается определить
+        # или выдаст ошибку, которую мы перехватим.
+        # Для Kazakh (kk) Whisper base может быть слабоват, но код 'kk' поддерживается.
+        
+        print(f"🎙️ Запуск транскрибации Whisper (язык: {lang_code})...")
+        result = whisper_model.transcribe(file_path, language=lang_code)
         return result["text"]
     except Exception as e:
         raise Exception(f"Ошибка транскрипции Whisper: {str(e)}")
@@ -56,7 +63,7 @@ def analyze_content(text):
 
     if len(text) > 15000:
         print(f"⚠️ Текст слишком длинный ({len(text)}). Обрезаем для Gemini до 15000 символов.")
-        text = text[:15000]
+        text = text[:15000] 
 
     model = genai.GenerativeModel("models/gemini-2.5-flash")
     

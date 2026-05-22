@@ -2,6 +2,7 @@ import os
 import time
 import json
 import pika
+import requests
 from db import init_db, update_job_status, save_result
 from ai_core import transcribe_audio, analyze_content, download_youtube_audio
 
@@ -49,7 +50,7 @@ def callback(ch, method, properties, body):
             audio_to_process = file_path
 
         print(f"Начинаем транскрибацию...")
-        raw_text = transcribe_audio(audio_to_process, language)
+        raw_text = transcribe_audio(audio_to_process, language=language)
         print(f"Транскрибация завершена. Длина: {len(raw_text)} символов.")
         if is_youtube and os.path.exists(audio_to_process):
             os.remove(audio_to_process)
@@ -62,6 +63,21 @@ def callback(ch, method, properties, body):
         # 3. Сохраняем результат
         save_result(job_id, user_id, raw_text, analysis_data)
         update_job_status(job_id, "COMPLETED")
+
+        # 4. Отправляем данные в mindmap-service, если они есть
+        if "mind_map" in analysis_data:
+            try:
+                mindmap_service_url = os.getenv("MINDMAP_SERVICE_URL", "http://mindmap-service:3005/mindmap/save")
+                mindmap_data = {
+                    "transcription_id": str(job_id),
+                    "nodes": analysis_data["mind_map"].get("nodes", []),
+                    "links": analysis_data["mind_map"].get("links", [])
+                }
+                requests.post(mindmap_service_url, json=mindmap_data, timeout=5)
+                print(f"MindMap для задачи {job_id} отправлен в сервис.")
+            except Exception as me:
+                print(f"Ошибка отправки MindMap: {me}")
+
         print(f"Задача {job_id} успешно выполнена и сохранена!")
 
     except Exception as e:

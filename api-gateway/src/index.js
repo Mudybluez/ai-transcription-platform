@@ -76,6 +76,9 @@ app.get('/api/user/stats/:id', proxy(process.env.SEARCH_SERVICE_URL || 'http://l
     proxyReqPathResolver: (req) => `/user/stats/${req.params.id}`
 }));
 
+// Прокси для MindMap Service
+app.use('/api/mindmap', proxy(process.env.MINDMAP_SERVICE_URL || 'http://mindmap-service:3005'));
+
 // Базовый роут для проверки работоспособности
 app.get('/health', (req, res) => {
     res.status(200).json({ status: 'API Gateway is running' });
