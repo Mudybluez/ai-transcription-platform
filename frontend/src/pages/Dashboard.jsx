@@ -46,6 +46,69 @@ const Dashboard = () => {
         setIntroState('completed');
     };
 
+    // Плавный скролл мыши с использованием инерции и requestAnimationFrame (60 FPS без зависимостей)
+    useEffect(() => {
+        let targetScrollY = window.scrollY;
+        let currentScrollY = window.scrollY;
+        let isMoving = false;
+
+        const onWheel = (e) => {
+            if (e.ctrlKey || e.shiftKey) return;
+            
+            // Предотвращаем конфликт с локальными скроллбарами модальных окон, MindMap или текстовых полей
+            const path = e.composedPath() || [];
+            for (const element of path) {
+                if (element === document.body || element === document.documentElement) break;
+                if (element.scrollHeight > element.clientHeight) {
+                    const overflow = window.getComputedStyle(element).overflowY;
+                    if (overflow === 'auto' || overflow === 'scroll') {
+                        return; 
+                    }
+                }
+            }
+
+            e.preventDefault();
+            targetScrollY = Math.max(0, Math.min(
+                document.documentElement.scrollHeight - window.innerHeight,
+                targetScrollY + e.deltaY * 0.85 // Депфирование шага
+            ));
+
+            if (!isMoving) {
+                isMoving = true;
+                requestAnimationFrame(updateScroll);
+            }
+        };
+
+        const updateScroll = () => {
+            const diff = targetScrollY - currentScrollY;
+            if (Math.abs(diff) > 0.5) {
+                currentScrollY += diff * 0.085; // Коэффициент сглаживания t
+                window.scrollTo(0, currentScrollY);
+                requestAnimationFrame(updateScroll);
+            } else {
+                currentScrollY = targetScrollY;
+                window.scrollTo(0, currentScrollY);
+                isMoving = false;
+            }
+        };
+
+        // Синхронизируем координаты скролла при кликах, переходах или ресайзе
+        const syncScroll = () => {
+            if (!isMoving) {
+                targetScrollY = window.scrollY;
+                currentScrollY = window.scrollY;
+            }
+        };
+
+        window.addEventListener('wheel', onWheel, { passive: false });
+        window.addEventListener('scroll', syncScroll);
+        
+        return () => {
+            window.removeEventListener('wheel', onWheel);
+            window.removeEventListener('scroll', syncScroll);
+        };
+    }, []);
+
     const audioContextRef = useRef(null);
     const analyserRef = useRef(null);
     const animationFrameRef = useRef(null);
