@@ -4,6 +4,8 @@ const SolarSystemBackground = ({ history = [], introState = 'playing', onIntroCo
     const canvasRef = useRef(null);
     const introStateRef = useRef(introState);
     const onIntroCompleteRef = useRef(onIntroComplete);
+    const isScrollingRef = useRef(false);
+    const scrollTimeoutRef = useRef(null);
 
     useEffect(() => {
         introStateRef.current = introState;
@@ -49,11 +51,11 @@ const SolarSystemBackground = ({ history = [], introState = 'playing', onIntroCo
             });
         }
 
-        // Настройка размеров под экран (используем DPR=0.5 для даунскейлинга и стабильного 60+ FPS на слабых GPU)
+        // Настройка размеров под экран (используем DPR=0.35 для даунскейлинга и стабильного 60+ FPS на слабых GPU)
         const resizeCanvas = () => {
             width = window.innerWidth;
             height = window.innerHeight;
-            const dpr = 0.5;
+            const dpr = 0.35; // Оптимизировано с 0.5 до 0.35 для 2.0x снижения площади отрисовки и фильтрации размытия
             canvas.width = Math.ceil(width * dpr);
             canvas.height = Math.ceil(height * dpr);
 
@@ -112,6 +114,15 @@ const SolarSystemBackground = ({ history = [], introState = 'playing', onIntroCo
         };
         resizeCanvas();
         window.addEventListener('resize', resizeCanvas);
+
+        const handleSystemScroll = () => {
+            isScrollingRef.current = true;
+            if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
+            scrollTimeoutRef.current = setTimeout(() => {
+                isScrollingRef.current = false;
+            }, 150);
+        };
+        window.addEventListener('scroll', handleSystemScroll, { passive: true });
 
         // Палитра космических красок для планет
         const cosmicColors = [
@@ -210,6 +221,13 @@ const SolarSystemBackground = ({ history = [], introState = 'playing', onIntroCo
 
         // Анимационный цикл
         const render = () => {
+            // Если страница прокручивается и интро завершено, временно приостанавливаем перерисовку Canvas.
+            // Предыдущий кадр остается на экране без нагрузки на CPU/GPU, сохраняя 60+ FPS при скролле!
+            if (isScrollingRef.current && introStateRef.current === 'completed') {
+                animationFrameId = requestAnimationFrame(render);
+                return;
+            }
+
             // Очищаем холст с легким motion-blur эффектом
             ctx.fillStyle = 'rgba(5, 5, 8, 0.08)';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -359,6 +377,8 @@ const SolarSystemBackground = ({ history = [], introState = 'playing', onIntroCo
 
         return () => {
             window.removeEventListener('resize', resizeCanvas);
+            window.removeEventListener('scroll', handleSystemScroll);
+            if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
             cancelAnimationFrame(animationFrameId);
         };
     }, [history]);
