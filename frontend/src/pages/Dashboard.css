@@ -868,7 +868,7 @@ html, body {
    ========================================================================== */
 
 .mindmap-wrapper {
-    transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1), background 0.3s;
+    transition: background 0.3s, border-radius 0.3s;
 }
 
 /* Иммерсивный режим (во весь экран) */
@@ -885,6 +885,19 @@ html, body {
     box-shadow: 0 0 100px rgba(0, 0, 0, 0.8) !important;
     display: flex;
     flex-direction: column;
+    animation: mindmapImmersiveEntry 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+    transform-origin: center center;
+}
+
+@keyframes mindmapImmersiveEntry {
+    from {
+        opacity: 0;
+        transform: scale(0.96);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
 }
 
 /* Панель управления иммерсивным режимом */
