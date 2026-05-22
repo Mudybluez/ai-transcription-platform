@@ -887,6 +887,8 @@ html, body {
     flex-direction: column;
     animation: mindmapImmersiveEntry 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
     transform-origin: center center;
+    align-items: center;
+    justify-content: flex-start;
 }
 
 @keyframes mindmapImmersiveEntry {
