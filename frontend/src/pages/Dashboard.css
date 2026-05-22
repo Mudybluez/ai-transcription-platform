@@ -826,8 +826,8 @@ html, body {
     z-index: 0;
     pointer-events: none;
     overflow: hidden;
-    filter: blur(35px);
-    -webkit-filter: blur(35px);
+    filter: blur(4px);
+    -webkit-filter: blur(4px);
     transform: translate3d(0, 0, 0);
     will-change: transform;
     animation: cosmicWobble 25s ease-in-out infinite alternate;

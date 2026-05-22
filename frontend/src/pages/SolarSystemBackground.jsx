@@ -10,10 +10,15 @@ const SolarSystemBackground = ({ history = [] }) => {
         const ctx = canvas.getContext('2d');
         let animationFrameId;
 
-        // Настройка размеров под экран
+        let width = window.innerWidth;
+        let height = window.innerHeight;
+
+        // Настройка размеров под экран (с 4x даунскейлом для 60+ FPS и бесплатного сглаженного размытия)
         const resizeCanvas = () => {
-            canvas.width = window.innerWidth;
-            canvas.height = window.innerHeight;
+            width = window.innerWidth;
+            height = window.innerHeight;
+            canvas.width = Math.ceil(width / 4);
+            canvas.height = Math.ceil(height / 4);
         };
         resizeCanvas();
         window.addEventListener('resize', resizeCanvas);
@@ -110,19 +115,22 @@ const SolarSystemBackground = ({ history = [] }) => {
             ctx.fillStyle = 'rgba(5, 5, 8, 0.08)';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-            // Центр нашей системы (Солнце)
-            const sunX = canvas.width / 2;
-            const sunY = canvas.height / 2;
+            ctx.save();
+            ctx.scale(0.25, 0.25); // Рисуем в оригинальных координатах на 4x меньшем холсте
 
-            // 1. Отрисовка Солнца (Фиолетово-розовый космический гигант)
+            // Центр нашей системы (Солнце)
+            const sunX = width / 2;
+            const sunY = height / 2;
+
+            // 1. Отрисовка Солнца (Фиолетово-розовый космический гигант с очень мягкими границами)
             ctx.beginPath();
-            const sunGrad = ctx.createRadialGradient(sunX, sunY, 0, sunX, sunY, 35);
+            const sunGrad = ctx.createRadialGradient(sunX, sunY, 0, sunX, sunY, 150);
             sunGrad.addColorStop(0, '#c084fc');
-            sunGrad.addColorStop(0.3, '#a855f7');
-            sunGrad.addColorStop(0.8, 'rgba(99, 102, 241, 0.15)');
+            sunGrad.addColorStop(0.2, 'rgba(168, 85, 247, 0.7)');
+            sunGrad.addColorStop(0.6, 'rgba(99, 102, 241, 0.25)');
             sunGrad.addColorStop(1, 'rgba(99, 102, 241, 0)');
             
-            ctx.arc(sunX, sunY, 35, 0, Math.PI * 2);
+            ctx.arc(sunX, sunY, 150, 0, Math.PI * 2);
             ctx.fillStyle = sunGrad;
             ctx.fill();
 
@@ -144,22 +152,25 @@ const SolarSystemBackground = ({ history = [] }) => {
                 const planetX = sunX + planet.orbitRadius * Math.cos(planet.angle);
                 const planetY = sunY + planet.orbitRadius * Math.sin(planet.angle);
 
-                // Рисуем свечение планеты
+                // Рисуем свечение планеты (увеличиваем радиус свечения для мягкости)
+                const glowRadius = planet.size * 5;
                 ctx.beginPath();
-                const planetGrad = ctx.createRadialGradient(planetX, planetY, 0, planetX, planetY, planet.size * 2);
+                const planetGrad = ctx.createRadialGradient(planetX, planetY, 0, planetX, planetY, glowRadius);
                 planetGrad.addColorStop(0, planet.color);
-                planetGrad.addColorStop(0.4, planet.color);
+                planetGrad.addColorStop(0.3, planet.color);
                 planetGrad.addColorStop(1, 'rgba(0,0,0,0)');
                 
-                ctx.arc(planetX, planetY, planet.size * 2, 0, Math.PI * 2);
+                ctx.arc(planetX, planetY, glowRadius, 0, Math.PI * 2);
                 ctx.fillStyle = planetGrad;
                 ctx.fill();
 
-                // Рисуем само тело планеты
+                // Рисуем само тело планеты в мягком стиле с полупрозрачностью
                 ctx.beginPath();
                 ctx.arc(planetX, planetY, planet.size, 0, Math.PI * 2);
                 ctx.fillStyle = planet.color;
+                ctx.globalAlpha = 0.5;
                 ctx.fill();
+                ctx.globalAlpha = 1.0;
 
                 // 3. Рисуем спутники (Луны) вокруг планеты
                 for (let j = 0; j < planet.moonsCount; j++) {
@@ -185,6 +196,8 @@ const SolarSystemBackground = ({ history = [] }) => {
                     ctx.fill();
                 }
             });
+
+            ctx.restore(); // Восстанавливаем состояние контекста после масштабирования
 
             animationFrameId = requestAnimationFrame(render);
         };
