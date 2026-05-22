@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import api from '../api';
 import './Dashboard.css';
 import ReactMarkdown from 'react-markdown';
@@ -11,6 +11,7 @@ import { downloadYoutubeClientSide } from '../utils/youtubeDownloader';
 const Dashboard = () => {
     // 1. Hooks (States & Refs)
     const { t, i18n } = useTranslation();
+    const location = useLocation();
     const [youtubeUrl, setYoutubeUrl] = useState('');
     const [status, setStatus] = useState('');
     const [history, setHistory] = useState([]);
@@ -169,11 +170,32 @@ const Dashboard = () => {
         loadHistory();
     }, []);
 
+    // Эффект для обработки перехода с глобальной карты связей (state из react-router)
+    useEffect(() => {
+        if (location.state && history.length > 0) {
+            const { openItemId, highlightText: stateHighlightText } = location.state;
+            if (openItemId) {
+                const itemToOpen = history.find(item => String(item.id) === String(openItemId));
+                if (itemToOpen) {
+                    openItem(itemToOpen, stateHighlightText);
+                    // Очищаем state, чтобы при перезагрузке страницы не открывалось заново
+                    window.history.replaceState({}, document.title);
+                }
+            } else if (stateHighlightText) {
+                setHighlightText(stateHighlightText);
+                window.history.replaceState({}, document.title);
+            }
+        }
+    }, [location.state, history]);
+
     // Эффект для подсветки предложений и прокрутки при клике на ноду карты связей
     useEffect(() => {
         if (!highlightText || !activeItem) return;
 
-        const timer = setTimeout(() => {
+        let attempts = 0;
+        const maxAttempts = 10;
+
+        const tryHighlight = () => {
             // Очищаем предыдущую подсветку
             const prevMarks = document.querySelectorAll('mark.highlight-mark');
             prevMarks.forEach(mark => {
@@ -188,8 +210,43 @@ const Dashboard = () => {
             if (!query) return;
 
             // Контейнеры с текстом анализа
-            const containers = document.querySelectorAll('.markdown-body, .insight-card, .takeaways-box');
+            const containers = document.querySelectorAll('.analysis-summary, .markdown-body, .insight-card, .takeaways-box, .topic-card');
+            
+            if (containers.length === 0) {
+                attempts++;
+                if (attempts < maxAttempts) {
+                    setTimeout(tryHighlight, 100);
+                }
+                return;
+            }
+
             let foundElement = null;
+
+            // Функция очистки строки от пунктуации и пробелов
+            const cleanStr = (s) => s.toLowerCase().replace(/[\s.,\/#!$%\^&\*;:{}=\-_`~()?"'–—]/g, "");
+
+            // Функция поиска индекса совпадения (с поддержкой очистки от пунктуации)
+            const findMatchIndex = (text, q) => {
+                let idx = text.toLowerCase().indexOf(q.toLowerCase());
+                if (idx >= 0) return { index: idx, length: q.length };
+
+                const cleanedQuery = cleanStr(q);
+                if (cleanedQuery.length < 3) return null;
+
+                const cleanedText = cleanStr(text);
+                const cleanIdx = cleanedText.indexOf(cleanedQuery);
+                if (cleanIdx >= 0) {
+                    for (let start = 0; start < text.length; start++) {
+                        for (let len = cleanedQuery.length; len <= text.length - start; len++) {
+                            const candidate = text.substring(start, start + len);
+                            if (cleanStr(candidate) === cleanedQuery) {
+                                return { index: start, length: len };
+                            }
+                        }
+                    }
+                }
+                return null;
+            };
 
             containers.forEach(container => {
                 const walk = document.createTreeWalker(container, NodeFilter.SHOW_TEXT, null, false);
@@ -197,19 +254,35 @@ const Dashboard = () => {
                 let node;
                 while (node = walk.nextNode()) {
                     const text = node.nodeValue;
-                    const index = text.toLowerCase().indexOf(query.toLowerCase());
-                    if (index >= 0) {
-                        nodesToReplace.push({ node, text, index });
+                    let matchResult = findMatchIndex(text, query);
+                    let matchedLength = query.length;
+
+                    // Fallback 1: первые 25 символов
+                    if (!matchResult && query.length > 25) {
+                        const sub = query.substring(0, 25);
+                        matchResult = findMatchIndex(text, sub);
+                        if (matchResult) matchedLength = sub.length;
+                    }
+
+                    // Fallback 2: первые 15 символов
+                    if (!matchResult && query.length > 15) {
+                        const sub = query.substring(0, 15);
+                        matchResult = findMatchIndex(text, sub);
+                        if (matchResult) matchedLength = sub.length;
+                    }
+
+                    if (matchResult) {
+                        nodesToReplace.push({ node, text, index: matchResult.index, length: matchedLength });
                     }
                 }
 
-                nodesToReplace.forEach(({ node, text, index }) => {
+                nodesToReplace.forEach(({ node, text, index, length }) => {
                     const parent = node.parentNode;
                     if (!parent || parent.tagName === 'MARK' || parent.classList.contains('highlight-mark')) return;
 
                     const before = text.substring(0, index);
-                    const match = text.substring(index, index + query.length);
-                    const after = text.substring(index + query.length);
+                    const match = text.substring(index, index + length);
+                    const after = text.substring(index + length);
 
                     const fragment = document.createDocumentFragment();
                     if (before) fragment.appendChild(document.createTextNode(before));
@@ -234,9 +307,17 @@ const Dashboard = () => {
                 setTimeout(() => {
                     foundElement.classList.remove('pulse-highlight');
                 }, 3000);
+            } else {
+                // Если не нашли на этой итерации, но контейнеры уже есть,
+                // возможно данные еще рендерятся внутри них. Попробуем еще раз чуть позже.
+                attempts++;
+                if (attempts < 5) {
+                    setTimeout(tryHighlight, 200);
+                }
             }
-        }, 200);
+        };
 
+        const timer = setTimeout(tryHighlight, 100);
         return () => clearTimeout(timer);
     }, [highlightText, activeItem, currentTab]);
 
@@ -277,7 +358,7 @@ const Dashboard = () => {
         }
     };
 
-    const openItem = async (item) => {
+    const openItem = async (item, initialHighlight = null) => {
         const analysis = typeof item.structured_analysis === 'string' 
             ? JSON.parse(item.structured_analysis) 
             : item.structured_analysis;
@@ -302,7 +383,7 @@ const Dashboard = () => {
         setIsFlipped(false);
         setQuizAnswers({});
         setRevealedAnswers({});
-        setHighlightText(null);
+        setHighlightText(initialHighlight);
     };
 
     const handleSubmit = async (e) => {
