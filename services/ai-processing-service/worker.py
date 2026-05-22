@@ -37,9 +37,6 @@ def callback(ch, method, properties, body):
     # Оставили один чистый и красивый лог
     print(f"\nПолучена задача ID: {job_id} для файла: {job_data.get('fileName', 'Unknown')} (Язык: {language})")
     
-    # СРАЗУ говорим RabbitMQ "Я взял задачу"
-    ch.basic_ack(delivery_tag=method.delivery_tag)
-    
     try:
         update_job_status(job_id, "PROCESSING")
         
@@ -80,11 +77,12 @@ def callback(ch, method, properties, body):
                 print(f"Ошибка отправки MindMap: {me}")
 
         print(f"Задача {job_id} успешно выполнена и сохранена!")
+        ch.basic_ack(delivery_tag=method.delivery_tag)
 
     except Exception as e:
         print(f"ОШИБКА ПРИ ОБРАБОТКЕ ЗАДАЧИ {job_id}: {str(e)}")
         update_job_status(job_id, f"FAILED: {str(e)[:40]}")
-        # Здесь ch.basic_ack БОЛЬШЕ НЕ НУЖЕН, мы сделали его в начале!
+        ch.basic_ack(delivery_tag=method.delivery_tag)
 
 if __name__ == '__main__':
     connection, channel = connect_to_rabbitmq()
