@@ -5,32 +5,42 @@ import './Dashboard.css';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { useTranslation } from 'react-i18next';
+import MindMap from './MindMap';
+import { downloadYoutubeClientSide } from '../utils/youtubeDownloader';
 
 const Dashboard = () => {
+    // 1. Hooks (States & Refs)
+    const { t, i18n } = useTranslation();
     const [youtubeUrl, setYoutubeUrl] = useState('');
     const [status, setStatus] = useState('');
     const [history, setHistory] = useState([]);
-    
-    // Новые состояния для способов ввода
-    const [inputMode, setInputMode] = useState('youtube'); // 'youtube', 'file', 'record'
+    const [inputMode, setInputMode] = useState('youtube'); 
     const [selectedFile, setSelectedFile] = useState(null);
     const [isRecording, setIsRecording] = useState(false);
     const [mediaRecorder, setMediaRecorder] = useState(null);
     const [audioChunks, setAudioChunks] = useState([]);
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-
     const [recordingTime, setRecordingTime] = useState(0);
+    const [pollingJobId, setPollingJobId] = useState(null);
+    const [activeItem, setActiveItem] = useState(null);
+    const [currentTab, setCurrentTab] = useState('summary');
+    const [animationClass, setAnimationClass] = useState('');
+    const [currentCardIndex, setCurrentCardIndex] = useState(0);
+    const [isFlipped, setIsFlipped] = useState(false);
+    const [quizAnswers, setQuizAnswers] = useState({});
+    const [revealedAnswers, setRevealedAnswers] = useState({}); 
+    const [showScrollTop, setShowScrollTop] = useState(false);
+
     const audioContextRef = useRef(null);
     const analyserRef = useRef(null);
     const animationFrameRef = useRef(null);
     const canvasRef = useRef(null);
     const timerIntervalRef = useRef(null);
+    const touchStartX = useRef(0);
 
-    const { t, i18n } = useTranslation();
+    const currentLang = (i18n.language || 'ru').split('-')[0].toLowerCase();
 
-    // Текущий язык приложения
-    const currentLang = i18n.language || 'ru';
-
+    // 2. Functions
     const changeLanguage = (lng) => {
         i18n.changeLanguage(lng);
         setIsMobileMenuOpen(false);
@@ -207,16 +217,39 @@ const Dashboard = () => {
             setHistory(response.data.items || []);
         } catch (error) {
             console.error("Ошибка загрузки истории");
-            if (error.response && error.response.status !== 401 && error.response.status !== 403) {
-                alert("Не удалось загрузить историю разборов. Проверьте соединение с сервером.");
+        }
+    };
+
+    const openItem = async (item) => {
+        const analysis = typeof item.structured_analysis === 'string' 
+            ? JSON.parse(item.structured_analysis) 
+            : item.structured_analysis;
+            
+        let mindmap = null;
+        try {
+            const mmRes = await api.get(`/mindmap/mindmap/${item.job_id || item.id}`);
+            mindmap = mmRes.data;
+        } catch (e) {
+            if (analysis.mind_map) {
+                mindmap = {
+                    transcription_id: item.job_id,
+                    nodes: analysis.mind_map.nodes,
+                    links: analysis.mind_map.links
+                };
             }
         }
+
+        setActiveItem({ ...item, analysis, mindmap });
+        setCurrentTab('summary');
+        setCurrentCardIndex(0);
+        setIsFlipped(false);
+        setQuizAnswers({});
+        setRevealedAnswers({});
     };
 
     const handleSubmit = async (e) => {
         e.preventDefault();
         setStatus(t('btn_loading'));
-
         try {
             let response;
             if (inputMode === 'youtube') {
@@ -233,7 +266,6 @@ const Dashboard = () => {
                     return;
                 }
                 const formData = new FormData();
-                // language здесь можно оставить как подсказку для Whisper (транскрибации)
                 formData.append('language', currentLang); 
                 formData.append('mediaFile', selectedFile); 
                 response = await api.post('/upload', formData, {
@@ -262,9 +294,8 @@ const Dashboard = () => {
             const audioContext = new (window.AudioContext || window.webkitAudioContext)();
             const source = audioContext.createMediaStreamSource(stream);
             const analyser = audioContext.createAnalyser();
-            analyser.fftSize = 256; // Больше полосок для детальности
+            analyser.fftSize = 256;
             source.connect(analyser);
-            
             audioContextRef.current = audioContext;
             analyserRef.current = analyser;
 
@@ -280,7 +311,6 @@ const Dashboard = () => {
                 const file = new File([blob], `recorded_audio_${Date.now()}.webm`, { type: 'audio/webm' });
                 setSelectedFile(file);
             };
-
             recorder.start();
             setMediaRecorder(recorder);
             setIsRecording(true);

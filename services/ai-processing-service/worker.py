@@ -59,6 +59,7 @@ def callback(ch, method, properties, body):
         
         # 2. Анализируем контент (теперь сразу на 3 языках)
         analysis_data = analyze_content(raw_text)
+        analysis_data['language'] = language
         
         # 3. Сохраняем результат
         save_result(job_id, user_id, raw_text, analysis_data)
