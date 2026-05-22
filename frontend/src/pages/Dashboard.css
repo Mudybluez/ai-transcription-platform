@@ -829,6 +829,9 @@ html, body {
     overflow: hidden;
     transition: filter 2.0s cubic-bezier(0.25, 1, 0.5, 1), opacity 2.0s ease;
     filter: blur(0px) brightness(1);
+    will-change: filter, transform;
+    transform: translate3d(0, 0, 0);
+    backface-visibility: hidden;
 }
 
 .solar-system-container.blurred {

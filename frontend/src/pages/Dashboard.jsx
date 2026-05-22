@@ -60,9 +60,17 @@ const Dashboard = () => {
             for (const element of path) {
                 if (element === document.body || element === document.documentElement) break;
                 if (element.scrollHeight > element.clientHeight) {
-                    const overflow = window.getComputedStyle(element).overflowY;
-                    if (overflow === 'auto' || overflow === 'scroll') {
-                        return; 
+                    // Используем сверхбыстрые проверки без вызова getComputedStyle (Reflow-free)
+                    if (element.tagName === 'TEXTAREA' || element.tagName === 'SELECT') {
+                        return;
+                    }
+                    const style = element.style || {};
+                    if (style.overflowY === 'auto' || style.overflowY === 'scroll' || style.overflow === 'auto' || style.overflow === 'scroll') {
+                        return;
+                    }
+                    const className = element.className || '';
+                    if (typeof className === 'string' && (className.includes('scroll') || className.includes('modal'))) {
+                        return;
                     }
                 }
             }
@@ -82,7 +90,7 @@ const Dashboard = () => {
         const updateScroll = () => {
             const diff = targetScrollY - currentScrollY;
             if (Math.abs(diff) > 0.5) {
-                currentScrollY += diff * 0.085; // Коэффициент сглаживания t
+                currentScrollY += diff * 0.14; // Коэффициент сглаживания t (увеличен с 0.085 для большей упругости/отзывчивости)
                 window.scrollTo(0, currentScrollY);
                 requestAnimationFrame(updateScroll);
             } else {
@@ -231,10 +239,15 @@ const Dashboard = () => {
     };
 
     useEffect(() => {
+        let lastShowScrollTop = false;
         const handleScroll = () => {
-            setShowScrollTop(window.scrollY > 300);
+            const nextShow = window.scrollY > 300;
+            if (nextShow !== lastShowScrollTop) {
+                lastShowScrollTop = nextShow;
+                setShowScrollTop(nextShow);
+            }
         };
-        window.addEventListener('scroll', handleScroll);
+        window.addEventListener('scroll', handleScroll, { passive: true });
         return () => window.removeEventListener('scroll', handleScroll);
     }, []);
 
