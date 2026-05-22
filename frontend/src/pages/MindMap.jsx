@@ -192,6 +192,8 @@ const MindMap = ({ data, onNavigateToTopic }) => {
                     linkDirectionalArrowRelPos={1}
                     linkCurvature={0}
                     linkColor={() => 'rgba(255,255,255,0.1)'}
+                    linkWidth={0.8}
+                    dpr={Math.min(1.5, window.devicePixelRatio || 1)}
                     nodeCanvasObject={(node, ctx, globalScale) => {
                         const label = node.name;
                         
@@ -206,11 +208,12 @@ const MindMap = ({ data, onNavigateToTopic }) => {
                         }
                         
                         const fontSize = node.fontSize || (node.fontSize = (node.type === 'root' ? 4 : node.type === 'topic' ? 3 : 2.5));
-                        const fontStr = `${fontSize}px Sans-Serif`;
+                        const fontStr = `${fontSize}px sans-serif`;
                         
-                        // Избегаем дорогого повторного переопределения шрифта в контексте Canvas
-                        if (ctx.font !== fontStr) {
+                        // Избегаем дорогого повторного переопределения шрифта в контексте Canvas (используем кэш на контексте)
+                        if (ctx.__currentFont !== fontStr) {
                             ctx.font = fontStr;
+                            ctx.__currentFont = fontStr;
                         }
                         
                         // Кэшируем вычисление размеров текста и обрезку строки на объекте ноды для экстремальной производительности
@@ -259,9 +262,9 @@ const MindMap = ({ data, onNavigateToTopic }) => {
                             ctx.stroke();
                         }
 
-                        // Текст внутри плашки
-                        ctx.textAlign = 'center';
-                        ctx.textBaseline = 'middle';
+                        // Текст внутри плашки (избегаем избыточных обращений к контексту)
+                        if (ctx.textAlign !== 'center') ctx.textAlign = 'center';
+                        if (ctx.textBaseline !== 'middle') ctx.textBaseline = 'middle';
                         ctx.fillStyle = '#ffffff';
                         ctx.fillText(displayLabel, node.x, node.y);
                     }}
