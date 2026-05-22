@@ -903,6 +903,7 @@ html, body {
 
 /* Панель управления иммерсивным режимом */
 .mindmap-immersive-header {
+    width: 100%;
     display: flex;
     justify-content: space-between;
     align-items: center;
