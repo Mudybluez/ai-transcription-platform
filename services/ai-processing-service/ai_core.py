@@ -56,6 +56,46 @@ def transcribe_audio(file_path, language='ru'):
     except Exception as e:
         raise Exception(f"Ошибка транскрипции Whisper: {str(e)}")
 
+def normalize_analysis_data(data):
+    """Гарантирует наличие всех необходимых полей в структуре ответа ИИ"""
+    if not isinstance(data, dict):
+        data = {}
+        
+    default_localized = {"ru": "", "en": "", "kk": ""}
+    default_localized_list = {"ru": [], "en": [], "kk": []}
+    
+    normalized = {
+        "title": data.get("title") if isinstance(data.get("title"), dict) else default_localized,
+        "summary": data.get("summary") if isinstance(data.get("summary"), dict) else default_localized,
+        "detailed_analysis": data.get("detailed_analysis") if isinstance(data.get("detailed_analysis"), dict) else default_localized,
+        "key_topics": data.get("key_topics") if isinstance(data.get("key_topics"), list) else [],
+        "takeaways": data.get("takeaways") if isinstance(data.get("takeaways"), dict) else default_localized_list,
+        "flashcards": data.get("flashcards") if isinstance(data.get("flashcards"), list) else [],
+        "quiz": data.get("quiz") if isinstance(data.get("quiz"), list) else [],
+        "mind_map": data.get("mind_map") if isinstance(data.get("mind_map"), dict) else {"nodes": [], "links": []}
+    }
+    
+    # Рекурсивно проверяем локализованные поля в title, summary, detailed_analysis
+    for field in ["title", "summary", "detailed_analysis"]:
+        if not isinstance(normalized[field], dict):
+            normalized[field] = default_localized.copy()
+        else:
+            normalized[field] = normalized[field].copy()
+        for lang in ["ru", "en", "kk"]:
+            if lang not in normalized[field] or normalized[field][lang] is None:
+                normalized[field][lang] = ""
+                
+    # Проверяем takeaways
+    if not isinstance(normalized["takeaways"], dict):
+        normalized["takeaways"] = default_localized_list.copy()
+    else:
+        normalized["takeaways"] = normalized["takeaways"].copy()
+    for lang in ["ru", "en", "kk"]:
+        if lang not in normalized["takeaways"] or not isinstance(normalized["takeaways"][lang], list):
+            normalized["takeaways"][lang] = []
+            
+    return normalized
+
 def analyze_content(text):
     """Отправляет текст в Gemini для глубокого мультиязычного анализа (RU, EN, KK)"""
     if not os.environ.get("GEMINI_API_KEY"):
@@ -151,7 +191,13 @@ def analyze_content(text):
             clean_text = clean_text.replace('\\\n', '\n').replace('\\ ', ' ')
             clean_text = re.sub(r'\\([^"\\/bfnrtu])', r'\1', clean_text)
             
-            return json_repair.loads(clean_text)
+            parsed = json_repair.loads(clean_text)
+            
+            if isinstance(parsed, list):
+                print(f"⚠️ ИИ вернул список вместо объекта. Пытаемся извлечь словарь...")
+                parsed = next((item for item in parsed if isinstance(item, dict)), {})
+                
+            return normalize_analysis_data(parsed)
 
         except Exception as e:
             error_msg = str(e)
