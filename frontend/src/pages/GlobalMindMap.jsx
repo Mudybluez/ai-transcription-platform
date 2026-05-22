@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import api from '../api';
 import './Dashboard.css';
 import { useTranslation } from 'react-i18next';
 import MindMap from './MindMap';
 
 const GlobalMindMap = () => {
+    const navigate = useNavigate();
     const { t, i18n } = useTranslation();
     const currentLang = (i18n.language || 'ru').split('-')[0].toLowerCase();
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -201,7 +202,25 @@ const GlobalMindMap = () => {
                         No analyses found. Create some to see your knowledge map.
                     </div>
                 ) : (
-                    <MindMap data={mindMapData} />
+                    <MindMap 
+                        data={mindMapData} 
+                        onNavigateToTopic={(topicName, node) => {
+                            if (!node || !node.id) return;
+                            const match = node.id.match(/^analysis_([^_]+)/);
+                            if (match) {
+                                const itemId = match[1];
+                                let highlight = null;
+                                if (node.id.includes('_point_')) {
+                                    highlight = node.name;
+                                }
+                                navigate('/', { state: { openItemId: itemId, highlightText: highlight } });
+                            } else if (node.id.startsWith('global_topic_')) {
+                                navigate('/', { state: { highlightText: node.name } });
+                            } else {
+                                navigate('/', { state: { highlightText: node.name } });
+                            }
+                        }}
+                    />
                 )}
             </div>
         </div>
