@@ -97,7 +97,11 @@ const resources = {
       "admin_no_data": "Нет данных для графика",
       "navigate_question": "Вы хотите перейти к анализу этой темы?",
       "navigate_confirm": "Перейти",
-      "navigate_cancel": "Отклонить"
+      "navigate_cancel": "Отклонить",
+      "immersive_title": "Интерактивная карта знаний",
+      "immersive_hint": "Esc для выхода • Колесико для масштаба",
+      "immersive_close": "Свернуть",
+      "immersive_expand": "Во весь экран"
     }
   },
   en: {
@@ -193,7 +197,11 @@ const resources = {
       "admin_no_data": "No data for chart",
       "navigate_question": "Do you want to navigate to the analysis of this topic?",
       "navigate_confirm": "Navigate",
-      "navigate_cancel": "Cancel"
+      "navigate_cancel": "Cancel",
+      "immersive_title": "Interactive Knowledge Map",
+      "immersive_hint": "Esc to exit • Scroll to zoom",
+      "immersive_close": "Collapse",
+      "immersive_expand": "Fullscreen"
     }
   },
   kk: {
@@ -289,7 +297,11 @@ const resources = {
       "admin_no_data": "График үшін деректер жоқ",
       "navigate_question": "Бұл тақырыптың талдауына өткіңіз келе ме?",
       "navigate_confirm": "Өту",
-      "navigate_cancel": "Бас тарту"
+      "navigate_cancel": "Бас тарту",
+      "immersive_title": "Интерактивті білім картасы",
+      "immersive_hint": "Шығу үшін Esc • Масштабтау үшін доңғалақ",
+      "immersive_close": "Жиыру",
+      "immersive_expand": "Толық экран"
     }
   }
 };
