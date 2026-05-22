@@ -1,7 +1,17 @@
 import React, { useEffect, useRef } from 'react';
 
-const SolarSystemBackground = ({ history = [] }) => {
+const SolarSystemBackground = ({ history = [], introState = 'playing', onIntroComplete }) => {
     const canvasRef = useRef(null);
+    const introStateRef = useRef(introState);
+    const onIntroCompleteRef = useRef(onIntroComplete);
+
+    useEffect(() => {
+        introStateRef.current = introState;
+    }, [introState]);
+
+    useEffect(() => {
+        onIntroCompleteRef.current = onIntroComplete;
+    }, [onIntroComplete]);
 
     useEffect(() => {
         const canvas = canvasRef.current;
@@ -194,11 +204,18 @@ const SolarSystemBackground = ({ history = [] }) => {
         // Переменная угла левитации (будет рассчитываться прямо в JS)
         let wobbleAngle = 0;
 
+        // Отслеживаем время начала интро-анимации
+        const startTime = performance.now();
+        let introTriggered = false;
+
         // Анимационный цикл
         const render = () => {
             // Очищаем холст с легким motion-blur эффектом
             ctx.fillStyle = 'rgba(5, 5, 8, 0.08)';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            const elapsed = performance.now() - startTime;
+            const isCompleted = introStateRef.current === 'completed';
 
             ctx.save();
             const scaleX = canvas.width / width;
@@ -229,33 +246,51 @@ const SolarSystemBackground = ({ history = [] }) => {
             const sunX = width / 2;
             const sunY = height / 2;
 
-            // 4. Отрисовка Солнца (высокопроизводительные векторные кольца вместо тяжелого RadialGradient)
+            // Вычисляем масштаб Солнца на основе времени анимации
+            const sunProgress = isCompleted ? 1.0 : Math.min(1.0, elapsed / 1000);
+
+            // 4. Отрисовка Солнца (высокопроизводительные векторные кольца с учетом прогресса анимации)
+            const sunRadius1 = 140 * sunProgress;
+            const sunRadius2 = 90 * sunProgress;
+            const sunRadius3 = 45 * sunProgress;
+            const sunRadius4 = 20 * sunProgress;
+
             ctx.beginPath();
-            ctx.arc(sunX, sunY, 140, 0, Math.PI * 2);
-            ctx.fillStyle = 'rgba(168, 85, 247, 0.015)';
+            ctx.arc(sunX, sunY, sunRadius1, 0, Math.PI * 2);
+            ctx.fillStyle = `rgba(168, 85, 247, ${0.015 * sunProgress})`;
             ctx.fill();
 
             ctx.beginPath();
-            ctx.arc(sunX, sunY, 90, 0, Math.PI * 2);
-            ctx.fillStyle = 'rgba(168, 85, 247, 0.06)';
+            ctx.arc(sunX, sunY, sunRadius2, 0, Math.PI * 2);
+            ctx.fillStyle = `rgba(168, 85, 247, ${0.06 * sunProgress})`;
             ctx.fill();
 
             ctx.beginPath();
-            ctx.arc(sunX, sunY, 45, 0, Math.PI * 2);
-            ctx.fillStyle = 'rgba(192, 132, 252, 0.18)';
+            ctx.arc(sunX, sunY, sunRadius3, 0, Math.PI * 2);
+            ctx.fillStyle = `rgba(192, 132, 252, ${0.18 * sunProgress})`;
             ctx.fill();
 
             ctx.beginPath();
-            ctx.arc(sunX, sunY, 20, 0, Math.PI * 2);
-            ctx.fillStyle = 'rgba(192, 132, 252, 0.65)';
+            ctx.arc(sunX, sunY, sunRadius4, 0, Math.PI * 2);
+            ctx.fillStyle = `rgba(192, 132, 252, ${0.65 * sunProgress})`;
             ctx.fill();
 
             // 5. Отрисовка орбит и планет со спутниками
-            planets.forEach((planet) => {
-                // Рисуем тонкую сплошную орбиту планеты
+            planets.forEach((planet, index) => {
+                let planetProgress = 1.0;
+                if (!isCompleted) {
+                    const planetDelay = 1000 + index * 250;
+                    if (elapsed < planetDelay) {
+                        return; // Еще не время рисовать эту планету
+                    }
+                    const progress = Math.min(1.0, (elapsed - planetDelay) / 800);
+                    planetProgress = 1 - Math.pow(1 - progress, 3); // Ease-out cubic
+                }
+
+                // Рисуем тонкую сплошную орбиту планеты с плавным проявлением
                 ctx.beginPath();
                 ctx.arc(sunX, sunY, planet.orbitRadius, 0, Math.PI * 2);
-                ctx.strokeStyle = 'rgba(255, 255, 255, 0.015)';
+                ctx.strokeStyle = `rgba(255, 255, 255, ${0.015 * planetProgress})`;
                 ctx.lineWidth = 0.8;
                 ctx.stroke();
 
@@ -266,25 +301,28 @@ const SolarSystemBackground = ({ history = [] }) => {
                 const planetX = sunX + planet.orbitRadius * Math.cos(planet.angle);
                 const planetY = sunY + planet.orbitRadius * Math.sin(planet.angle);
 
+                // Добавляем плавное появление снизу вверх
+                const yOffset = (1 - planetProgress) * 60;
+
                 // Атмосферное свечение планеты с использованием высокоскоростных векторных колец
                 const auraSize = planet.size * 3.5;
                 ctx.beginPath();
-                ctx.arc(planetX, planetY, auraSize, 0, Math.PI * 2);
+                ctx.arc(planetX, planetY + yOffset, auraSize, 0, Math.PI * 2);
                 ctx.fillStyle = planet.color;
-                ctx.globalAlpha = 0.03;
+                ctx.globalAlpha = 0.03 * planetProgress;
                 ctx.fill();
 
                 ctx.beginPath();
-                ctx.arc(planetX, planetY, planet.size * 2.0, 0, Math.PI * 2);
+                ctx.arc(planetX, planetY + yOffset, planet.size * 2.0, 0, Math.PI * 2);
                 ctx.fillStyle = planet.color;
-                ctx.globalAlpha = 0.12;
+                ctx.globalAlpha = 0.12 * planetProgress;
                 ctx.fill();
 
                 // Рисуем тело самой планеты
                 ctx.beginPath();
-                ctx.arc(planetX, planetY, planet.size, 0, Math.PI * 2);
+                ctx.arc(planetX, planetY + yOffset, planet.size, 0, Math.PI * 2);
                 ctx.fillStyle = planet.color;
-                ctx.globalAlpha = 0.55;
+                ctx.globalAlpha = 0.55 * planetProgress;
                 ctx.fill();
                 ctx.globalAlpha = 1.0;
 
@@ -294,17 +332,26 @@ const SolarSystemBackground = ({ history = [] }) => {
                     const moonAngle = planet.angle * 2.5 + (j * (Math.PI * 2 / planet.moonsCount));
 
                     const moonX = planetX + moonOrbitRadius * Math.cos(moonAngle);
-                    const moonY = planetY + moonOrbitRadius * Math.sin(moonAngle);
+                    const moonY = (planetY + yOffset) + moonOrbitRadius * Math.sin(moonAngle);
 
                     ctx.beginPath();
                     ctx.arc(moonX, moonY, 1.8, 0, Math.PI * 2);
-                    ctx.fillStyle = 'rgba(243, 244, 246, 0.7)';
+                    ctx.fillStyle = `rgba(243, 244, 246, ${0.7 * planetProgress})`;
                     ctx.fill();
                 }
             });
 
             ctx.restore(); // Сбрасываем translation левитации
             ctx.restore(); // Сбрасываем масштабирование canvas
+
+            // 7. Проверка завершения интро-анимации
+            if (introStateRef.current === 'playing' && onIntroCompleteRef.current && !introTriggered) {
+                const totalIntroDuration = 1000 + (planets.length - 1) * 250 + 800;
+                if (elapsed >= totalIntroDuration + 100) {
+                    introTriggered = true;
+                    onIntroCompleteRef.current();
+                }
+            }
 
             animationFrameId = requestAnimationFrame(render);
         };
@@ -316,8 +363,10 @@ const SolarSystemBackground = ({ history = [] }) => {
         };
     }, [history]);
 
+    const isBlurred = introState === 'blurring' || introState === 'completed';
+
     return (
-        <div className="solar-system-container">
+        <div className={`solar-system-container ${isBlurred ? 'blurred' : ''}`}>
             <canvas ref={canvasRef} style={{ display: 'block', width: '100%', height: '100%' }} />
         </div>
     );
