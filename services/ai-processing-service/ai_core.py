@@ -114,7 +114,7 @@ def analyze_content(text):
         print(f"⚠️ Текст слишком длинный ({len(text)}). Обрезаем для Gemini до 15000 символов.")
         text = text[:15000] 
 
-    model = genai.GenerativeModel("models/gemini-2.5-flash")
+    model = genai.GenerativeModel("models/gemini-3.1-flash-lite")
     
     prompt = f"""
     ТВОЯ РОЛЬ: Ты — эксперт-аналитик и профессиональный переводчик. 
