@@ -193,7 +193,7 @@ const MindMap = ({ data, onNavigateToTopic }) => {
                     linkCurvature={0}
                     linkColor={() => 'rgba(255,255,255,0.1)'}
                     linkWidth={0.8}
-                    dpr={Math.min(1.5, window.devicePixelRatio || 1)}
+                    dpr={Math.min(1.2, window.devicePixelRatio || 1)}
                     nodeCanvasObject={(node, ctx, globalScale) => {
                         const label = node.name;
                         
@@ -268,7 +268,8 @@ const MindMap = ({ data, onNavigateToTopic }) => {
                         ctx.fillStyle = '#ffffff';
                         ctx.fillText(displayLabel, node.x, node.y);
                     }}
-                    cooldownTicks={40}
+                    warmupTicks={120}
+                    cooldownTicks={25}
                     onNodeClick={node => {
                         fgRef.current.centerAt(node.x, node.y, 1000);
                         fgRef.current.zoom(3, 1000);
