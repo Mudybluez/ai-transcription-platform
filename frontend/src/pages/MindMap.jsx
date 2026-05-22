@@ -54,10 +54,14 @@ const MindMap = ({ data, onNavigateToTopic }) => {
             for (let entry of entries) {
                 const width = entry.contentRect.width;
                 const height = entry.contentRect.height;
-                // Если мы в полноэкранном режиме, берем высоту из viewport
+                
+                // Ограничиваем максимальное физическое разрешение Canvas для устранения лагов на 2K/4K экранах
+                const maxCanvasWidth = 1400;
+                const maxCanvasHeight = 850;
+                
                 setDimensions({ 
-                    width: width || window.innerWidth, 
-                    height: isImmersive ? window.innerHeight - 60 : (height || 700) 
+                    width: isImmersive ? Math.min(window.innerWidth, maxCanvasWidth) : (width || 800), 
+                    height: isImmersive ? Math.min(window.innerHeight - 60, maxCanvasHeight) : (height || 700) 
                 });
             }
         });
@@ -192,16 +196,23 @@ const MindMap = ({ data, onNavigateToTopic }) => {
                     linkColor={() => 'rgba(255,255,255,0.1)'}
                     nodeCanvasObject={(node, ctx, globalScale) => {
                         const label = node.name;
-                        // Сокращаем текст для отображения внутри ноды
-                        const truncatedLabel = label.length > 20 ? label.substring(0, 17) + '...' : label;
                         
                         const fontSize = (node.type === 'root' ? 4 : node.type === 'topic' ? 3 : 2.5);
                         ctx.font = `${fontSize}px Sans-Serif`;
                         
-                        const textWidth = ctx.measureText(truncatedLabel).width;
-                        const padding = fontSize * 0.8;
-                        const nodeWidth = Math.max(node.val * 3, textWidth + padding * 2);
-                        const nodeHeight = fontSize * 2.2;
+                        // Кэшируем вычисление размеров текста и обрезку строки на объекте ноды для экстремальной производительности
+                        if (node.customWidth === undefined) {
+                            const truncatedLabel = label.length > 20 ? label.substring(0, 17) + '...' : label;
+                            const textWidth = ctx.measureText(truncatedLabel).width;
+                            const padding = fontSize * 0.8;
+                            node.customWidth = Math.max(node.val * 3, textWidth + padding * 2);
+                            node.customHeight = fontSize * 2.2;
+                            node.truncatedLabel = truncatedLabel;
+                        }
+                        
+                        const nodeWidth = node.customWidth;
+                        const nodeHeight = node.customHeight;
+                        const displayLabel = node.truncatedLabel;
 
                         // Рисуем "плашку" (закругленный прямоугольник/овал)
                         ctx.fillStyle = node.color;
@@ -233,7 +244,7 @@ const MindMap = ({ data, onNavigateToTopic }) => {
                         ctx.textAlign = 'center';
                         ctx.textBaseline = 'middle';
                         ctx.fillStyle = '#ffffff';
-                        ctx.fillText(truncatedLabel, node.x, node.y);
+                        ctx.fillText(displayLabel, node.x, node.y);
                     }}
                     cooldownTicks={100}
                     onNodeClick={node => {
