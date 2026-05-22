@@ -61,6 +61,7 @@ const Dashboard = () => {
             {localStorage.getItem('role') === 'admin' && (
                 <Link to="/admin" className="nav-link" onClick={() => setIsMobileMenuOpen(false)}>{t('admin_panel')}</Link>
             )}
+            <Link to="/mindmap" className="nav-link" onClick={() => setIsMobileMenuOpen(false)}>{t('tab_mindmap', 'Карта знаний')}</Link>
             <Link to="/profile" className="nav-link" onClick={() => setIsMobileMenuOpen(false)}>{t('profile')}</Link>
             <span className="nav-link logout" onClick={() => {
                 localStorage.clear();
@@ -337,12 +338,12 @@ const Dashboard = () => {
             mediaRecorder.stream.getTracks().forEach(track => track.stop());
 
             if (timerIntervalRef.current) {
-                clearInterval(timerIntervalRef.current);
+            clearInterval(timerIntervalRef.current);
                 timerIntervalRef.current = null;
             }
 
             if (animationFrameRef.current) {
-                cancelAnimationFrame(animationFrameRef.current);
+            cancelAnimationFrame(animationFrameRef.current);
             }
 
             if (audioContextRef.current) {
@@ -590,16 +591,16 @@ ${detailed}`;
                                 <h2 className="section-title" style={{marginTop: '40px'}}>{t('key_insights')}</h2>
                                 <div className="insights-grid">
                                     {activeItem.analysis?.key_topics?.map((topic, i) => (
-                                        <div key={i} className="insight-card">
+                                    <div key={i} className="insight-card">
                                             <div className="insight-icon">{t('insight_part')} {i + 1}</div>
                                             <div>
-                                                <h4>{getLangText(topic.title)}</h4>
+                                        <h4>{getLangText(topic.title)}</h4>
                                                 <ul className="insight-points">
                                                     {(topic.key_points?.[currentLang] || topic.key_points?.['ru'] || topic.key_points)?.map((pt, j) => <li key={j}>{pt}</li>)}
                                                 </ul>
                                                 <div className="insight-relevance">
                                                     <strong>{t('why_important', 'Почему это важно:')}</strong> {getLangText(topic.relevance)}
-                                                </div>
+                                    </div>
                                             </div>
                                         </div>
                                     ))}
@@ -661,7 +662,7 @@ ${detailed}`;
                                     const isRevealed = revealedAnswers[qIndex];
 
                                     return (
-                                        <div key={qIndex} className="quiz-card">
+                                <div key={qIndex} className="quiz-card">
                                             <h3><span className="q-num">{qIndex + 1}</span> {getLangText(q.question)}</h3>
                                             <div className="options-grid">
                                                 {options?.map((opt, optIndex) => {
@@ -683,7 +684,7 @@ ${detailed}`;
                                                         </button>
                                                     )
                                                 })}
-                                            </div>
+                                </div>
                                             {isAnswered && !isCorrect && !isRevealed && (
                                                 <button className="reveal-btn fade-in" onClick={() => setRevealedAnswers({...revealedAnswers, [qIndex]: true})}>
                                                     {t('show_answer', 'Показать правильный ответ')}

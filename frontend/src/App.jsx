@@ -4,6 +4,7 @@ import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import AdminPanel from './pages/AdminPanel';
 import Profile from './pages/Profile';
+import GlobalMindMap from './pages/GlobalMindMap';
 
 // Простой защищенный роут
 const ProtectedRoute = ({ children, requireAdmin = false }) => {
@@ -34,6 +35,7 @@ function App() {
                     </ProtectedRoute>
                 } />
                 <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
+                <Route path="/mindmap" element={<ProtectedRoute><GlobalMindMap /></ProtectedRoute>} />
                 {/* Админ панель */}
                 <Route path="/admin" element={
                     <ProtectedRoute requireAdmin={true}>
