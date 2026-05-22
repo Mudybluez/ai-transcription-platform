@@ -192,10 +192,20 @@ const MindMap = ({ data, onNavigateToTopic }) => {
                     nodeRelSize={6}
                     linkDirectionalArrowLength={3.5}
                     linkDirectionalArrowRelPos={1}
-                    linkCurvature={0.25}
+                    linkCurvature={0}
                     linkColor={() => 'rgba(255,255,255,0.1)'}
                     nodeCanvasObject={(node, ctx, globalScale) => {
                         const label = node.name;
+                        
+                        // Оптимизация уровня детализации (LOD)
+                        // Если зум мелкий (карта отдалена), рисуем супер-быстрые простые кружочки
+                        if (globalScale < 1.2) {
+                            ctx.beginPath();
+                            ctx.arc(node.x, node.y, node.type === 'root' ? 5 : node.type === 'topic' ? 3.5 : 2, 0, 2 * Math.PI);
+                            ctx.fillStyle = node.color;
+                            ctx.fill();
+                            return;
+                        }
                         
                         const fontSize = (node.type === 'root' ? 4 : node.type === 'topic' ? 3 : 2.5);
                         ctx.font = `${fontSize}px Sans-Serif`;
