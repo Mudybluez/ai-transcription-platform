@@ -26,12 +26,47 @@ class MindMap(BaseModel):
     nodes: List[MindMapNode]
     links: List[MindMapLink]
 
-# Временное хранилище (в идеале - БД)
+# Временное хранилище (с персистентным JSON-файлом)
 db: Dict[str, MindMap] = {}
+DB_FILE_PATH = os.getenv("DB_FILE_PATH", "/app/data/mindmaps_db.json")
+
+def load_db():
+    global db
+    if os.path.exists(DB_FILE_PATH):
+        try:
+            with open(DB_FILE_PATH, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                for tid, mm_dict in data.items():
+                    db[tid] = MindMap(**mm_dict)
+            print(f"Загружено {len(db)} карт(ы) из {DB_FILE_PATH}")
+        except Exception as e:
+            print(f"Ошибка загрузки базы данных: {e}")
+
+def save_db():
+    try:
+        dir_name = os.path.dirname(DB_FILE_PATH)
+        if dir_name and not os.path.exists(dir_name):
+            os.makedirs(dir_name, exist_ok=True)
+            
+        data_to_save = {}
+        for tid, mm in db.items():
+            if hasattr(mm, "model_dump"):
+                data_to_save[tid] = mm.model_dump()
+            else:
+                data_to_save[tid] = mm.dict()
+                
+        with open(DB_FILE_PATH, "w", encoding="utf-8") as f:
+            json.dump(data_to_save, f, ensure_ascii=False, indent=2)
+    except Exception as e:
+        print(f"Ошибка сохранения базы данных: {e}")
+
+# Загружаем базу при старте
+load_db()
 
 @app.post("/mindmap/save")
 async def save_mindmap(data: MindMap):
     db[data.transcription_id] = data
+    save_db()
     return {"status": "success", "id": data.transcription_id}
 
 @app.get("/mindmap/{transcription_id}")

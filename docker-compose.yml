@@ -152,6 +152,9 @@ services:
       - "3005:3005"
     environment:
       - PORT=3005
+      - DB_FILE_PATH=/app/data/mindmaps_db.json
+    volumes:
+      - mindmap_data:/app/data
     networks:
       - ai_network
     restart: unless-stopped
@@ -172,6 +175,7 @@ volumes:
   redis_data:
   rabbitmq_data:
   media_uploads: # Общее хранилище для загруженных файлов
+  mindmap_data:
 
 networks:
   ai_network:
