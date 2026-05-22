@@ -101,7 +101,8 @@ const resources = {
       "immersive_title": "Интерактивная карта знаний",
       "immersive_hint": "Esc для выхода • Колесико для масштаба",
       "immersive_close": "Свернуть",
-      "immersive_expand": "Во весь экран"
+      "immersive_expand": "Во весь экран",
+      "skip_intro": "Пропустить"
     }
   },
   en: {
@@ -201,7 +202,8 @@ const resources = {
       "immersive_title": "Interactive Knowledge Map",
       "immersive_hint": "Esc to exit • Scroll to zoom",
       "immersive_close": "Collapse",
-      "immersive_expand": "Fullscreen"
+      "immersive_expand": "Fullscreen",
+      "skip_intro": "Skip"
     }
   },
   kk: {
@@ -301,7 +303,8 @@ const resources = {
       "immersive_title": "Интерактивті білім картасы",
       "immersive_hint": "Шығу үшін Esc • Масштабтау үшін доңғалақ",
       "immersive_close": "Жиыру",
-      "immersive_expand": "Толық экран"
+      "immersive_expand": "Толық экран",
+      "skip_intro": "Өткізу"
     }
   }
 };
