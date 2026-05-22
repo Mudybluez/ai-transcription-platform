@@ -55,13 +55,11 @@ const MindMap = ({ data, onNavigateToTopic }) => {
                 const width = entry.contentRect.width;
                 const height = entry.contentRect.height;
                 
-                // Ограничиваем максимальное физическое разрешение Canvas для устранения лагов на 2K/4K экранах
-                const maxCanvasWidth = 1400;
-                const maxCanvasHeight = 850;
-                
+                // В иммерсивном режиме занимаем весь экран полностью для максимального погружения
+                // В обычном режиме берем размеры родительского контейнера
                 setDimensions({ 
-                    width: isImmersive ? Math.min(window.innerWidth, maxCanvasWidth) : (width || 800), 
-                    height: isImmersive ? Math.min(window.innerHeight - 60, maxCanvasHeight) : (height || 700) 
+                    width: isImmersive ? window.innerWidth : (width || 800), 
+                    height: isImmersive ? (window.innerHeight - 60) : (height || 700) 
                 });
             }
         });
@@ -207,8 +205,13 @@ const MindMap = ({ data, onNavigateToTopic }) => {
                             return;
                         }
                         
-                        const fontSize = (node.type === 'root' ? 4 : node.type === 'topic' ? 3 : 2.5);
-                        ctx.font = `${fontSize}px Sans-Serif`;
+                        const fontSize = node.fontSize || (node.fontSize = (node.type === 'root' ? 4 : node.type === 'topic' ? 3 : 2.5));
+                        const fontStr = `${fontSize}px Sans-Serif`;
+                        
+                        // Избегаем дорогого повторного переопределения шрифта в контексте Canvas
+                        if (ctx.font !== fontStr) {
+                            ctx.font = fontStr;
+                        }
                         
                         // Кэшируем вычисление размеров текста и обрезку строки на объекте ноды для экстремальной производительности
                         if (node.customWidth === undefined) {
@@ -231,16 +234,22 @@ const MindMap = ({ data, onNavigateToTopic }) => {
                         const y = node.y - nodeHeight / 2;
                         const r = nodeHeight / 2; // Радиус скругления для формы овала
                         
-                        ctx.moveTo(x + r, y);
-                        ctx.lineTo(x + nodeWidth - r, y);
-                        ctx.quadraticCurveTo(x + nodeWidth, y, x + nodeWidth, y + r);
-                        ctx.lineTo(x + nodeWidth, y + nodeHeight - r);
-                        ctx.quadraticCurveTo(x + nodeWidth, y + nodeHeight, x + nodeWidth - r, y + nodeHeight);
-                        ctx.lineTo(x + r, y + nodeHeight);
-                        ctx.quadraticCurveTo(x, y + nodeHeight, x, y + nodeHeight - r);
-                        ctx.lineTo(x, y + r);
-                        ctx.quadraticCurveTo(x, y, x + r, y);
-                        ctx.closePath();
+                        // Используем нативный высокопроизводительный круглый прямоугольник, если он поддерживается браузером
+                        if (ctx.roundRect) {
+                            ctx.roundRect(x, y, nodeWidth, nodeHeight, r);
+                        } else {
+                            // Резервный ручной расчет для совместимости со старыми окружениями
+                            ctx.moveTo(x + r, y);
+                            ctx.lineTo(x + nodeWidth - r, y);
+                            ctx.quadraticCurveTo(x + nodeWidth, y, x + nodeWidth, y + r);
+                            ctx.lineTo(x + nodeWidth, y + nodeHeight - r);
+                            ctx.quadraticCurveTo(x + nodeWidth, y + nodeHeight, x + nodeWidth - r, y + nodeHeight);
+                            ctx.lineTo(x + r, y + nodeHeight);
+                            ctx.quadraticCurveTo(x, y + nodeHeight, x, y + nodeHeight - r);
+                            ctx.lineTo(x, y + r);
+                            ctx.quadraticCurveTo(x, y, x + r, y);
+                            ctx.closePath();
+                        }
                         ctx.fill();
 
                         // Подсветка при поиске
@@ -256,7 +265,7 @@ const MindMap = ({ data, onNavigateToTopic }) => {
                         ctx.fillStyle = '#ffffff';
                         ctx.fillText(displayLabel, node.x, node.y);
                     }}
-                    cooldownTicks={100}
+                    cooldownTicks={40}
                     onNodeClick={node => {
                         fgRef.current.centerAt(node.x, node.y, 1000);
                         fgRef.current.zoom(3, 1000);

@@ -880,9 +880,8 @@ html, body {
     height: 100vh !important;
     border-radius: 0 !important;
     z-index: 99999 !important;
-    background: rgba(10, 15, 30, 0.96) !important;
-    backdrop-filter: blur(16px);
-    box-shadow: 0 0 100px rgba(0, 0, 0, 0.8) !important;
+    background: radial-gradient(circle at center, #110d21 0%, #050508 100%) !important;
+    box-shadow: 0 0 100px rgba(0, 0, 0, 0.9) !important;
     display: flex;
     flex-direction: column;
     animation: mindmapImmersiveEntry 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
