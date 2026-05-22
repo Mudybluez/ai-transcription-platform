@@ -114,6 +114,12 @@ app.post('/change-password', async (req, res) => {
     const { userId, oldPassword, newPassword } = req.body;
 
     try {
+        if (!isPasswordStrongEnough(newPassword)) {
+            return res.status(400).json({ 
+                message: 'Пароль слишком слабый. Он должен содержать как минимум 3 из следующих условий: 8 символов, заглавная буква, строчная буква, цифра, специальный символ.' 
+            });
+        }
+
         const userResult = await db.query('SELECT * FROM users WHERE id = $1', [userId]);
         if (userResult.rows.length === 0) {
             return res.status(404).json({ message: 'Пользователь не найден' });
