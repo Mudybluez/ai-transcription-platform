@@ -6,6 +6,7 @@ const SolarSystemBackground = ({ history = [], introState = 'playing', onIntroCo
     const onIntroCompleteRef = useRef(onIntroComplete);
     const isScrollingRef = useRef(false);
     const scrollTimeoutRef = useRef(null);
+    const planetsRef = useRef([]);
 
     useEffect(() => {
         introStateRef.current = introState;
@@ -14,6 +15,92 @@ const SolarSystemBackground = ({ history = [], introState = 'playing', onIntroCo
     useEffect(() => {
         onIntroCompleteRef.current = onIntroComplete;
     }, [onIntroComplete]);
+
+    // Отслеживаем изменения истории и бесшовно синхронизируем планеты в planetsRef,
+    // сохраняя текущие углы вращения уже существующих планет, чтобы предотвратить визуальные скачки.
+    useEffect(() => {
+        const cosmicColors = [
+            '#38bdf8', // Голубой (Cyan)
+            '#34d399', // Изумрудный (Emerald)
+            '#fb7185', // Нежно-розовый (Rose)
+            '#fbbf24', // Янтарный (Amber)
+            '#818cf8', // Индиго (Indigo)
+            '#2dd4bf', // Бирюзовый (Teal)
+            '#a78bfa', // Лавандовый (Purple)
+            '#f472b6'  // Розовый (Pink)
+        ];
+
+        const readyItems = history.filter(item => {
+            const analysis = typeof item.structured_analysis === 'string'
+                ? JSON.parse(item.structured_analysis)
+                : item.structured_analysis;
+            return !!analysis;
+        });
+
+        let nextPlanets = [];
+
+        if (readyItems.length === 0) {
+            nextPlanets = [
+                {
+                    id: 'default-1',
+                    orbitRadius: 120,
+                    size: 7,
+                    color: '#38bdf8',
+                    speed: 0.003,
+                    moonsCount: 2
+                },
+                {
+                    id: 'default-2',
+                    orbitRadius: 180,
+                    size: 9,
+                    color: '#818cf8',
+                    speed: -0.002,
+                    moonsCount: 3
+                },
+                {
+                    id: 'default-3',
+                    orbitRadius: 240,
+                    size: 8,
+                    color: '#34d399',
+                    speed: 0.0015,
+                    moonsCount: 1
+                }
+            ];
+        } else {
+            const maxPlanets = 6;
+            const itemsToRender = readyItems.slice(0, maxPlanets);
+            nextPlanets = itemsToRender.map((item, index) => {
+                const analysis = typeof item.structured_analysis === 'string'
+                    ? JSON.parse(item.structured_analysis)
+                    : item.structured_analysis;
+
+                const topicsCount = analysis?.key_topics?.length || 0;
+                const moonsCount = Math.min(4, topicsCount > 0 ? topicsCount : (index % 3) + 1);
+                const orbitRadius = 120 + index * 55;
+                const size = Math.min(12, Math.max(5, 5 + moonsCount * 0.7));
+                const direction = index % 2 === 0 ? 1 : -1;
+                const speed = (0.005 / (index + 1)) * direction;
+
+                return {
+                    id: item.id || `planet-${index}`,
+                    orbitRadius,
+                    size,
+                    color: cosmicColors[index % cosmicColors.length],
+                    speed,
+                    moonsCount
+                };
+            });
+        }
+
+        // Синхронизируем новые планеты с уже существующими в планетахRef, чтобы сохранить углы орбитального вращения (без скачков!)
+        planetsRef.current = nextPlanets.map(newP => {
+            const existing = planetsRef.current.find(p => p.id === newP.id);
+            return {
+                ...newP,
+                angle: existing ? existing.angle : Math.random() * Math.PI * 2
+            };
+        });
+    }, [history]);
 
     useEffect(() => {
         const canvas = canvasRef.current;
@@ -124,93 +211,7 @@ const SolarSystemBackground = ({ history = [], introState = 'playing', onIntroCo
         };
         window.addEventListener('scroll', handleSystemScroll, { passive: true });
 
-        // Палитра космических красок для планет
-        const cosmicColors = [
-            '#38bdf8', // Голубой (Cyan)
-            '#34d399', // Изумрудный (Emerald)
-            '#fb7185', // Нежно-розовый (Rose)
-            '#fbbf24', // Янтарный (Amber)
-            '#818cf8', // Индиго (Indigo)
-            '#2dd4bf', // Бирюзовый (Teal)
-            '#a78bfa', // Лавандовый (Purple)
-            '#f472b6'  // Розовый (Pink)
-        ];
 
-        // Парсим список анализов из истории и преобразуем их в планеты
-        const readyItems = history.filter(item => {
-            const analysis = typeof item.structured_analysis === 'string'
-                ? JSON.parse(item.structured_analysis)
-                : item.structured_analysis;
-            return !!analysis;
-        });
-
-        // Создаем массив планет
-        let planets = [];
-
-        if (readyItems.length === 0) {
-            // Если анализов еще нет, создаем 3 красивые дефолтные планеты
-            planets = [
-                {
-                    id: 'default-1',
-                    orbitRadius: 120,
-                    size: 7,
-                    color: '#38bdf8',
-                    speed: 0.003,
-                    angle: Math.random() * Math.PI * 2,
-                    moonsCount: 2
-                },
-                {
-                    id: 'default-2',
-                    orbitRadius: 180,
-                    size: 9,
-                    color: '#818cf8',
-                    speed: -0.002,
-                    angle: Math.random() * Math.PI * 2,
-                    moonsCount: 3
-                },
-                {
-                    id: 'default-3',
-                    orbitRadius: 240,
-                    size: 8,
-                    color: '#34d399',
-                    speed: 0.0015,
-                    angle: Math.random() * Math.PI * 2,
-                    moonsCount: 1
-                }
-            ];
-        } else {
-            // Динамически строим планеты по числу анализов (ограничиваем до 6 последних для эстетики и FPS)
-            const maxPlanets = 6;
-            const itemsToRender = readyItems.slice(0, maxPlanets);
-            planets = itemsToRender.map((item, index) => {
-                const analysis = typeof item.structured_analysis === 'string'
-                    ? JSON.parse(item.structured_analysis)
-                    : item.structured_analysis;
-
-                const topicsCount = analysis?.key_topics?.length || 0;
-                // Количество лун равно числу ключевых тем в анализе (не более 4 для производительности)
-                const moonsCount = Math.min(4, topicsCount > 0 ? topicsCount : (index % 3) + 1);
-                
-                // Распределяем орбиты с компактным шагом
-                const orbitRadius = 120 + index * 55;
-                // Размер планеты зависит от объема информации в анализе
-                const size = Math.min(12, Math.max(5, 5 + moonsCount * 0.7));
-                
-                // Скорость вращения падает по закону Кеплера с расстоянием от Солнца
-                const direction = index % 2 === 0 ? 1 : -1;
-                const speed = (0.005 / (index + 1)) * direction;
-
-                return {
-                    id: item.id || `planet-${index}`,
-                    orbitRadius,
-                    size,
-                    color: cosmicColors[index % cosmicColors.length],
-                    speed,
-                    angle: Math.random() * Math.PI * 2,
-                    moonsCount
-                };
-            });
-        }
 
         // Переменная угла левитации (будет рассчитываться прямо в JS)
         let wobbleAngle = 0;
@@ -309,7 +310,7 @@ const SolarSystemBackground = ({ history = [], introState = 'playing', onIntroCo
             ctx.fill();
 
             // 5. Отрисовка орбит и планет со спутниками
-            planets.forEach((planet, index) => {
+            planetsRef.current.forEach((planet, index) => {
                 let planetProgress = 1.0;
                 if (!isCompleted) {
                     const planetDelay = 1000 + index * 250;
@@ -379,7 +380,7 @@ const SolarSystemBackground = ({ history = [], introState = 'playing', onIntroCo
 
             // 7. Проверка завершения интро-анимации
             if (introStateRef.current === 'playing' && onIntroCompleteRef.current && !introTriggered) {
-                const totalIntroDuration = 1000 + (planets.length - 1) * 250 + 800;
+                const totalIntroDuration = 1000 + (planetsRef.current.length - 1) * 250 + 800;
                 if (elapsed >= totalIntroDuration + 100) {
                     introTriggered = true;
                     onIntroCompleteRef.current();
@@ -396,7 +397,7 @@ const SolarSystemBackground = ({ history = [], introState = 'playing', onIntroCo
             if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
             cancelAnimationFrame(animationFrameId);
         };
-    }, [history]);
+    }, []);
 
     const isBlurred = introState === 'blurring' || introState === 'completed';
 
