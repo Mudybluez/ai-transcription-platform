@@ -121,23 +121,7 @@ const Dashboard = () => {
         draw();
     };
 
-    // Авто-обновление при загрузке
-    const [pollingJobId, setPollingJobId] = useState(null);
-
-    const [activeItem, setActiveItem] = useState(null);
-    const [currentTab, setCurrentTab] = useState('summary');
-
-    // Состояния интерактива
-    const [currentCardIndex, setCurrentCardIndex] = useState(0);
-    const [isFlipped, setIsFlipped] = useState(false);
-
-    const [quizAnswers, setQuizAnswers] = useState({});
-    const [revealedAnswers, setRevealedAnswers] = useState({}); // Для кнопки "Узнать ответ"
-
-    const [showScrollTop, setShowScrollTop] = useState(false);
-
     // Обработчик свайпа для карточек
-    const touchStartX = useRef(0);
     const handleTouchStart = (e) => {
         touchStartX.current = e.touches[0].clientX;
     };
@@ -386,21 +370,7 @@ ${detailed}`;
         });
     };
 
-    const openItem = (item) => {
-        const analysis = typeof item.structured_analysis === 'string' 
-            ? JSON.parse(item.structured_analysis) 
-            : item.structured_analysis;
-            
-        setActiveItem({ ...item, analysis });
-        setCurrentTab('summary');
-        setCurrentCardIndex(0);
-        setIsFlipped(false);
-        setQuizAnswers({});
-        setRevealedAnswers({});
-    };
-
     // Навигация по карточкам
-    const [animationClass, setAnimationClass] = useState('');
 
     const nextCard = () => {
         setAnimationClass('sliding-next');
