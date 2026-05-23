@@ -109,8 +109,9 @@ const SolarSystemBackground = ({ history = [], introState = 'playing', onIntroCo
         const ctx = canvas.getContext('2d');
         let animationFrameId;
 
-        let width = window.innerWidth;
-        let height = window.innerHeight;
+        let width = 0;
+        let height = 0;
+        let hasRenderedFinalFrame = false;
 
         // Создаем оффскрин-холст для кэширования статических элементов (туманности + статические звезды)
         const offscreenCanvas = document.createElement('canvas');
@@ -138,11 +139,14 @@ const SolarSystemBackground = ({ history = [], introState = 'playing', onIntroCo
             });
         }
 
-        // Настройка размеров под экран (используем DPR=0.35 для даунскейлинга и стабильного 60+ FPS на слабых GPU)
+        // Настройка размеров под экран (используем DPR=1.0 для кристальной четкости при интро-анимации)
         const resizeCanvas = () => {
-            width = window.innerWidth;
-            height = window.innerHeight;
-            const dpr = 0.35; // Оптимизировано с 0.5 до 0.35 для 2.0x снижения площади отрисовки и фильтрации размытия
+            // Рассчитываем размер квадратного холста с запасом для вращения без черных углов (142vmax)
+            const side = Math.max(window.innerWidth, window.innerHeight) * 1.42;
+            width = side;
+            height = side;
+
+            const dpr = 1.0; 
             canvas.width = Math.ceil(width * dpr);
             canvas.height = Math.ceil(height * dpr);
 
@@ -200,50 +204,24 @@ const SolarSystemBackground = ({ history = [], introState = 'playing', onIntroCo
             });
         };
         resizeCanvas();
-        window.addEventListener('resize', resizeCanvas);
 
-        const handleSystemScroll = () => {
-            isScrollingRef.current = true;
-            if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
-            scrollTimeoutRef.current = setTimeout(() => {
-                isScrollingRef.current = false;
-            }, 150);
+        const handleResize = () => {
+            resizeCanvas();
+            if (introStateRef.current === 'completed') {
+                // Если анимация уже остановлена, просто перерисовываем финальный статичный кадр на новый размер
+                drawFrame(performance.now());
+            }
         };
-        window.addEventListener('scroll', handleSystemScroll, { passive: true });
-
-
+        window.addEventListener('resize', handleResize);
 
         // Переменная угла левитации (будет рассчитываться прямо в JS)
         let wobbleAngle = 0;
 
-        // Отслеживаем время начала интро-анимации и время последнего кадра для ограничения FPS
+        // Отслеживаем время начала интро-анимации
         const startTime = performance.now();
-        let lastFrameTime = performance.now();
         let introTriggered = false;
 
-        // Анимационный цикл
-        const render = () => {
-            const now = performance.now();
-
-            // Если страница прокручивается и интро завершено, временно приостанавливаем перерисовку Canvas.
-            // Предыдущий кадр остается на экране без нагрузки на CPU/GPU, сохраняя 60+ FPS при скролле!
-            if (isScrollingRef.current && introStateRef.current === 'completed') {
-                animationFrameId = requestAnimationFrame(render);
-                return;
-            }
-
-            // Ограничиваем FPS фоновой анимации до 20 кадров в секунду (интервал 50мс) только в режиме "completed" (размытый фон).
-            // Это кратно снижает нагрузку на GPU от вычисления тяжелого CSS filter: blur() (на 66%),
-            // освобождая все ресурсы системы для поддержания безупречных и стабильных 60+ FPS интерфейса сайта!
-            if (introStateRef.current === 'completed') {
-                const elapsedSinceLast = now - lastFrameTime;
-                if (elapsedSinceLast < 50) { // 20 FPS
-                    animationFrameId = requestAnimationFrame(render);
-                    return;
-                }
-                lastFrameTime = now - (elapsedSinceLast % 50);
-            }
-
+        const drawFrame = (now) => {
             // Очищаем холст с легким motion-blur эффектом
             ctx.fillStyle = 'rgba(5, 5, 8, 0.08)';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -261,7 +239,9 @@ const SolarSystemBackground = ({ history = [], introState = 'playing', onIntroCo
 
             // 2. Отрисовка 10 мерцающих динамических звезд
             twinklingStars.forEach(star => {
-                star.phase += star.twinkleSpeed;
+                if (!isCompleted) {
+                    star.phase += star.twinkleSpeed;
+                }
                 const alpha = 0.15 + Math.abs(Math.sin(star.phase)) * 0.65;
                 ctx.beginPath();
                 ctx.arc(star.x * width, star.y * height, star.size, 0, Math.PI * 2);
@@ -269,8 +249,10 @@ const SolarSystemBackground = ({ history = [], introState = 'playing', onIntroCo
                 ctx.fill();
             });
 
-            // 3. Вычисление и применение медленной космической левитации (JS-трансляция вместо тяжелого CSS-transform!)
-            wobbleAngle += 0.0006;
+            // 3. Вычисление и применение медленной космической левитации
+            if (!isCompleted) {
+                wobbleAngle += 0.0006;
+            }
             const wobbleX = Math.sin(wobbleAngle) * 12;
             const wobbleY = Math.cos(wobbleAngle * 1.3) * 8;
 
@@ -328,8 +310,10 @@ const SolarSystemBackground = ({ history = [], introState = 'playing', onIntroCo
                 ctx.lineWidth = 0.8;
                 ctx.stroke();
 
-                // Обновляем угол вращения планеты
-                planet.angle += planet.speed;
+                // Обновляем угол вращения планеты, только если анимация активна
+                if (!isCompleted) {
+                    planet.angle += planet.speed;
+                }
 
                 // Вычисляем координаты планеты на орбите
                 const planetX = sunX + planet.orbitRadius * Math.cos(planet.angle);
@@ -377,9 +361,28 @@ const SolarSystemBackground = ({ history = [], introState = 'playing', onIntroCo
 
             ctx.restore(); // Сбрасываем translation левитации
             ctx.restore(); // Сбрасываем масштабирование canvas
+        };
 
-            // 7. Проверка завершения интро-анимации
+        // Анимационный цикл
+        const render = () => {
+            const now = performance.now();
+
+            // Если интро завершено, рисуем ОДИН финальный кадр и останавливаем JS-цикл.
+            // Дальнейшее величественное космическое вращение берет на себя аппаратное ускорение CSS (на 60+ FPS)!
+            if (introStateRef.current === 'completed') {
+                if (hasRenderedFinalFrame) {
+                    return;
+                }
+                hasRenderedFinalFrame = true;
+                drawFrame(now);
+                return;
+            }
+
+            drawFrame(now);
+
+            // Проверка завершения интро-анимации
             if (introStateRef.current === 'playing' && onIntroCompleteRef.current && !introTriggered) {
+                const elapsed = now - startTime;
                 const totalIntroDuration = 1000 + (planetsRef.current.length - 1) * 250 + 800;
                 if (elapsed >= totalIntroDuration + 100) {
                     introTriggered = true;
@@ -392,17 +395,16 @@ const SolarSystemBackground = ({ history = [], introState = 'playing', onIntroCo
         render();
 
         return () => {
-            window.removeEventListener('resize', resizeCanvas);
-            window.removeEventListener('scroll', handleSystemScroll);
-            if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
+            window.removeEventListener('resize', handleResize);
             cancelAnimationFrame(animationFrameId);
         };
     }, []);
 
     const isBlurred = introState === 'blurring' || introState === 'completed';
+    const isRotating = introState === 'completed';
 
     return (
-        <div className={`solar-system-container ${isBlurred ? 'blurred' : ''}`}>
+        <div className={`solar-system-container ${isBlurred ? 'blurred' : ''} ${isRotating ? 'rotating' : ''}`}>
             <canvas ref={canvasRef} style={{ display: 'block', width: '100%', height: '100%' }} />
         </div>
     );
