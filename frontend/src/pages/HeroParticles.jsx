@@ -71,11 +71,12 @@ const HeroParticles = () => {
         let width = 0;
         let height = 0;
 
-        // Всего 140 звезд:
-        // - 80 фоновых звезд свободно мерцают в космическом покое.
-        // - 60 звезд (по 30 на каждую скобку) собираются и формируют скобки { }.
-        const numParticles = 140;
-        const braceParticlesCount = 60; 
+        // Настройка плотности:
+        // Всего 300 звезд (больше точек для насыщенного космоса и жирного контура)
+        // 60% точек (180 штук, по 90 на каждую сторону) собираются в толстые, объемные скобки { }
+        // 40% точек (120 штук) свободно парят в качестве красивого фона
+        const numParticles = 300;
+        const braceParticlesCount = 180; 
         const particles = [];
 
         // 5 красивых blend-цветов (белый, голубой, фиолетовый, розовый, ярко-оранжевый)
@@ -87,16 +88,20 @@ const HeroParticles = () => {
             '#f97316'  // Ярко-оранжевый
         ];
 
-        // Инициализируем частицы с случайными координатами и медленным дрейфом
+        // Инициализируем частицы
         const initParticles = (w, h) => {
             particles.length = 0;
             for (let i = 0; i < numParticles; i++) {
                 const isBraceOutline = i < braceParticlesCount;
                 const baseColor = particleColors[i % particleColors.length];
                 
-                // Случайная начальная скорость для дрейфа в покое
+                // Случайная начальная скорость дрейфа
                 const vx = (Math.random() - 0.5) * 0.05;
                 const vy = (Math.random() - 0.5) * 0.05;
+
+                // Случайное смещение по толщине от -7.5px до +7.5px для жирного (bold) начертания
+                const thickness = 15; 
+                const thickOffset = (Math.random() - 0.5) * thickness;
 
                 particles.push({
                     id: i,
@@ -111,7 +116,9 @@ const HeroParticles = () => {
                     isBraceOutline,
                     targetSide: isBraceOutline ? (i < braceParticlesCount / 2 ? 'left' : 'right') : null,
                     // Распределение частиц равномерно вдоль кривой Безье (от 0 до 1)
-                    curveT: isBraceOutline ? (i % (braceParticlesCount / 2)) / (braceParticlesCount / 2 - 1) : 0
+                    curveT: isBraceOutline ? (i % (braceParticlesCount / 2)) / (braceParticlesCount / 2 - 1) : 0,
+                    thickOffset,
+                    localWeight: 0
                 });
             }
         };
@@ -147,7 +154,7 @@ const HeroParticles = () => {
         }
         window.addEventListener('resize', resizeCanvas);
 
-        // Хелпер для сглаженного перехода цветов
+        // Хелпер для плавного лерпа цветов
         const lerpColor = (c1, c2, w) => {
             const r1 = parseInt(c1.substring(1, 3), 16);
             const g1 = parseInt(c1.substring(3, 5), 16);
@@ -169,17 +176,6 @@ const HeroParticles = () => {
             const dx = Math.max(rx - mx, 0, mx - (rx + rw));
             const dy = Math.max(ry - my, 0, my - (ry + rh));
             return Math.sqrt(dx * dx + dy * dy);
-        };
-
-        // Генерация линейного градиента для объемных неоновых трубок
-        const getBraceGradient = (x, cy, height, alpha) => {
-            const grad = ctx.createLinearGradient(x, cy - height / 2, x, cy + height / 2);
-            grad.addColorStop(0, `rgba(244, 114, 182, ${alpha})`);     // Розовый
-            grad.addColorStop(0.25, `rgba(56, 189, 248, ${alpha})`);   // Голубой
-            grad.addColorStop(0.5, `rgba(168, 85, 247, ${alpha})`);    // Фиолетовый
-            grad.addColorStop(0.75, `rgba(249, 115, 22, ${alpha})`);   // Ярко-оранжевый
-            grad.addColorStop(1, `rgba(255, 255, 255, ${alpha})`);     // Белый
-            return grad;
         };
 
         // Анимационный цикл
@@ -209,7 +205,7 @@ const HeroParticles = () => {
             const hookWidth = 24; 
             const cuspWidth = 26; 
 
-            // Расчет веса притяжения (weight)
+            // Расчет глобального веса притяжения (weight)
             const influenceRadius = 250;
             let weight = 0;
 
@@ -221,88 +217,10 @@ const HeroParticles = () => {
                 }
             }
 
-            // Функция отрисовки пути скобки по идеальным сплайнам Безье
-            const drawBracePath = (side) => {
-                for (let step = 0; step <= 50; step++) {
-                    const t = step / 50;
-                    const pt = getBracePoint(
-                        side,
-                        t,
-                        cx,
-                        cy,
-                        braceOffset,
-                        braceHeight,
-                        hookWidth,
-                        cuspWidth
-                    );
+            // ПРИМЕЧАНИЕ: Твердые линии бэкглоу скобок полностью убраны по просьбе пользователя!
+            // Скобки вырисовываются ИСКЛЮЧИТЕЛЬНО за счет плотных светящихся созвездий точек.
 
-                    if (step === 0) {
-                        ctx.moveTo(pt.x, pt.y);
-                    } else {
-                        ctx.lineTo(pt.x, pt.y);
-                    }
-                }
-            };
-
-            // 1. ОТРИСОВКА МНОГОСЛОЙНОЙ ОБЪЕМНОЙ НЕОНОВОЙ ПОДСВЕТКИ
-            if (weight > 0.01) {
-                ctx.save();
-                ctx.lineCap = 'round';
-                ctx.lineJoin = 'round';
-                
-                // Включаем сочное аддитивное смешивание
-                ctx.globalCompositeOperation = 'screen';
-
-                const drawLayer = (side, wWidth, wAlpha, wBlur, wBlurColor) => {
-                    const dir = side === 'left' ? -1 : 1;
-                    const baseX = cx + dir * braceOffset;
-                    
-                    ctx.beginPath();
-                    drawBracePath(side);
-                    
-                    ctx.strokeStyle = getBraceGradient(baseX, cy, braceHeight, wAlpha * weight);
-                    ctx.lineWidth = wWidth;
-                    
-                    if (wBlur > 0 && wBlurColor) {
-                        ctx.shadowColor = wBlurColor;
-                        ctx.shadowBlur = wBlur * weight;
-                    } else {
-                        ctx.shadowBlur = 0;
-                    }
-                    
-                    ctx.stroke();
-                };
-
-                // Слой 1: Широкая космическая аура (Corona Glow)
-                drawLayer('left', 36, 0.05, 26, '#c084fc');
-                drawLayer('right', 36, 0.05, 26, '#c084fc');
-
-                // Слой 2: Насыщенный неоновый стержень (Neon Core)
-                drawLayer('left', 14, 0.15, 12, '#38bdf8');
-                drawLayer('right', 14, 0.15, 12, '#38bdf8');
-
-                // Слой 3: Глянцевая стеклянная сердцевина (Glass Core)
-                drawLayer('left', 5, 0.38, 0);
-                drawLayer('right', 5, 0.38, 0);
-
-                // Слой 4: Ультра-тонкая кристальная нить высокой энергии (High-Intensity String)
-                ctx.shadowBlur = 0;
-                ctx.beginPath();
-                drawBracePath('left');
-                ctx.strokeStyle = `rgba(255, 255, 255, ${weight * 0.8})`;
-                ctx.lineWidth = 1.2;
-                ctx.stroke();
-
-                ctx.beginPath();
-                drawBracePath('right');
-                ctx.strokeStyle = `rgba(255, 255, 255, ${weight * 0.8})`;
-                ctx.lineWidth = 1.2;
-                ctx.stroke();
-
-                ctx.restore();
-            }
-
-            // 2. ФИЗИКА И ОТРИСОВКА ЧАСТИЦ (ЗВЕЗД)
+            // ОТРИСОВКА И ФИЗИКА ЧАСТИЦ (ЗВЕЗД)
             ctx.save();
             ctx.globalCompositeOperation = 'screen';
 
@@ -321,33 +239,60 @@ const HeroParticles = () => {
                         hookWidth,
                         cuspWidth
                     );
-                    targetX = pt.x;
-                    targetY = pt.y;
+                    
+                    // Вычисляем нормальный (перпендикулярный) вектор к кривой Безье для придания "жирности" (толщины) контуру
+                    const t1 = Math.max(0, p.curveT - 0.01);
+                    const t2 = Math.min(1, p.curveT + 0.01);
+                    const pt1 = getBracePoint(p.targetSide, t1, cx, cy, braceOffset, braceHeight, hookWidth, cuspWidth);
+                    const pt2 = getBracePoint(p.targetSide, t2, cx, cy, braceOffset, braceHeight, hookWidth, cuspWidth);
+                    
+                    const dx = pt2.x - pt1.x;
+                    const dy = pt2.y - pt1.y;
+                    const len = Math.sqrt(dx * dx + dy * dy) || 1;
+                    
+                    // Перпендикуляр (нормаль)
+                    const nx = -dy / len;
+                    const ny = dx / len;
+
+                    // Добавляем смещение по толщине для жирного начертания скобок
+                    targetX = pt.x + nx * p.thickOffset;
+                    targetY = pt.y + ny * p.thickOffset;
                 }
 
-                // Ультимативная физика пружин (Spring Physics) в невесомости
-                if (p.isBraceOutline && weight > 0.01) {
-                    // Жесткость пружины увеличивается нелинейно по мере сближения
-                    const springK = 0.065 * Math.pow(weight, 1.6);
-                    const damping = 0.84; // Трение в космосе (вязкая среда)
+                // Индивидуальный расчет веса сборки с органичной прогрессивной задержкой
+                if (p.isBraceOutline) {
+                    // Задержка зависит от расстояния точки до центрального носика (t = 0.5)
+                    // Точки в центре собираются сразу, а края - с красивым плавным запаздыванием (волновой эффект)
+                    const distanceFromCenter = Math.abs(p.curveT - 0.5);
+                    const delay = distanceFromCenter * 0.95 + (p.id % 6) * 0.04;
+                    const targetLocalWeight = weight > 0.01 ? Math.max(0, weight - delay) : 0;
 
-                    // Рассчитываем ускорение к целевым координатам кривых Безье
+                    // Медленная и плавная сборка/распад контура (скорость 0.015 вместо прежней быстрой анимации)
+                    p.localWeight += (targetLocalWeight - p.localWeight) * 0.015;
+                }
+
+                // Физика пружин невесомости (Spring Physics) на основе локального веса сборки
+                if (p.isBraceOutline && p.localWeight > 0.005) {
+                    // Сила притяжения растет нелинейно по мере сборки
+                    const springK = 0.038 * Math.pow(p.localWeight, 1.8);
+                    const damping = 0.85; // Торможение в космическом эфире для плавного оседания
+
                     const ax = (targetX - p.x) * springK;
                     const ay = (targetY - p.y) * springK;
 
-                    // Добавляем микрошум для живой вибрации
-                    const vibration = 0.03 * (1 - weight);
+                    // Легкие энергетические флуктуации (угасают при полной сборке)
+                    const vibration = 0.035 * (1 - p.localWeight);
 
                     p.vx = p.vx * damping + ax + (Math.random() - 0.5) * vibration;
                     p.vy = p.vy * damping + ay + (Math.random() - 0.5) * vibration;
                 } else {
-                    // Вектор космического дрейфа в покое
-                    const noiseStrength = 0.0015;
+                    // В режиме покоя (или для фоновых звезд)
+                    const noiseStrength = 0.0014;
                     p.vx += (Math.random() - 0.5) * noiseStrength;
                     p.vy += (Math.random() - 0.5) * noiseStrength;
 
-                    // Плавное ограничение максимальной скорости дрейфа
-                    const maxSpeed = p.isBraceOutline ? 0.35 : 0.06;
+                    // Ограничение скорости для величественного дрейфа
+                    const maxSpeed = p.isBraceOutline ? 0.38 : 0.06;
                     const speed = Math.sqrt(p.vx * p.vx + p.vy * p.vy);
                     if (speed > maxSpeed) {
                         p.vx = (p.vx / speed) * maxSpeed;
@@ -358,11 +303,11 @@ const HeroParticles = () => {
                 p.x += p.vx;
                 p.y += p.vy;
 
-                // Упругий отскок от границ Canvas
-                if (p.x < 0 || p.x > width) p.vx *= -0.8;
-                if (p.y < 0 || p.y > height) p.vy *= -0.8;
+                // Мягкий отскок от краев Canvas
+                if (p.x < 0 || p.x > width) p.vx *= -0.7;
+                if (p.y < 0 || p.y > height) p.vy *= -0.7;
 
-                // 80 фоновых звезд: дрейфуют и органично мерцают
+                // 120 фоновых звезд: мягко парят и мерцают
                 if (!p.isBraceOutline) {
                     const twinkle = 0.12 + Math.sin(now * 0.0018 + p.seed) * 0.08;
                     ctx.beginPath();
@@ -373,23 +318,23 @@ const HeroParticles = () => {
                     return;
                 }
 
-                // 60 контурных звезд скобок
+                // 180 контурных звезд скобок: всегда отображают свои уникальные неоновые blend-цвета
                 const particleColor = p.baseColor;
-                const opacity = 0.28 + weight * 0.65;
-                const size = p.size * (1.1 + weight * 0.65);
+                const opacity = 0.28 + p.localWeight * 0.65;
+                const size = p.size * (1.1 + p.localWeight * 0.65);
 
-                // Индивидуальный неоновый ореол вокруг snapped частиц
-                if (weight > 0.02) {
+                // Цветной неоновый ореол вокруг собранных в контур частиц скобок
+                if (p.localWeight > 0.02) {
                     ctx.save();
                     ctx.beginPath();
                     ctx.arc(p.x, p.y, size * 2.8, 0, Math.PI * 2);
                     ctx.fillStyle = particleColor;
-                    ctx.globalAlpha = weight * 0.15;
+                    ctx.globalAlpha = p.localWeight * 0.15;
                     ctx.fill();
                     ctx.restore();
                 }
 
-                // Отрисовка супер-объемных сфер с 3D бликами
+                // Отрисовка супер-объемных стеклянных сфер с 3D-бликом
                 ctx.save();
                 ctx.beginPath();
                 ctx.arc(p.x, p.y, size, 0, Math.PI * 2);
@@ -403,9 +348,9 @@ const HeroParticles = () => {
                     size
                 );
                 
-                grad.addColorStop(0, '#ffffff'); // Объемный световой блик
-                grad.addColorStop(0.2, particleColor); // Основной цвет
-                grad.addColorStop(0.85, lerpColor(particleColor, '#000000', 0.55)); // Собственная тень на сфере
+                grad.addColorStop(0, '#ffffff'); // Объемный блик сверху-слева
+                grad.addColorStop(0.2, particleColor); // Основной цвет звезды
+                grad.addColorStop(0.85, lerpColor(particleColor, '#000000', 0.55)); // Тень на сфере
                 grad.addColorStop(1, 'transparent');
                 
                 ctx.fillStyle = grad;
