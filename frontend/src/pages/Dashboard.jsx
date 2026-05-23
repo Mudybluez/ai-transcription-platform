@@ -34,10 +34,13 @@ const Dashboard = () => {
     const [revealedAnswers, setRevealedAnswers] = useState({}); 
     const [showScrollTop, setShowScrollTop] = useState(false);
     const [highlightText, setHighlightText] = useState(null);
-    const [introState, setIntroState] = useState('playing');
+    const [introState, setIntroState] = useState(() => {
+        return localStorage.getItem('skipIntro') === 'true' ? 'completed' : 'playing';
+    });
 
     const handleIntroComplete = () => {
         setIntroState('blurring');
+        localStorage.setItem('skipIntro', 'true');
         setTimeout(() => {
             setIntroState('completed');
         }, 1200);
@@ -45,6 +48,7 @@ const Dashboard = () => {
 
     const skipIntro = () => {
         setIntroState('blurring');
+        localStorage.setItem('skipIntro', 'true');
         setTimeout(() => {
             setIntroState('completed');
         }, 1200);
