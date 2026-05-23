@@ -757,7 +757,7 @@ ${detailed}`;
                     {t('skip_intro', 'Пропустить')}
                 </button>
             )}
-            <div className={`dashboard-container ${introState === 'completed' ? 'intro-fade-in' : 'intro-active'}`}>
+            <div className={`dashboard-container ${introState === 'completed' ? 'intro-fade-in' : 'intro-active'} ${localStorage.getItem('skipIntro') === 'true' ? 'intro-fast' : ''}`}>
             <header className="top-nav">
                 <button className="hamburger" onClick={() => setIsMobileMenuOpen(true)}>☰</button>
                 <div className="logo">{t('app_name')}</div>

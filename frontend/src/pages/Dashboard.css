@@ -986,6 +986,46 @@ html, body {
     opacity: 0;
 }
 
+/* Ускоренная анимация появления элементов при наличии флага skipIntro */
+.dashboard-container.intro-fast.intro-fade-in .top-nav {
+    animation-duration: 0.4s;
+}
+
+.dashboard-container.intro-fast.intro-fade-in .hero-section h1 {
+    animation-duration: 0.5s;
+    animation-delay: 0s;
+}
+
+.dashboard-container.intro-fast.intro-fade-in .hero-section p {
+    animation-duration: 0.5s;
+    animation-delay: 0.1s;
+}
+
+.dashboard-container.intro-fast.intro-fade-in .mode-selector {
+    animation-duration: 0.5s;
+    animation-delay: 0.2s;
+}
+
+.dashboard-container.intro-fast.intro-fade-in .input-group {
+    animation-duration: 0.5s;
+    animation-delay: 0.3s;
+}
+
+.dashboard-container.intro-fast.intro-fade-in .status-pulse {
+    animation-duration: 0.5s;
+    animation-delay: 0.35s;
+}
+
+.dashboard-container.intro-fast.intro-fade-in h2.section-title {
+    animation-duration: 0.5s;
+    animation-delay: 0.4s;
+}
+
+.dashboard-container.intro-fast.intro-fade-in .history-grid {
+    animation-duration: 0.5s;
+    animation-delay: 0.5s;
+}
+
 @keyframes epic3DFlyBackward {
     from {
         opacity: 0;
