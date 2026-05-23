@@ -7,6 +7,7 @@ import remarkGfm from 'remark-gfm';
 import { useTranslation } from 'react-i18next';
 import MindMap from './MindMap';
 import SolarSystemBackground from './SolarSystemBackground';
+import HeroParticles from './HeroParticles';
 import { downloadYoutubeClientSide } from '../utils/youtubeDownloader';
 
 const Dashboard = () => {
@@ -678,9 +679,10 @@ ${detailed}`;
 
             {!activeItem ? (
                 <div className="fade-in-up">
-                    <section className="hero-section">
-                        <h1>{t('hero_title')}</h1>
-                        <p>{t('hero_subtitle')}</p>
+                    <section className="hero-section" style={{ position: 'relative' }}>
+                        <HeroParticles />
+                        <h1 style={{ position: 'relative', zIndex: 2 }}>{t('hero_title')}</h1>
+                        <p style={{ position: 'relative', zIndex: 2 }}>{t('hero_subtitle')}</p>
                         
                         <div className="mode-selector">
                             <button className={inputMode === 'youtube' ? 'active' : ''} onClick={() => setInputMode('youtube')}>{t('type_youtube')}</button>
