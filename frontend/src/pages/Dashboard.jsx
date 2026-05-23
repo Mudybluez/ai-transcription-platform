@@ -39,11 +39,14 @@ const Dashboard = () => {
         setIntroState('blurring');
         setTimeout(() => {
             setIntroState('completed');
-        }, 1000);
+        }, 1200);
     };
 
     const skipIntro = () => {
-        setIntroState('completed');
+        setIntroState('blurring');
+        setTimeout(() => {
+            setIntroState('completed');
+        }, 1200);
     };
 
     // Плавный скролл мыши с использованием инерции и requestAnimationFrame (60 FPS без зависимостей)
@@ -658,7 +661,7 @@ ${detailed}`;
                     {t('skip_intro', 'Пропустить')}
                 </button>
             )}
-            <div className={`dashboard-container ${introState === 'playing' ? 'intro-active' : 'intro-fade-in'}`}>
+            <div className={`dashboard-container ${introState === 'completed' ? 'intro-fade-in' : 'intro-active'}`}>
             <header className="top-nav">
                 <button className="hamburger" onClick={() => setIsMobileMenuOpen(true)}>☰</button>
                 <div className="logo">{t('app_name')}</div>

@@ -827,16 +827,20 @@ html, body {
     z-index: 1; /* Рендерится поверх свечений во время интро */
     pointer-events: none;
     overflow: hidden;
-    transition: filter 1.0s cubic-bezier(0.25, 1, 0.5, 1), opacity 1.0s ease;
+    transition: filter 1.2s cubic-bezier(0.25, 1, 0.5, 1), 
+                opacity 1.2s cubic-bezier(0.25, 1, 0.5, 1), 
+                transform 1.2s cubic-bezier(0.25, 1, 0.5, 1);
     filter: blur(0px) brightness(1);
-    will-change: filter, opacity;
-    transform: translate3d(0, 0, 0);
+    transform: scale(1.0);
+    will-change: filter, opacity, transform;
+    transform-origin: center center;
     backface-visibility: hidden;
 }
 
 .solar-system-container.blurred {
-    filter: blur(8px) brightness(0.55); /* Мягкое растворение интро */
+    filter: blur(12px) brightness(0.3); /* Мягкое растворение интро */
     opacity: 0;
+    transform: scale(0.35); /* Эффект отдаления планет в глубокий космос */
 }
 
 /* Контейнер для адаптивных космических свечений на фоне */
