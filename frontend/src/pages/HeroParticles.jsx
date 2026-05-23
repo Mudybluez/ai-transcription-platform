@@ -100,18 +100,19 @@ const HeroParticles = () => {
                 const vx = (Math.random() - 0.5) * 0.05;
                 const vy = (Math.random() - 0.5) * 0.05;
 
-                // Жирное начертание скобок по площади (толщина увеличена до 26px по просьбе пользователя)
+                // Жирное начертание скобок по площади (толщина 26px)
                 const thickness = 26; 
                 // Точки выстраивают ТОЛЬКО границы (border) скобок, внутри скобок абсолютно ПУСТО!
-                // Половина точек идет на внешнюю границу, половина на внутреннюю
                 const borderSide = i % 2 === 0 ? 1 : -1;
-                // Небольшое размытие около границ (+/-0.8px) для естественности, но центр остается пустым
                 const thickOffset = borderSide * (thickness / 2) + (Math.random() - 0.5) * 0.8;
 
                 particles.push({
                     id: i,
                     x: Math.random() * w,
                     y: Math.random() * h,
+                    // Домашняя позиция, равномерно распределенная по всему экрану
+                    homeX: Math.random() * w,
+                    homeY: Math.random() * h,
                     vx,
                     vy,
                     size: Math.random() * 1.5 + 0.8,
@@ -235,86 +236,14 @@ const HeroParticles = () => {
                 let targetX = p.x;
                 let targetY = p.y;
 
-                if (p.isBraceOutline) {
-                    const pt = getBracePoint(
-                        p.targetSide,
-                        p.curveT,
-                        cx,
-                        cy,
-                        braceOffset,
-                        braceHeight,
-                        hookWidth,
-                        cuspWidth
-                    );
-                    
-                    // Вычисляем нормальный вектор к кривой Безье для придания "жирности" границам скобок
-                    const t1 = Math.max(0, p.curveT - 0.01);
-                    const t2 = Math.min(1, p.curveT + 0.01);
-                    const pt1 = getBracePoint(p.targetSide, t1, cx, cy, braceOffset, braceHeight, hookWidth, cuspWidth);
-                    const pt2 = getBracePoint(p.targetSide, t2, cx, cy, braceOffset, braceHeight, hookWidth, cuspWidth);
-                    
-                    const dx = pt2.x - pt1.x;
-                    const dy = pt2.y - pt1.y;
-                    const len = Math.sqrt(dx * dx + dy * dy) || 1;
-                    
-                    const nx = -dy / len;
-                    const ny = dx / len;
-
-                    // Добавляем перпендикулярное смещение по границам (hollow bold контур)
-                    targetX = pt.x + nx * p.thickOffset;
-                    targetY = pt.y + ny * p.thickOffset;
-                }
-
-                // Индивидуальный расчет локального веса частицы с волновой задержкой
-                if (p.isBraceOutline) {
-                    // Задержка зависит от расстояния точки до центрального носика скобки (t = 0.5)
-                    const distanceFromCenter = Math.abs(p.curveT - 0.5);
-                    const delay = distanceFromCenter * 0.95 + (p.id % 6) * 0.04;
-                    const targetLocalWeight = smoothWeight > 0.01 ? Math.max(0, smoothWeight - delay) : 0;
-
-                    // Медленная и плавная сборка/разлет контура (интерполяция 0.018)
-                    p.localWeight += (targetLocalWeight - p.localWeight) * 0.018;
-                }
-
-                // Физика пружин невесомости (Spring Physics) на основе локального веса сборки
-                if (p.isBraceOutline && p.localWeight > 0.005) {
-                    // Сила притяжения растет нелинейно по мере сборки
-                    const springK = 0.038 * Math.pow(p.localWeight, 1.8);
-                    const damping = 0.86; // Торможение в космосе (вязкая среда)
-
-                    // Вычисляем ускорение к целевым координатам границ
-                    const ax = (targetX - p.x) * springK;
-                    const ay = (targetY - p.y) * springK;
-
-                    // Добавляем микрошум для живой вибрации
-                    const vibration = 0.03 * (1 - p.localWeight);
-
-                    p.vx = p.vx * damping + ax + (Math.random() - 0.5) * vibration;
-                    p.vy = p.vy * damping + ay + (Math.random() - 0.5) * vibration;
-                } else {
-                    // Режим покоя: свободный космический дрейф
-                    const noiseStrength = 0.0014;
-                    p.vx += (Math.random() - 0.5) * noiseStrength;
-                    p.vy += (Math.random() - 0.5) * noiseStrength;
-
-                    // Ограничение скорости величественного полета
-                    const maxSpeed = p.isBraceOutline ? 0.35 : 0.06;
-                    const speed = Math.sqrt(p.vx * p.vx + p.vy * p.vy);
-                    if (speed > maxSpeed) {
-                        p.vx = (p.vx / speed) * maxSpeed;
-                        p.vy = (p.vy / speed) * maxSpeed;
-                    }
-                }
-
-                p.x += p.vx;
-                p.y += p.vy;
-
-                // Упругий отскок от краев экрана
-                if (p.x < 0 || p.x > width) p.vx *= -0.7;
-                if (p.y < 0 || p.y > height) p.vy *= -0.7;
-
-                // 120 фоновых звезд: парят и мерцают
+                // 120 фоновых звезд: мягко парят по экрану и мерцают
                 if (!p.isBraceOutline) {
+                    p.x += p.vx;
+                    p.y += p.vy;
+
+                    if (p.x < 0 || p.x > width) p.vx *= -1;
+                    if (p.y < 0 || p.y > height) p.vy *= -1;
+
                     const twinkle = 0.12 + Math.sin(now * 0.0018 + p.seed) * 0.08;
                     ctx.beginPath();
                     ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
@@ -324,14 +253,86 @@ const HeroParticles = () => {
                     return;
                 }
 
-                // 180 контурных звезд скобок: всегда отображают свои уникальные blend-цвета
+                // 180 контурных звезд скобок:
+                // 1. Медленно обновляем координаты их домашней космической позиции (дрейф звезд)
+                p.homeX += p.vx * 0.5;
+                p.homeY += p.vy * 0.5;
+
+                if (p.homeX < 0 || p.homeX > width) p.vx *= -1;
+                if (p.homeY < 0 || p.homeY > height) p.vy *= -1;
+
+                // 2. Рассчитываем их целевые координаты на скобках
+                const pt = getBracePoint(
+                    p.targetSide,
+                    p.curveT,
+                    cx,
+                    cy,
+                    braceOffset,
+                    braceHeight,
+                    hookWidth,
+                    cuspWidth
+                );
+                
+                // Вычисляем нормальный вектор к кривой Безье для придания "жирности" границам скобок
+                const t1 = Math.max(0, p.curveT - 0.01);
+                const t2 = Math.min(1, p.curveT + 0.01);
+                const pt1 = getBracePoint(p.targetSide, t1, cx, cy, braceOffset, braceHeight, hookWidth, cuspWidth);
+                const pt2 = getBracePoint(p.targetSide, t2, cx, cy, braceOffset, braceHeight, hookWidth, cuspWidth);
+                
+                const dx = pt2.x - pt1.x;
+                const dy = pt2.y - pt1.y;
+                const len = Math.sqrt(dx * dx + dy * dy) || 1;
+                const nx = -dy / len;
+                const ny = dx / len;
+
+                // Точка на скобке с учетом смещения по границам (hollow bold)
+                const braceX = pt.x + nx * p.thickOffset;
+                const braceY = pt.y + ny * p.thickOffset;
+
+                // 3. Индивидуальный расчет локального веса частицы с волновой задержкой
+                const distanceFromCenter = Math.abs(p.curveT - 0.5);
+                const delay = distanceFromCenter * 0.95 + (p.id % 6) * 0.04;
+                const targetLocalWeight = smoothWeight > 0.01 ? Math.max(0, smoothWeight - delay) : 0;
+
+                // Медленная и плавная сборка/разлет контура (интерполяция 0.018)
+                p.localWeight += (targetLocalWeight - p.localWeight) * 0.018;
+
+                // 4. КОНЕЧНАЯ ЦЕЛЬ - интерполяция между домашней дрейфующей позицией и скобкой!
+                // Если localWeight = 0 (мышь ушла), цель полностью возвращается к homeX, homeY (звездное небо)
+                targetX = p.homeX + (braceX - p.homeX) * p.localWeight;
+                targetY = p.homeY + (braceY - p.homeY) * p.localWeight;
+
+                // 5. Единая физика пружин (Spring Physics) в невесомости
+                // Жесткость пружины растет со сборкой скобок, но имеет базовый уровень в покое для дрейфа звезд
+                const springK = 0.018 + 0.047 * Math.pow(p.localWeight, 1.8);
+                const damping = 0.85;
+
+                // Ускорение к динамической цели
+                const ax = (targetX - p.x) * springK;
+                const ay = (targetY - p.y) * springK;
+
+                // Добавляем микрошум для живой вибрации
+                const vibration = 0.03 * (1 - p.localWeight);
+
+                p.xVelocity = p.xVelocity || 0;
+                p.yVelocity = p.yVelocity || 0;
+
+                p.xVelocity = p.xVelocity * damping + ax + (Math.random() - 0.5) * vibration;
+                p.yVelocity = p.yVelocity * damping + ay + (Math.random() - 0.5) * vibration;
+
+                p.x += p.xVelocity;
+                p.y += p.yVelocity;
+
+                // Граничные отскоки
+                if (p.x < 0 || p.x > width) p.vx *= -0.7;
+                if (p.y < 0 || p.y > height) p.vy *= -0.7;
+
+                // 6. Отрисовка созвездий: всегда отображают свои уникальные неоновые blend-цвета
                 const particleColor = p.baseColor;
                 const opacity = 0.28 + p.localWeight * 0.65;
-                
-                // Чуть уменьшенный размер при сборке для сохранения зазоров/пространства между звездами
-                const size = p.size * (0.9 + p.localWeight * 0.35); 
+                const size = p.size * (0.9 + p.localWeight * 0.35); // Зазоры/пространство между звездами
 
-                // Мягкий неоновый ореол вокруг собранных частиц
+                // Цветной неоновый ореол вокруг собранных частиц скобок
                 if (p.localWeight > 0.02) {
                     ctx.save();
                     ctx.beginPath();
