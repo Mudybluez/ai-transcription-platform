@@ -820,35 +820,22 @@ html, body {
 /* Контейнер для трехмерной анимированной солнечной системы на фоне */
 .solar-system-container {
     position: fixed;
-    top: 50%;
-    left: 50%;
-    width: 142vmax;
-    height: 142vmax;
-    transform: translate(-50%, -50%);
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
     z-index: 0;
     pointer-events: none;
     overflow: hidden;
     transition: filter 2.0s cubic-bezier(0.25, 1, 0.5, 1), opacity 2.0s ease;
     filter: blur(0px) brightness(1);
     will-change: filter, transform;
+    transform: translate3d(0, 0, 0);
     backface-visibility: hidden;
 }
 
 .solar-system-container.blurred {
     filter: blur(3px) brightness(0.85); /* Премиальный размытый кинематографический фон */
-}
-
-.solar-system-container.rotating {
-    animation: cosmic-rotation 240s linear infinite;
-}
-
-@keyframes cosmic-rotation {
-    from {
-        transform: translate(-50%, -50%) rotate(0deg);
-    }
-    to {
-        transform: translate(-50%, -50%) rotate(360deg);
-    }
 }
 
 /* Кнопка пропуска интро */
