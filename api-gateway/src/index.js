@@ -4,8 +4,11 @@ const helmet = require('helmet');
 const morgan = require('morgan');
 const proxy = require('express-http-proxy');
 const jwt = require('jsonwebtoken');
+const http = require('http');
+const WebSocket = require('ws');
 
 const app = express();
+const server = http.createServer(app);
 const PORT = process.env.PORT || 3000;
 const JWT_SECRET = process.env.JWT_SECRET || 'super_secret_jwt_key';
 
@@ -84,6 +87,138 @@ app.get('/health', (req, res) => {
     res.status(200).json({ status: 'API Gateway is running' });
 });
 
-app.listen(PORT, () => {
+// --- WEBSOCKET SERVER FOR JOB UPDATES ---
+const wss = new WebSocket.Server({ noServer: true });
+
+function getJobStatus(jobId) {
+    return new Promise((resolve, reject) => {
+        const uploadServiceUrl = process.env.UPLOAD_SERVICE_URL || 'http://localhost:3002';
+        let url;
+        try {
+            url = new URL(`${uploadServiceUrl}/status/${jobId}`);
+        } catch (e) {
+            return reject(e);
+        }
+
+        const options = {
+            hostname: url.hostname,
+            port: url.port || 80,
+            path: url.pathname + url.search,
+            method: 'GET',
+            timeout: 2000
+        };
+
+        const req = http.request(options, (res) => {
+            let data = '';
+            res.on('data', (chunk) => { data += chunk; });
+            res.on('end', () => {
+                if (res.statusCode >= 200 && res.statusCode < 300) {
+                    try {
+                        resolve(JSON.parse(data));
+                    } catch (e) {
+                        reject(new Error('Invalid JSON'));
+                    }
+                } else {
+                    reject(new Error(`Status ${res.statusCode}`));
+                }
+            });
+        });
+
+        req.on('error', reject);
+        req.on('timeout', () => {
+            req.destroy();
+            reject(new Error('Timeout'));
+        });
+        req.end();
+    });
+}
+
+wss.on('connection', (ws) => {
+    console.log(`🔌 WebSocket connection established for user ${ws.userId}`);
+    let pollInterval = null;
+
+    ws.on('message', (message) => {
+        try {
+            const data = JSON.parse(message);
+            if (data.type === 'subscribe') {
+                const jobId = data.jobId;
+                if (!jobId) return;
+
+                console.log(`👤 User ${ws.userId} subscribed to job ${jobId}`);
+                if (pollInterval) clearInterval(pollInterval);
+
+                const checkStatus = async () => {
+                    try {
+                        const job = await getJobStatus(jobId);
+                        if (ws.readyState === WebSocket.OPEN) {
+                            ws.send(JSON.stringify({
+                                type: 'status',
+                                jobId: jobId,
+                                status: job.status
+                            }));
+                        }
+
+                        if (job.status === 'COMPLETED' || job.status.startsWith('FAILED')) {
+                            clearInterval(pollInterval);
+                        }
+                    } catch (err) {
+                        console.error(`Error fetching job status for ${jobId}:`, err.message);
+                    }
+                };
+
+                checkStatus();
+                pollInterval = setInterval(checkStatus, 2000);
+            }
+        } catch (err) {
+            console.error('Error handling WebSocket message:', err);
+        }
+    });
+
+    ws.on('close', () => {
+        console.log(`🔌 WebSocket connection closed for user ${ws.userId}`);
+        if (pollInterval) clearInterval(pollInterval);
+    });
+
+    ws.on('error', (err) => {
+        console.error(`WebSocket error for user ${ws.userId}:`, err);
+        if (pollInterval) clearInterval(pollInterval);
+    });
+});
+
+server.on('upgrade', (request, socket, head) => {
+    try {
+        const parsedUrl = new URL(request.url, `http://${request.headers.host || 'localhost'}`);
+        const pathname = parsedUrl.pathname;
+
+        if (pathname === '/api/ws') {
+            const token = parsedUrl.searchParams.get('token');
+            if (!token) {
+                socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
+                socket.destroy();
+                return;
+            }
+
+            jwt.verify(token, JWT_SECRET, (err, decoded) => {
+                if (err) {
+                    socket.write('HTTP/1.1 403 Forbidden\r\n\r\n');
+                    socket.destroy();
+                    return;
+                }
+
+                wss.handleUpgrade(request, socket, head, (ws) => {
+                    ws.userId = decoded.userId;
+                    wss.emit('connection', ws, request);
+                });
+            });
+        } else {
+            socket.destroy();
+        }
+    } catch (err) {
+        console.error('Error handling upgrade:', err);
+        socket.destroy();
+    }
+});
+
+server.listen(PORT, () => {
     console.log(`🚀 API Gateway запущен на порту ${PORT}`);
 });
