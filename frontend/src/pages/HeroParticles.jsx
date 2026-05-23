@@ -15,35 +15,44 @@ const HeroParticles = () => {
         let height = 0;
 
         // Всего 140 звезд:
-        // - 80 звезд продолжают всегда свободно летать в космосе для красивого фона.
-        // - 60 звезд (по 30 на каждую сторону) собираются и формируют тонкие четкие контуры скобок { }.
+        // - 80 фоновых звезд парят в космосе.
+        // - 60 звезд (по 30 на каждую сторону) собираются и формируют скобки { }.
         const numParticles = 140;
         const braceParticlesCount = 60; // 30 левая, 30 правая
         const particles = [];
+
+        // 5 красивых blend-цветов (белый, голубой, фиолетовый, розовый, ярко-оранжевый)
+        const particleColors = [
+            '#ffffff', // Белый
+            '#38bdf8', // Голубой
+            '#c084fc', // Фиолетовый
+            '#f472b6', // Розовый
+            '#f97316'  // Ярко-оранжевый
+        ];
 
         // Инициализируем частицы
         const initParticles = (w, h) => {
             particles.length = 0;
             for (let i = 0; i < numParticles; i++) {
                 const isBraceOutline = i < braceParticlesCount;
+                const baseColor = particleColors[i % particleColors.length];
                 particles.push({
                     id: i,
-                    // Случайное стартовое положение как плавающие звезды
                     x: Math.random() * w,
                     y: Math.random() * h,
-                    // Очень медленный, величественный дрейф в невесомости в покое (в 3.5 раза медленнее)
-                    vx: (Math.random() - 0.5) * 0.08,
-                    vy: (Math.random() - 0.5) * 0.08,
-                    size: Math.random() * 1.4 + 0.8,
+                    // Очень медленный, величественный дрейф в невесомости в покое
+                    vx: (Math.random() - 0.5) * 0.05,
+                    vy: (Math.random() - 0.5) * 0.05,
+                    size: Math.random() * 1.5 + 0.8,
+                    baseColor,
                     angle: Math.random() * Math.PI * 2,
-                    angularSpeed: (Math.random() - 0.5) * 0.005,
+                    seed: Math.random() * 100,
                     
-                    // Параметры сборки фигур (только для выделенного подконтура из 60 частиц)
+                    // Параметры сборки фигур (только для 60 частиц скобок)
                     isBraceOutline,
                     targetSide: isBraceOutline ? (i < braceParticlesCount / 2 ? 'left' : 'right') : null,
-                    // Равномерное смещение по кривой скобки (от 0 до 1) для идеального тонкого контура
-                    curveT: isBraceOutline ? (i % (braceParticlesCount / 2)) / (braceParticlesCount / 2 - 1) : 0,
-                    seed: Math.random() * 100
+                    // Равномерное смещение по кривой скобки (от 0 до 1)
+                    curveT: isBraceOutline ? (i % (braceParticlesCount / 2)) / (braceParticlesCount / 2 - 1) : 0
                 });
             }
         };
@@ -52,7 +61,6 @@ const HeroParticles = () => {
             const rect = canvas.getBoundingClientRect();
             width = rect.width;
             height = rect.height;
-            // Учитываем ретину для идеальной четкости звезд
             const dpr = window.devicePixelRatio || 1;
             canvas.width = Math.ceil(width * dpr);
             canvas.height = Math.ceil(height * dpr);
@@ -62,7 +70,6 @@ const HeroParticles = () => {
         };
         resizeCanvas();
 
-        // Отслеживаем движение мыши
         const handleMouseMove = (e) => {
             const rect = canvas.getBoundingClientRect();
             const x = e.clientX - rect.left;
@@ -81,7 +88,6 @@ const HeroParticles = () => {
         }
         window.addEventListener('resize', resizeCanvas);
 
-        // Функция лерпа цветов
         const lerpColor = (c1, c2, w) => {
             const r1 = parseInt(c1.substring(1, 3), 16);
             const g1 = parseInt(c1.substring(3, 5), 16);
@@ -98,11 +104,20 @@ const HeroParticles = () => {
             return `rgb(${r}, ${g}, ${b})`;
         };
 
-        // Функция расчета расстояния от точки (mx, my) до прямоугольника [rx, ry, rw, rh]
         const getDistanceToRect = (mx, my, rx, ry, rw, rh) => {
             const dx = Math.max(rx - mx, 0, mx - (rx + rw));
             const dy = Math.max(ry - my, 0, my - (ry + rh));
             return Math.sqrt(dx * dx + dy * dy);
+        };
+
+        const getBraceGradient = (x, cy, height, alpha) => {
+            const grad = ctx.createLinearGradient(x, cy - height / 2, x, cy + height / 2);
+            grad.addColorStop(0, `rgba(244, 114, 182, ${alpha})`);     // Розовый
+            grad.addColorStop(0.25, `rgba(56, 189, 248, ${alpha})`);   // Голубой
+            grad.addColorStop(0.5, `rgba(168, 85, 247, ${alpha})`);    // Фиолетовый
+            grad.addColorStop(0.75, `rgba(249, 115, 22, ${alpha})`);   // Ярко-оранжевый
+            grad.addColorStop(1, `rgba(255, 255, 255, ${alpha})`);     // Белый
+            return grad;
         };
 
         // Анимационный цикл
@@ -114,91 +129,177 @@ const HeroParticles = () => {
             const cx = width / 2;
             const cy = height / 2;
 
-            // Динамически рассчитываем зону текста героя (прямоугольник)
-            const tw = Math.min(width * 0.8, 760); // Реальная ширина текста героя
-            const th = 150; // Высота зоны заголовка и подзаголовка
+            // Динамически рассчитываем прямоугольник площади текста героя
+            const tw = Math.min(width * 0.8, 760); 
+            const th = 150; 
             const rx = cx - tw / 2;
             const ry = cy - th / 2;
 
-            // Расстояние до границ зоны текста
             let distance = 1000;
             if (mouse.active) {
                 distance = getDistanceToRect(mouse.x, mouse.y, rx, ry, tw, th);
             }
 
-            // Настраиваем параметры скобок под пропорции экрана
-            const braceOffset = Math.min(410, width * 0.44); // Зазор от центра до вертикальной оси скобок
-            const braceHeight = Math.min(180, height * 0.75); // Высота скобок { }
+            const braceOffset = Math.min(410, width * 0.44); 
+            const braceHeight = Math.min(180, height * 0.75); 
 
-            // Радиус влияния за пределами зоны текста
+            // Геометрия изгибов
+            const hookWidth = 22; 
+            const cuspWidth = 24; 
+
+            // Сила притяжения (weight)
             const influenceRadius = 250;
             let weight = 0;
 
             if (mouse.active) {
                 if (distance === 0) {
-                    // Если курсор находится строго ВНУТРИ зоны текста, фигуры четко и на 100% собраны!
                     weight = 1.0;
                 } else if (distance < influenceRadius) {
-                    // Если снаружи, сила притяжения плавно падает до нуля по мере отдаления
                     weight = Math.pow(1 - distance / influenceRadius, 1.3);
                 }
             }
 
+            // Функция построения пути скобки
+            const drawBracePath = (side) => {
+                const dir = side === 'left' ? -1 : 1;
+                const baseX = cx + dir * braceOffset;
+                
+                for (let step = 0; step <= 40; step++) {
+                    const t = step / 40;
+                    const targetY = cy - braceHeight / 2 + t * braceHeight;
+                    let targetX = baseX;
+                    
+                    if (t < 0.15) {
+                        // Верхний крючок: изгибается горизонтально внутрь к центру
+                        const pct = t / 0.15;
+                        targetX -= dir * hookWidth * Math.pow(1 - pct, 2.5);
+                    } else if (t > 0.85) {
+                        // Нижний крючок: изгибается горизонтально внутрь к центру
+                        const pct = (1 - t) / 0.15;
+                        targetX -= dir * hookWidth * Math.pow(1 - pct, 2.5);
+                    } else if (t >= 0.44 && t <= 0.56) {
+                        // Средний носик: резко изгибается наружу
+                        const pct = (t - 0.44) / 0.06;
+                        const dist = 1 - Math.abs(pct - 1);
+                        targetX += dir * cuspWidth * Math.sin(dist * Math.PI / 2);
+                    }
+
+                    if (step === 0) {
+                        ctx.moveTo(targetX, targetY);
+                    } else {
+                        ctx.lineTo(targetX, targetY);
+                    }
+                }
+            };
+
+            // 1. ОТРИСОВКА МНОГОСЛОЙНОГО НЕОНОВОГО ОБЪЕМНОГО СВЕЧЕНИЯ
+            if (weight > 0.02) {
+                ctx.save();
+                ctx.lineCap = 'round';
+                ctx.lineJoin = 'round';
+                
+                // Включаем аддитивное смешивание для космического свечения
+                ctx.globalCompositeOperation = 'screen';
+
+                const drawLayer = (side, wWidth, wAlpha, wBlur, wBlurColor) => {
+                    const dir = side === 'left' ? -1 : 1;
+                    const baseX = cx + dir * braceOffset;
+                    
+                    ctx.beginPath();
+                    drawBracePath(side);
+                    
+                    ctx.strokeStyle = getBraceGradient(baseX, cy, braceHeight, wAlpha * weight);
+                    ctx.lineWidth = wWidth;
+                    
+                    if (wBlur > 0 && wBlurColor) {
+                        ctx.shadowColor = wBlurColor;
+                        ctx.shadowBlur = wBlur * weight;
+                    } else {
+                        ctx.shadowBlur = 0;
+                    }
+                    
+                    ctx.stroke();
+                };
+
+                // Свечение уровня 1: Широкая мягкая корона (Corona Glow)
+                drawLayer('left', 34, 0.06, 24, '#c084fc');
+                drawLayer('right', 34, 0.06, 24, '#c084fc');
+
+                // Свечение уровня 2: Яркий неоновый стержень (Neon Core Glow)
+                drawLayer('left', 14, 0.16, 12, '#38bdf8');
+                drawLayer('right', 14, 0.16, 12, '#38bdf8');
+
+                // Свечение уровня 3: Тонкий глянцевый стеклянный центр (Light Rod Core)
+                drawLayer('left', 5, 0.38, 0);
+                drawLayer('right', 5, 0.38, 0);
+
+                // Свечение уровня 4: Ультра-тонкая кристально-белая нить (High-Intensity String)
+                ctx.shadowBlur = 0;
+                ctx.beginPath();
+                drawBracePath('left');
+                ctx.strokeStyle = `rgba(255, 255, 255, ${weight * 0.8})`;
+                ctx.lineWidth = 1.2;
+                ctx.stroke();
+
+                ctx.beginPath();
+                drawBracePath('right');
+                ctx.strokeStyle = `rgba(255, 255, 255, ${weight * 0.8})`;
+                ctx.lineWidth = 1.2;
+                ctx.stroke();
+
+                ctx.restore();
+            }
+
+            // 2. ОТРИСОВКА ЧАСТИЦ (ЗВЕЗД)
+            ctx.save();
+            ctx.globalCompositeOperation = 'screen';
+
             particles.forEach((p) => {
-                // 1. Медленное величественное движение плавающих звезд (невесомость)
                 p.x += p.vx;
                 p.y += p.vy;
 
-                // Плавный мягкий отскок от краев Canvas
                 if (p.x < 0 || p.x > width) p.vx *= -1;
                 if (p.y < 0 || p.y > height) p.vy *= -1;
 
-                // Если частица не входит в 60 контурных звезд скобок, она просто летает как звезда
+                // 80 фоновых звезд: мягко парят и мерцают своими красивыми цветами
                 if (!p.isBraceOutline) {
+                    const twinkle = 0.14 + Math.sin(now * 0.002 + p.seed) * 0.1;
                     ctx.beginPath();
                     ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
-                    ctx.fillStyle = '#cbd5e1';
-                    ctx.globalAlpha = 0.22;
+                    ctx.fillStyle = p.baseColor;
+                    ctx.globalAlpha = twinkle;
                     ctx.fill();
                     return;
                 }
 
-                // 2. Расчет ТОЧНЫХ координат контура фигурных скобок { }
-                // dir = -1 для левой {, dir = 1 для правой }
+                // 60 контурных звезд собираются в скобки { }
                 const dir = p.targetSide === 'left' ? -1 : 1;
-                const baseX = cx + dir * braceOffset; // Вертикальная ось скобки
+                const baseX = cx + dir * braceOffset;
                 
                 let targetX = baseX;
                 let targetY = cy - braceHeight / 2 + p.curveT * braceHeight;
 
-                const t = p.curveT; // Позиция точки на скобке от 0 до 1
-                const hookWidth = 20; // Длина закругления крючков { }
-                const cuspWidth = 20; // Длина выступа среднего носика { }
-
-                // Геометрия левой и правой скобок { }
+                const t = p.curveT;
                 if (t < 0.15) {
-                    // Верхний крючок скобки:
-                    // Начинается у кончика (ближе к тексту, baseX + dir * hookWidth) и изгибается влево к baseX.
+                    // Изгиб крючка внутрь к центру
                     const pct = t / 0.15;
-                    targetX += dir * hookWidth * Math.pow(1 - pct, 2.5);
+                    targetX -= dir * hookWidth * Math.pow(1 - pct, 2.5);
                 } else if (t > 0.85) {
-                    // Нижний крючок скобки:
-                    // Начинается у baseX и изгибается вправо к baseX + dir * hookWidth на конце.
+                    // Изгиб крючка внутрь к центру
                     const pct = (1 - t) / 0.15;
-                    targetX += dir * hookWidth * Math.pow(1 - pct, 2.5);
+                    targetX -= dir * hookWidth * Math.pow(1 - pct, 2.5);
                 } else if (t >= 0.44 && t <= 0.56) {
-                    // Острый средний носик скобки:
-                    // Резко изгибается наружу (в противоположную сторону от текста)
-                    const pct = (t - 0.44) / 0.06; // 0 to 2, пик ровно на t = 0.5
-                    const dist = 1 - Math.abs(pct - 1); // 0 to 1 (пик) to 0
-                    targetX -= dir * cuspWidth * Math.sin(dist * Math.PI / 2);
+                    // Изгиб носика наружу от центра
+                    const pct = (t - 0.44) / 0.06;
+                    const dist = 1 - Math.abs(pct - 1);
+                    targetX += dir * cuspWidth * Math.sin(dist * Math.PI / 2);
                 }
 
-                // 3. Плавная интерполяция положения (свободный полет <-> сборка контура)
+                // Плавное притяжение координат (Lerp)
                 const currentX = p.x + (targetX - p.x) * weight;
                 const currentY = p.y + (targetY - p.y) * weight;
 
-                // 4. Микро-колебания в невесомости (гаснут до нуля, когда фигура полностью собрана)
+                // Микро-колебания в невесомости в покое
                 const floatNoise = 8 * (1 - weight);
                 const noiseX = Math.sin(now * 0.0018 + p.seed) * floatNoise;
                 const noiseY = Math.cos(now * 0.0014 + p.seed) * floatNoise;
@@ -206,38 +307,49 @@ const HeroParticles = () => {
                 const drawX = currentX + noiseX;
                 const drawY = currentY + noiseY;
 
-                // 5. Динамические свойства и смена цвета
-                const opacity = 0.25 + weight * 0.65;
-                const size = p.size * (1.0 + weight * 0.5);
+                // Точки всегда сохраняют свои великолепные blend-цвета!
+                const particleColor = p.baseColor;
+                const opacity = 0.28 + weight * 0.62;
+                const size = p.size * (1.1 + weight * 0.6);
 
-                // Фигурные скобки ВСЕГДА БЕЛЫЕ во время сбора (weight < 0.96)
-                // Только когда ВСЕ точки полностью собрались (weight >= 0.96), скобка загорается неоновым фиолетовым!
-                let particleColor = '#cbd5e1';
-                if (weight >= 0.96) {
-                    const colorTransition = (weight - 0.96) / 0.04; // 0 to 1
-                    particleColor = lerpColor('#ffffff', '#a855f7', colorTransition);
-                } else if (weight > 0.3) {
-                    particleColor = '#ffffff'; // Чистый белый при сборке
+                // Отрисовка цветного неонового ореола вокруг каждой собранной точки скобок
+                if (weight > 0.05) {
+                    ctx.save();
+                    ctx.beginPath();
+                    ctx.arc(drawX, drawY, size * 2.6, 0, Math.PI * 2);
+                    ctx.fillStyle = particleColor;
+                    ctx.globalAlpha = weight * 0.16;
+                    ctx.fill();
+                    ctx.restore();
                 }
 
-                // Рисуем контурную точку скобки
+                // Отрисовка супер-объемных стеклянных сфер с 3D-бликом
+                ctx.save();
                 ctx.beginPath();
                 ctx.arc(drawX, drawY, size, 0, Math.PI * 2);
-                ctx.fillStyle = particleColor;
+                
+                // Радиальный градиент с бликом сбоку
+                const grad = ctx.createRadialGradient(
+                    drawX - size * 0.35,
+                    drawY - size * 0.35,
+                    size * 0.04,
+                    drawX,
+                    drawY,
+                    size
+                );
+                
+                grad.addColorStop(0, '#ffffff'); // Световой блик
+                grad.addColorStop(0.2, particleColor); // Основной насыщенный цвет
+                grad.addColorStop(0.85, lerpColor(particleColor, '#000000', 0.55)); // Собственная тень сферы
+                grad.addColorStop(1, 'transparent');
+                
+                ctx.fillStyle = grad;
                 ctx.globalAlpha = opacity;
                 ctx.fill();
-
-                // 6. Неоновый ореол при полной сборке и фиолетовом цвете
-                if (weight >= 0.96) {
-                    ctx.beginPath();
-                    ctx.arc(drawX, drawY, size * 2.5, 0, Math.PI * 2);
-                    ctx.fillStyle = '#a855f7';
-                    ctx.globalAlpha = (weight - 0.96) / 0.04 * 0.16;
-                    ctx.fill();
-                }
+                ctx.restore();
             });
 
-            ctx.globalAlpha = 1.0;
+            ctx.restore();
             animationFrameId = requestAnimationFrame(animate);
         };
         animate();
