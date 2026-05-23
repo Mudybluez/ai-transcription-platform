@@ -37,6 +37,9 @@ const Dashboard = () => {
     const [introState, setIntroState] = useState(() => {
         return localStorage.getItem('skipIntro') === 'true' ? 'completed' : 'playing';
     });
+    const [isInitiallySkipped] = useState(() => {
+        return localStorage.getItem('skipIntro') === 'true';
+    });
 
     const handleIntroComplete = () => {
         setIntroState('blurring');
@@ -757,7 +760,7 @@ ${detailed}`;
                     {t('skip_intro', 'Пропустить')}
                 </button>
             )}
-            <div className={`dashboard-container ${introState === 'completed' ? 'intro-fade-in' : 'intro-active'} ${localStorage.getItem('skipIntro') === 'true' ? 'intro-fast' : ''}`}>
+            <div className={`dashboard-container ${introState === 'completed' ? 'intro-fade-in' : 'intro-active'} ${isInitiallySkipped ? 'intro-fast' : ''}`}>
             <header className="top-nav">
                 <button className="hamburger" onClick={() => setIsMobileMenuOpen(true)}>☰</button>
                 <div className="logo">{t('app_name')}</div>
