@@ -680,7 +680,7 @@ ${detailed}`;
             {!activeItem ? (
                 <div className="fade-in-up">
                     <section className="hero-section" style={{ position: 'relative' }}>
-                        <HeroParticles />
+                        {introState === 'completed' && <HeroParticles />}
                         <h1 style={{ position: 'relative', zIndex: 2 }}>{t('hero_title')}</h1>
                         <p style={{ position: 'relative', zIndex: 2 }}>{t('hero_subtitle')}</p>
                         
