@@ -224,8 +224,8 @@ const HeroParticles = () => {
             }
 
             // Плавное следование глобального веса за целью (smoothWeight)
-            // При сборке (нарастании) скорость 0.022, при распаде (разлете) - 0.012 (для красивой долгой задержки)
-            const chaseSpeed = targetWeight > smoothWeight ? 0.022 : 0.012;
+            // Увеличили отзывчивость (0.065 при нарастании, 0.03 при распаде)
+            const chaseSpeed = targetWeight > smoothWeight ? 0.065 : 0.03;
             smoothWeight += (targetWeight - smoothWeight) * chaseSpeed;
 
             // ОТРИСОВКА И ФИЗИКА ЧАСТИЦ (ЗВЕЗД)
@@ -291,11 +291,21 @@ const HeroParticles = () => {
 
                 // 3. Индивидуальный расчет локального веса частицы с волновой задержкой
                 const distanceFromCenter = Math.abs(p.curveT - 0.5);
-                const delay = distanceFromCenter * 0.95 + (p.id % 6) * 0.04;
-                const targetLocalWeight = smoothWeight > 0.01 ? Math.max(0, smoothWeight - delay) : 0;
+                // Задержка от 0 до 0.45
+                const delay = distanceFromCenter * 0.7 + (p.id % 5) * 0.03;
+                
+                let targetLocalWeight = 0;
+                if (smoothWeight > 0.01) {
+                    if (smoothWeight > delay) {
+                        // Нормализуем формулу, чтобы вес ГАРАНТИРОВАНО доходил до 1.0!
+                        const denom = Math.max(0.1, 1.0 - delay);
+                        targetLocalWeight = (smoothWeight - delay) / denom;
+                    }
+                }
 
-                // Медленная и плавная сборка/разлет контура (интерполяция 0.018)
-                p.localWeight += (targetLocalWeight - p.localWeight) * 0.018;
+                // Плавная и отзывчивая сборка/разлет (0.055 при нарастании, 0.035 при разлете)
+                const reactionSpeed = targetLocalWeight > p.localWeight ? 0.055 : 0.035;
+                p.localWeight += (targetLocalWeight - p.localWeight) * reactionSpeed;
 
                 // 4. КОНЕЧНАЯ ЦЕЛЬ - интерполяция между домашней дрейфующей позицией и скобкой!
                 // Если localWeight = 0 (мышь ушла), цель полностью возвращается к homeX, homeY (звездное небо)
@@ -330,9 +340,11 @@ const HeroParticles = () => {
                 // 6. Отрисовка созвездий: всегда отображают свои уникальные неоновые blend-цвета
                 const particleColor = p.baseColor;
                 const opacity = 0.28 + p.localWeight * 0.65;
-                const size = p.size * (0.9 + p.localWeight * 0.35); // Зазоры/пространство между звездами
+                
+                // Чуть уменьшенный размер при сборке для сохранения зазоров/пространства между звездами
+                const size = p.size * (0.9 + p.localWeight * 0.35); 
 
-                // Цветной неоновый ореол вокруг собранных частиц скобок
+                // Мягкий неоновый ореол вокруг собранных частиц
                 if (p.localWeight > 0.02) {
                     ctx.save();
                     ctx.beginPath();
