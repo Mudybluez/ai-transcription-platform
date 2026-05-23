@@ -824,18 +824,64 @@ html, body {
     left: 0;
     width: 100vw;
     height: 100vh;
-    z-index: 0;
+    z-index: 1; /* Рендерится поверх свечений во время интро */
     pointer-events: none;
     overflow: hidden;
-    transition: filter 2.0s cubic-bezier(0.25, 1, 0.5, 1), opacity 2.0s ease;
+    transition: filter 1.0s cubic-bezier(0.25, 1, 0.5, 1), opacity 1.0s ease;
     filter: blur(0px) brightness(1);
-    will-change: filter, transform;
+    will-change: filter, opacity;
     transform: translate3d(0, 0, 0);
     backface-visibility: hidden;
 }
 
 .solar-system-container.blurred {
-    filter: blur(3px) brightness(0.85); /* Премиальный размытый кинематографический фон */
+    filter: blur(8px) brightness(0.55); /* Мягкое растворение интро */
+    opacity: 0;
+}
+
+/* Контейнер для адаптивных космических свечений на фоне */
+.cosmic-glow-container {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    z-index: 0;
+    pointer-events: none;
+    overflow: hidden;
+    background-color: #050508; /* Глубокий космический черный фон */
+    opacity: 0;
+    transition: opacity 1.0s cubic-bezier(0.25, 1, 0.5, 1);
+}
+
+.cosmic-glow-container.visible {
+    opacity: 1;
+}
+
+/* Мягкие тусклые свечения на фоне */
+.cosmic-glow-blob {
+    position: absolute;
+    border-radius: 50%;
+    mix-blend-mode: screen;
+    filter: blur(80px); /* Мягкое кинематографическое размытие краев */
+    opacity: 0.08; /* Тусклые и ненавязчивые свечения */
+    will-change: transform, opacity;
+    animation: float-pulse 20s ease-in-out infinite alternate;
+}
+
+@keyframes float-pulse {
+    0% {
+        transform: translate(0px, 0px) scale(1.0);
+        opacity: 0.05;
+    }
+    50% {
+        transform: translate(30px, -45px) scale(1.06);
+        opacity: 0.11;
+    }
+    100% {
+        transform: translate(-20px, 25px) scale(0.94);
+        opacity: 0.06;
+    }
 }
 
 /* Кнопка пропуска интро */

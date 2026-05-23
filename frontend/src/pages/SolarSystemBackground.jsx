@@ -4,8 +4,6 @@ const SolarSystemBackground = ({ history = [], introState = 'playing', onIntroCo
     const canvasRef = useRef(null);
     const introStateRef = useRef(introState);
     const onIntroCompleteRef = useRef(onIntroComplete);
-    const isScrollingRef = useRef(false);
-    const scrollTimeoutRef = useRef(null);
     const planetsRef = useRef([]);
 
     useEffect(() => {
@@ -16,27 +14,40 @@ const SolarSystemBackground = ({ history = [], introState = 'playing', onIntroCo
         onIntroCompleteRef.current = onIntroComplete;
     }, [onIntroComplete]);
 
+    // Космические цвета для планет и свечений
+    const cosmicColors = [
+        '#38bdf8', // Голубой (Cyan)
+        '#34d399', // Изумрудный (Emerald)
+        '#fb7185', // Нежно-розовый (Rose)
+        '#fbbf24', // Янтарный (Amber)
+        '#818cf8', // Индиго (Indigo)
+        '#2dd4bf', // Бирюзовый (Teal)
+        '#a78bfa', // Лавандовый (Purple)
+        '#f472b6'  // Розовый (Pink)
+    ];
+
+    // Позиции для фоновых свечений (небул) в vmax для адаптивности
+    const glowPositions = [
+        { top: '15%', left: '15%', size: '35vmax' },
+        { top: '55%', left: '70%', size: '40vmax' },
+        { top: '10%', left: '75%', size: '30vmax' },
+        { top: '70%', left: '10%', size: '45vmax' },
+        { top: '35%', left: '40%', size: '35vmax' },
+        { top: '75%', left: '45%', size: '30vmax' },
+        { top: '45%', left: '15%', size: '38vmax' },
+        { top: '25%', left: '80%', size: '32vmax' }
+    ];
+
+    const readyItems = history.filter(item => {
+        const analysis = typeof item.structured_analysis === 'string'
+            ? JSON.parse(item.structured_analysis)
+            : item.structured_analysis;
+        return !!analysis;
+    });
+
     // Отслеживаем изменения истории и бесшовно синхронизируем планеты в planetsRef,
     // сохраняя текущие углы вращения уже существующих планет, чтобы предотвратить визуальные скачки.
     useEffect(() => {
-        const cosmicColors = [
-            '#38bdf8', // Голубой (Cyan)
-            '#34d399', // Изумрудный (Emerald)
-            '#fb7185', // Нежно-розовый (Rose)
-            '#fbbf24', // Янтарный (Amber)
-            '#818cf8', // Индиго (Indigo)
-            '#2dd4bf', // Бирюзовый (Teal)
-            '#a78bfa', // Лавандовый (Purple)
-            '#f472b6'  // Розовый (Pink)
-        ];
-
-        const readyItems = history.filter(item => {
-            const analysis = typeof item.structured_analysis === 'string'
-                ? JSON.parse(item.structured_analysis)
-                : item.structured_analysis;
-            return !!analysis;
-        });
-
         let nextPlanets = [];
 
         if (readyItems.length === 0) {
@@ -102,6 +113,7 @@ const SolarSystemBackground = ({ history = [], introState = 'playing', onIntroCo
         });
     }, [history]);
 
+    // Анимационный цикл планет в Canvas (активен только до завершения интро)
     useEffect(() => {
         const canvas = canvasRef.current;
         if (!canvas) return;
@@ -138,19 +150,14 @@ const SolarSystemBackground = ({ history = [], introState = 'playing', onIntroCo
             });
         }
 
-        // Настройка размеров под экран
-        // Во время интро ('playing' или 'blurring') используем DPR=0.75 для безупречного баланса четкости и FPS.
-        // Когда интро завершено ('completed'), используем DPR=0.15. Это снижает нагрузку на GPU на 96%
-        // при рендеринге CSS-размытия и позволяет получить абсолютно стабильные 60+ FPS на любом устройстве!
+        // Настройка размеров под экран (используем DPR=0.75 для баланса производительности)
         const resizeCanvas = () => {
             width = window.innerWidth;
             height = window.innerHeight;
-            
-            const dpr = introState === 'completed' ? 0.15 : 0.75;
+            const dpr = 0.75;
             canvas.width = Math.ceil(width * dpr);
             canvas.height = Math.ceil(height * dpr);
 
-            // Настраиваем размер оффскрин-холста (делаем его компактным 0.25x для супер-быстрого рендеринга и бесплатного аппаратного сглаживания)
             const scale = 0.25;
             offscreenCanvas.width = Math.ceil(width * scale);
             offscreenCanvas.height = Math.ceil(height * scale);
@@ -161,7 +168,6 @@ const SolarSystemBackground = ({ history = [], introState = 'playing', onIntroCo
             offscreenCtx.clearRect(0, 0, ow, oh);
 
             // 1. Отрисовка космических туманностей (Nebulas) один раз при инициализации/ресайзе
-            // Туманность 1 (Фиолетовая)
             offscreenCtx.beginPath();
             const nebula1 = offscreenCtx.createRadialGradient(
                 ow * 0.25,
@@ -178,7 +184,6 @@ const SolarSystemBackground = ({ history = [], introState = 'playing', onIntroCo
             offscreenCtx.fillStyle = nebula1;
             offscreenCtx.fill();
 
-            // Туманность 2 (Бирюзовая)
             offscreenCtx.beginPath();
             const nebula2 = offscreenCtx.createRadialGradient(
                 ow * 0.75,
@@ -206,15 +211,11 @@ const SolarSystemBackground = ({ history = [], introState = 'playing', onIntroCo
         resizeCanvas();
         window.addEventListener('resize', resizeCanvas);
 
-        // Переменная угла левитации (будет рассчитываться прямо в JS)
         let wobbleAngle = 0;
-
-        // Отслеживаем время начала интро-анимации
         const startTime = performance.now();
         let introTriggered = false;
 
         const drawFrame = (now) => {
-            // Очищаем холст с легким motion-blur эффектом
             ctx.fillStyle = 'rgba(5, 5, 8, 0.08)';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
 
@@ -224,12 +225,12 @@ const SolarSystemBackground = ({ history = [], introState = 'playing', onIntroCo
             ctx.save();
             const scaleX = canvas.width / width;
             const scaleY = canvas.height / height;
-            ctx.scale(scaleX, scaleY); // Рисуем в оригинальных координатах
+            ctx.scale(scaleX, scaleY);
 
-            // 1. Отрисовка статического оффскрин-слоя (туманности и 30 звезд в один вызов drawImage!)
+            // 1. Рисуем статический оффскрин-слой
             ctx.drawImage(offscreenCanvas, 0, 0, width, height);
 
-            // 2. Отрисовка 10 мерцающих динамических звезд
+            // 2. Рисуем мерцающие звезды
             twinklingStars.forEach(star => {
                 star.phase += star.twinkleSpeed;
                 const alpha = 0.15 + Math.abs(Math.sin(star.phase)) * 0.65;
@@ -239,7 +240,7 @@ const SolarSystemBackground = ({ history = [], introState = 'playing', onIntroCo
                 ctx.fill();
             });
 
-            // 3. Вычисление и применение медленной космической левитации
+            // 3. Космическая левитация
             wobbleAngle += 0.0006;
             const wobbleX = Math.sin(wobbleAngle) * 12;
             const wobbleY = Math.cos(wobbleAngle * 1.3) * 8;
@@ -249,11 +250,9 @@ const SolarSystemBackground = ({ history = [], introState = 'playing', onIntroCo
 
             const sunX = width / 2;
             const sunY = height / 2;
-
-            // Вычисляем масштаб Солнца на основе времени анимации
             const sunProgress = isCompleted ? 1.0 : Math.min(1.0, elapsed / 1000);
 
-            // 4. Отрисовка Солнца (высокопроизводительные векторные кольца с учетом прогресса анимации)
+            // 4. Рисуем Солнце
             const sunRadius1 = 140 * sunProgress;
             const sunRadius2 = 90 * sunProgress;
             const sunRadius3 = 45 * sunProgress;
@@ -279,36 +278,30 @@ const SolarSystemBackground = ({ history = [], introState = 'playing', onIntroCo
             ctx.fillStyle = `rgba(192, 132, 252, ${0.65 * sunProgress})`;
             ctx.fill();
 
-            // 5. Отрисовка орбит и планет со спутниками
+            // 5. Рисуем орбиты и планеты
             planetsRef.current.forEach((planet, index) => {
                 let planetProgress = 1.0;
                 if (!isCompleted) {
                     const planetDelay = 1000 + index * 250;
                     if (elapsed < planetDelay) {
-                        return; // Еще не время рисовать эту планету
+                        return;
                     }
                     const progress = Math.min(1.0, (elapsed - planetDelay) / 800);
-                    planetProgress = 1 - Math.pow(1 - progress, 3); // Ease-out cubic
+                    planetProgress = 1 - Math.pow(1 - progress, 3);
                 }
 
-                // Рисуем тонкую сплошную орбиту планеты с плавным проявлением
                 ctx.beginPath();
                 ctx.arc(sunX, sunY, planet.orbitRadius, 0, Math.PI * 2);
                 ctx.strokeStyle = `rgba(255, 255, 255, ${0.015 * planetProgress})`;
                 ctx.lineWidth = 0.8;
                 ctx.stroke();
 
-                // Обновляем угол вращения планеты
                 planet.angle += planet.speed;
 
-                // Вычисляем координаты планеты на орбите
                 const planetX = sunX + planet.orbitRadius * Math.cos(planet.angle);
                 const planetY = sunY + planet.orbitRadius * Math.sin(planet.angle);
-
-                // Добавляем плавное появление снизу вверх
                 const yOffset = (1 - planetProgress) * 60;
 
-                // Атмосферное свечение планеты с использованием высокоскоростных векторных колец
                 const auraSize = planet.size * 3.5;
                 ctx.beginPath();
                 ctx.arc(planetX, planetY + yOffset, auraSize, 0, Math.PI * 2);
@@ -322,7 +315,6 @@ const SolarSystemBackground = ({ history = [], introState = 'playing', onIntroCo
                 ctx.globalAlpha = 0.12 * planetProgress;
                 ctx.fill();
 
-                // Рисуем тело самой планеты
                 ctx.beginPath();
                 ctx.arc(planetX, planetY + yOffset, planet.size, 0, Math.PI * 2);
                 ctx.fillStyle = planet.color;
@@ -330,7 +322,7 @@ const SolarSystemBackground = ({ history = [], introState = 'playing', onIntroCo
                 ctx.fill();
                 ctx.globalAlpha = 1.0;
 
-                // 6. Рисуем спутники (Луны) вокруг планеты
+                // 6. Рисуем спутники
                 for (let j = 0; j < planet.moonsCount; j++) {
                     const moonOrbitRadius = planet.size + 12 + j * 6;
                     const moonAngle = planet.angle * 2.5 + (j * (Math.PI * 2 / planet.moonsCount));
@@ -345,17 +337,14 @@ const SolarSystemBackground = ({ history = [], introState = 'playing', onIntroCo
                 }
             });
 
-            ctx.restore(); // Сбрасываем translation левитации
-            ctx.restore(); // Сбрасываем масштабирование canvas
+            ctx.restore();
+            ctx.restore();
         };
 
-        // Анимационный цикл
         const render = () => {
             const now = performance.now();
-
             drawFrame(now);
 
-            // Проверка завершения интро-анимации
             if (introStateRef.current === 'playing' && onIntroCompleteRef.current && !introTriggered) {
                 const elapsed = now - startTime;
                 const totalIntroDuration = 1000 + (planetsRef.current.length - 1) * 250 + 800;
@@ -375,12 +364,61 @@ const SolarSystemBackground = ({ history = [], introState = 'playing', onIntroCo
         };
     }, [introState]);
 
+    // Рассчитываем фоновые свечения в зависимости от количества анализов
+    let displayBlobs = [];
+    if (readyItems.length === 0) {
+        // Дефолтные свечения для нового пользователя
+        displayBlobs = [
+            { id: 'default-1', color: '#38bdf8', top: '20%', left: '15%', size: '35vmax', delay: '0s' },
+            { id: 'default-2', color: '#818cf8', top: '55%', left: '70%', size: '40vmax', delay: '-3s' },
+            { id: 'default-3', color: '#34d399', top: '10%', left: '75%', size: '30vmax', delay: '-6s' }
+        ];
+    } else {
+        // Уникальные свечения в зависимости от анализов
+        const maxBlobs = 8;
+        const itemsToRender = readyItems.slice(0, maxBlobs);
+        displayBlobs = itemsToRender.map((item, index) => {
+            const pos = glowPositions[index % glowPositions.length];
+            const color = cosmicColors[index % cosmicColors.length];
+            return {
+                id: item.id || `blob-${index}`,
+                color,
+                ...pos,
+                delay: `${index * -2.5}s`
+            };
+        });
+    }
+
     const isBlurred = introState === 'blurring' || introState === 'completed';
+    const showCanvas = introState !== 'completed';
+    const showGlows = introState === 'blurring' || introState === 'completed';
 
     return (
-        <div className={`solar-system-container ${isBlurred ? 'blurred' : ''}`}>
-            <canvas ref={canvasRef} style={{ display: 'block', width: '100%', height: '100%' }} />
-        </div>
+        <>
+            {showCanvas && (
+                <div className={`solar-system-container ${isBlurred ? 'blurred' : ''}`}>
+                    <canvas ref={canvasRef} style={{ display: 'block', width: '100%', height: '100%' }} />
+                </div>
+            )}
+
+            <div className={`cosmic-glow-container ${showGlows ? 'visible' : ''}`}>
+                {displayBlobs.map(blob => (
+                    <div
+                        key={blob.id}
+                        className="cosmic-glow-blob"
+                        style={{
+                            top: blob.top,
+                            left: blob.left,
+                            width: blob.size,
+                            height: blob.size,
+                            backgroundColor: blob.color,
+                            boxShadow: `0 0 120px 60px ${blob.color}`,
+                            animationDelay: blob.delay
+                        }}
+                    />
+                ))}
+            </div>
+        </>
     );
 };
 
