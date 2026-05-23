@@ -411,8 +411,7 @@ const SolarSystemBackground = ({ history = [], introState = 'playing', onIntroCo
                             left: blob.left,
                             width: blob.size,
                             height: blob.size,
-                            backgroundColor: blob.color,
-                            boxShadow: `0 0 120px 60px ${blob.color}`,
+                            background: `radial-gradient(circle, ${blob.color}15 0%, ${blob.color}00 70%)`,
                             animationDelay: blob.delay
                         }}
                     />
