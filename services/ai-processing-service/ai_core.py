@@ -1,5 +1,20 @@
 import os
+import sys
+
+# Принудительно устанавливаем UTF-8 кодировку для вывода, чтобы избежать ошибок кодирования на Windows
+if hasattr(sys.stdout, 'reconfigure'):
+    try:
+        sys.stdout.reconfigure(encoding='utf-8')
+    except Exception:
+        pass
+if hasattr(sys.stderr, 'reconfigure'):
+    try:
+        sys.stderr.reconfigure(encoding='utf-8')
+    except Exception:
+        pass
+
 import whisper
+import torch
 import google.generativeai as genai
 import json
 import tempfile
@@ -7,10 +22,12 @@ import yt_dlp
 import re
 import json_repair
 import time
+from youtube_transcript_api import YouTubeTranscriptApi
 
-print("⏳ Загрузка модели Whisper (base)...")
-whisper_model = whisper.load_model("base")
-print("✅ Модель Whisper загружена")
+DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
+print(f"⏳ Загрузка модели Whisper (base) на устройство: {DEVICE}...")
+whisper_model = whisper.load_model("base", device=DEVICE)
+print(f"✅ Модель Whisper загружена на {DEVICE}")
 
 gemini_api_key = os.getenv("GEMINI_API_KEY")
 if gemini_api_key:
@@ -18,40 +35,202 @@ if gemini_api_key:
 else:
     print("⚠️ ВНИМАНИЕ: GEMINI_API_KEY не установлен!")
 
+YOUTUBE_PROXY = os.getenv("YOUTUBE_PROXY")
+
+# ==================== ДИАГНОСТИЧЕСКИЙ БЛОК ====================
+def _mask_proxy(proxy_str):
+    if not proxy_str:
+        return "None (прокси НЕ задан в окружении)"
+    return re.sub(r"(://[^:]+:)([^@]+)(@)", r"\1***\3", proxy_str)
+
+print("🔍 ================= ДИАГНОСТИКА ОКРУЖЕНИЯ =================")
+print(f"🔍 Загруженный YOUTUBE_PROXY: {_mask_proxy(YOUTUBE_PROXY)}")
+try:
+    import youtube_transcript_api
+    print(f"🔍 Файл библиотеки: {youtube_transcript_api.__file__}")
+    print(f"🔍 Содержимое модуля youtube_transcript_api: {dir(youtube_transcript_api)}")
+    print(f"🔍 Содержимое класса YouTubeTranscriptApi: {dir(YouTubeTranscriptApi)}")
+except Exception as e:
+    print(f"🔍 Ошибка диагностики импорта: {e}")
+print("🔍 ==========================================================")
+# ===============================================================
+
 def download_youtube_audio(url):
-    """Скачивает аудио с YouTube во временную папку"""
+    """Скачивает аудио с YouTube во временную папку с поддержкой прокси в минимально возможном размере (48kbps MP3)"""
     temp_dir = tempfile.mkdtemp()
     audio_path = os.path.join(temp_dir, 'audio')
     
     ydl_opts = {
-        'format': 'bestaudio/best',
+        'format': 'worstaudio/worst',
         'outtmpl': audio_path,
         'postprocessors': [{
             'key': 'FFmpegExtractAudio',
-            'preferredcodec': 'wav',
+            'preferredcodec': 'mp3',
+            'preferredquality': '48',
         }],
         'quiet': True
     }
     
+    if YOUTUBE_PROXY:
+        ydl_opts['proxy'] = YOUTUBE_PROXY
+    
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             ydl.extract_info(url, download=True)
-        return audio_path + '.wav'
+        return audio_path + '.mp3'
     except Exception as e:
         raise Exception(f"Ошибка загрузки YouTube: {str(e)}")
+
+def extract_youtube_video_id(url):
+    """Извлекает ID видео из ссылки YouTube или возвращает ID, если передана строка ID"""
+    if not url:
+        return None
+    url = url.strip()
+    
+    # Если передан просто 11-значный ID (YouTube ID всегда 11 символов)
+    if len(url) == 11 and re.match(r"^[a-zA-Z0-9_-]{11}$", url):
+        return url
+        
+    pattern = r"(?:youtu\.be/|youtube\.com/(?:embed/|v/|watch\?\S*v=|watch\?.+&v=))([^&?#\s]+)"
+    match = re.search(pattern, url)
+    if match:
+        return match.group(1)
+    return None
+
+def get_youtube_transcript(url, language='ru'):
+    """Попытка спарсить субтитры YouTube напрямую с поддержкой прокси и мультиязычности"""
+    try:
+        video_id = extract_youtube_video_id(url)
+        if not video_id:
+            print("⚠️ Не удалось извлечь ID видео YouTube.")
+            return None
+
+        # Нормализуем язык (например, 'ru-RU' -> 'ru')
+        lang_code = language.split('-')[0].lower()
+        # Выстраиваем приоритет языков: запрошенный -> русский -> английский
+        lang_list = [lang_code]
+        if 'ru' not in lang_list:
+            lang_list.append('ru')
+        if 'en' not in lang_list:
+            lang_list.append('en')
+
+        print(f"📡 Попытка получить субтитры для видео {video_id} (приоритет языков: {lang_list})...")
+
+        # Настраиваем прокси в системном окружении для автоматического подхвата библиотекой requests
+        old_http_proxy = os.environ.get('HTTP_PROXY')
+        old_https_proxy = os.environ.get('HTTPS_PROXY')
+        
+        try:
+            if YOUTUBE_PROXY:
+                os.environ['HTTP_PROXY'] = YOUTUBE_PROXY
+                os.environ['HTTPS_PROXY'] = YOUTUBE_PROXY
+                print(f"🔒 Использование прокси через системное окружение.")
+
+            # Получаем список субтитров с поддержкой абсолютно всех версий библиотеки (многоуровневый fallback)
+            transcript_data = None
+            api = YouTubeTranscriptApi()
+            
+            try:
+                if hasattr(api, 'fetch'):
+                    print("🔄 Вызов инстанс-метода fetch()...")
+                    transcript_data = api.fetch(video_id, languages=lang_list)
+                elif hasattr(YouTubeTranscriptApi, 'get_transcript'):
+                    print("🔄 Вызов класс-метода get_transcript()...")
+                    transcript_data = YouTubeTranscriptApi.get_transcript(video_id, languages=lang_list)
+                elif hasattr(api, 'list'):
+                    print("🔄 Вызов инстанс-метода list()...")
+                    transcript_list = api.list(video_id)
+                    transcript_obj = transcript_list.find_transcript(lang_list)
+                    transcript_data = transcript_obj.fetch()
+                else:
+                    print("🔄 Вызов класс-метода list_transcripts()...")
+                    transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
+                    transcript_obj = transcript_list.find_transcript(lang_list)
+                    transcript_data = transcript_obj.fetch()
+            except Exception as api_err:
+                print(f"🔄 Первичный вызов API завершился с ошибкой ({api_err}). Пробуем альтернативный list()...")
+                try:
+                    if hasattr(api, 'list'):
+                        transcript_list = api.list(video_id)
+                        transcript_obj = transcript_list.find_transcript(lang_list)
+                        transcript_data = transcript_obj.fetch()
+                    elif hasattr(YouTubeTranscriptApi, 'list_transcripts'):
+                        transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
+                        transcript_obj = transcript_list.find_transcript(lang_list)
+                        transcript_data = transcript_obj.fetch()
+                except Exception as backup_err:
+                    print(f"⚠️ Все попытки получить субтитры через API завершились ошибкой: {backup_err}")
+                    raise backup_err
+            
+            if not transcript_data:
+                return None
+
+            # Если объект поддерживает конвертацию в чистый список словарей
+            if hasattr(transcript_data, 'to_raw_data'):
+                try:
+                    print("🔄 Конвертируем FetchedTranscript в список словарей через to_raw_data()...")
+                    transcript_data = transcript_data.to_raw_data()
+                except Exception as raw_err:
+                    print(f"⚠️ Не удалось сконвертировать в raw data: {raw_err}")
+
+            # Склеиваем текстовые сегменты в единый текст с минимальной очисткой
+            text_segments = []
+            for entry in transcript_data:
+                t = ""
+                if isinstance(entry, dict):
+                    t = entry.get('text', '').strip()
+                elif hasattr(entry, 'text'):
+                    t = getattr(entry, 'text', '').strip()
+                else:
+                    # Пробуем доступ по ключу (для объектов, реализующих __getitem__, типа FetchedTranscriptSnippet)
+                    try:
+                        t = str(entry['text']).strip()
+                    except Exception:
+                        pass
+                
+                if t:
+                    # Очищаем лишние переносы строк внутри блока
+                    t = t.replace('\n', ' ')
+                    text_segments.append(t)
+                    
+            full_text = " ".join(text_segments)
+            # Убираем множественные пробелы
+            full_text = re.sub(r'\s+', ' ', full_text).strip()
+            
+            if full_text:
+                print(f"✅ Субтитры успешно получены напрямую! Длина: {len(full_text)} символов.")
+                print(f"🔍 Начало текста субтитров: {full_text[:120]}...")
+                return full_text
+            return None
+            
+        finally:
+            # Восстанавливаем исходные переменные окружения
+            if old_http_proxy is not None:
+                os.environ['HTTP_PROXY'] = old_http_proxy
+            elif 'HTTP_PROXY' in os.environ:
+                del os.environ['HTTP_PROXY']
+                
+            if old_https_proxy is not None:
+                os.environ['HTTPS_PROXY'] = old_https_proxy
+            elif 'HTTPS_PROXY' in os.environ:
+                del os.environ['HTTPS_PROXY']
+        
+    except Exception as e:
+        print(f"⚠️ Не удалось получить субтитры напрямую: {str(e)}")
+        return None
     
 def transcribe_audio(file_path, language='ru'):
-    """Транскрибирует аудио/видео файл с помощью Whisper с указанием языка"""
+    """Транскрибирует аудио/видео файл с помощью Whisper с указанием языка и поддержкой FP16 на GPU"""
     try:
         # Нормализуем код языка (например, 'en-US' -> 'en', 'ru-RU' -> 'ru')
         lang_code = language.split('-')[0].lower()
         
-        # Whisper ожидает двухбуквенный код. Если код не поддерживается, он сам попытается определить
-        # или выдаст ошибку, которую мы перехватим.
-        # Для Kazakh (kk) Whisper base может быть слабоват, но код 'kk' поддерживается.
+        # Whisper ожидает двухбуквенный код.
+        # FP16 поддерживается только на CUDA (GPU)
+        use_fp16 = True if DEVICE == "cuda" else False
         
-        print(f"🎙️ Запуск транскрибации Whisper (язык: {lang_code})...")
-        result = whisper_model.transcribe(file_path, language=lang_code)
+        print(f"🎙️ Запуск транскрибации Whisper (язык: {lang_code}, устройство: {DEVICE}, fp16: {use_fp16})...")
+        result = whisper_model.transcribe(file_path, language=lang_code, fp16=use_fp16)
         return result["text"]
     except Exception as e:
         raise Exception(f"Ошибка транскрипции Whisper: {str(e)}")
@@ -114,20 +293,25 @@ def analyze_content(text):
         print(f"⚠️ Текст слишком длинный ({len(text)}). Обрезаем для Gemini до 15000 символов.")
         text = text[:15000] 
 
-    model = genai.GenerativeModel("models/gemini-3.1-flash-lite")
+    model = genai.GenerativeModel("models/gemma-4-26b-a4b-it")
     
     prompt = f"""
-    ТВОЯ РОЛЬ: Ты — эксперт-аналитик и профессиональный переводчик. 
+    ТВОЯ РОЛЬ: Ты — ведущий эксперт-аналитик и профессиональный локализатор. Твоя цель — предоставить глубокий, высококачественный и максимально детализированный контент-анализ текста. Результат должен поражать глубиной проработки и полнотой информации.
+    
     ТВОЯ ЗАДАЧА: Проанализировать предоставленный текст и выдать структурированный результат ОДНОВРЕМЕННО на трех языках: РУССКОМ (ru), АНГЛИЙСКОМ (en) и КАЗАХСКОМ (kk).
 
+    КРИТИЧЕСКИЕ ТРЕБОВАНИЯ К ПОЛНОТЕ И КАЧЕСТВУ КОНТЕНТА:
+    1. Тексты в полях summary и detailed_analysis должны быть максимально развернутыми, глубокими, детальными и профессиональными. Избегай банальностей, общих фраз и коротких отписок. Каждое суждение должно быть подкреплено фактами из предоставленного текста.
+    2. Текстовые поля не должны быть пустыми или слишком короткими. Качественный анализ — это структурированный отчет, который дает полное представление о содержании, структуре и выводах оригинального материала.
+
     КРИТИЧЕСКОЕ ТРЕБОВАНИЕ К СТРУКТУРЕ:
-    Для каждого текстового поля (кроме ключей JSON) ты должен вернуть ОБЪЕКТ с ключами "ru", "en", "kk".
+    Для каждого текстового поля (кроме ключей JSON и списков) ты должен вернуть ОБЪЕКТ с ключами "ru", "en", "kk".
     Пример: "title": {{"ru": "Название", "en": "Title", "kk": "Атауы"}}
 
-    ПРАВИЛА ФОРМАТИРОВАНИЯ (для полей summary и detailed_analysis):
-    1. Используй стандартный Markdown.
-    2. ОБЯЗАТЕЛЬНО используй Markdown-таблицы. КАТЕГОРИЧЕСКИ ЗАПРЕЩЕНО использовать HTML для таблиц.
-    3. ДОБАВЬ 1-2 иллюстрации: ![desc](https://loremflickr.com/800/400/KEYWORD)
+    ПРАВИЛА ФОРМАТИРОВАНИЯ:
+    1. Для полей summary и detailed_analysis ОБЯЗАТЕЛЬНО используй богатую разметку Markdown (заголовки h3/h4, жирный/курсивный шрифт, списки, выделения важных мыслей).
+    2. В summary и detailed_analysis ОБЯЗАТЕЛЬНО используй информативные и структурированные Markdown-таблицы для представления фактов, сравнений, хронологии или параметров. КАТЕГОРИЧЕСКИ ЗАПРЕЩЕНО использовать HTML для таблиц!
+    3. В summary и detailed_analysis ДОБАВЬ по 1-2 качественные релевантные иллюстрации в формате: ![описание](https://loremflickr.com/800/400/KEYWORD), где KEYWORD — это ключевое слово на английском, точно соответствующее теме контекста (например, `michael-jackson` для темы о певце, или `music-notes`).
 
     СТРУКТУРА JSON:
     {{
@@ -137,18 +321,18 @@ def analyze_content(text):
             {{
                 "title": {{"ru": "...", "en": "...", "kk": "..."}},
                 "key_points": {{
-                    "ru": ["...", "..."],
-                    "en": ["...", "..."],
-                    "kk": ["...", "..."]
+                    "ru": ["...", "...", "..."],
+                    "en": ["...", "...", "..."],
+                    "kk": ["...", "...", "..."]
                 }},
                 "relevance": {{"ru": "...", "en": "...", "kk": "..."}}
             }}
         ],
         "detailed_analysis": {{"ru": "...", "en": "...", "kk": "..."}},
         "takeaways": {{
-            "ru": ["...", "..."],
-            "en": ["...", "..."],
-            "kk": ["...", "..."]
+            "ru": ["...", "...", "..."],
+            "en": ["...", "...", "..."],
+            "kk": ["...", "...", "..."]
         }},
         "flashcards": [
             {{
@@ -166,14 +350,72 @@ def analyze_content(text):
                 }},
                 "correct_answer": {{"ru": "...", "en": "...", "kk": "..."}}
             }}
-        ]
+        ],
+        "mind_map": {{
+            "nodes": [
+                {{
+                    "id": "root",
+                    "text": {{"ru": "...", "en": "...", "kk": "..."}},
+                    "category": {{"ru": "...", "en": "...", "kk": "..."}},
+                    "type": "root"
+                }},
+                {{
+                    "id": "topic_1",
+                    "text": {{"ru": "...", "en": "...", "kk": "..."}},
+                    "category": {{"ru": "...", "en": "...", "kk": "..."}},
+                    "type": "topic"
+                }},
+                {{
+                    "id": "subtopic_1_1",
+                    "text": {{"ru": "...", "en": "...", "kk": "..."}},
+                    "category": {{"ru": "...", "en": "...", "kk": "..."}},
+                    "type": "subtopic"
+                }}
+            ],
+            "links": [
+                {{
+                    "source": "root",
+                    "target": "topic_1",
+                    "label": {{"ru": "...", "en": "...", "kk": "..."}}
+                }},
+                {{
+                    "source": "topic_1",
+                    "target": "subtopic_1_1",
+                    "label": {{"ru": "...", "en": "...", "kk": "..."}}
+                }}
+            ]
+        }}
     }}
 
-    ТРЕБОВАНИЯ:
-    1. Минимум 6 flashcards.
-    2. РОВНО 10 вопросов quiz.
-    3. Все переводы должны быть качественными и адаптированными.
-    4. Верни СТРОГО валидный JSON.
+    ТРЕБОВАНИЯ К ДЕТАЛИЗАЦИИ РАЗДЕЛОВ JSON:
+    1. title: Ёмкое, профессиональное и привлекательное название анализа (не более 15 слов).
+    2. summary: Структурированный обзор (минимум 3 абзаца текста). Должен содержать:
+       - Краткое описание контекста и основных событий/фактов.
+       - Сводную Markdown-таблицу ключевых параметров или хронологии (минимум 3 строки).
+       - Одну релевантную иллюстрацию в конце.
+    3. key_topics: Выдели от 3 до 5 ключевых тем/разделов. Для каждой темы напиши:
+       - title: Название темы.
+       - key_points: Список из минимум 3 детальных тезисов/фактов (для каждого языка). Каждая точка должна быть законченным информативным предложением, а не одним словом.
+       - relevance: Развернутое объяснение (2-3 предложения), почему эта тема важна.
+    4. detailed_analysis: Глубокий, всесторонний аналитический отчет (минимум 4 детальных абзаца). Должен содержать:
+       - Причинно-следственные связи, предпосылки и последствия рассматриваемых явлений.
+       - Развернутую Markdown-таблицу (минимум 4 строки и 2 колонки) с детальным сравнением, структурой или разбором аспектов.
+       - Одну релевантную иллюстрацию в конце.
+    5. takeaways: От 5 до 8 ключевых выверенных уроков, инсайтов или выводов, сформулированных в виде законченных и емких утверждений.
+    6. flashcards: Сделай ровно 6-8 карточек для запоминания. Вопросы должны проверять не очевидные факты, а ключевые термины, цифры или интересные концепции. Ответы должны быть четкими и содержательными.
+    7. quiz: Ровно 10 тестовых вопросов с 4 вариантами ответов каждый. Варианты ответов должны быть правдоподобными. Поле correct_answer должно содержать точный текст правильного ответа, соответствующий выбранному языку. Убедись, что все переводы вариантов и правильных ответов строго синхронизированы по смыслу на всех трех языках.
+    8. mind_map: Сделай логичную, детальную иерархическую структуру (карту знаний) для визуализации связей:
+       - Ровно 1 корневой узел ("id": "root", "type": "root") — центральная тема текста.
+       - От 3 до 5 узлов тем ("type": "topic") — ветви от корня (связаны с root).
+       - Для каждого узла темы создай от 2 до 4 дочерних узлов подтем ("type": "subtopic"), содержащих ключевые понятия или подробности (связаны со своим родительским topic).
+       - Все узлы должны иметь уникальные строковые ID.
+       - В nodes и links все поля "text", "category", "label" должны быть мультиязычными объектами с ключами "ru", "en", "kk". Категории для узлов: root — "Центральная идея", topic — "Главный раздел", subtopic — "Деталь".
+       - Связи в links должны соединять root -> topic, и topic -> subtopic. Поле "label" в связи должно кратко описывать характер связи (например, "содержит", "описывает", "приводит к").
+
+    ДОПОЛНИТЕЛЬНЫЕ УСЛОВИЯ:
+    1. Перевод на казахский язык (kk) и английский язык (en) должен быть выполнен профессионально, грамматически верно, без машинного подстрочника и с использованием устоявшихся терминов.
+    2. Ответ должен быть СТРОГО валидным JSON без какого-либо дополнительного текста до или после кода. Не оборачивай JSON в markdown-блоки ```json, верни чистый текст JSON.
+    3. Не придумывай и не галлюцинируй факты: используй только информацию из предоставленного текста, но представляй её в развернутом, глубоком и интеллектуально богатом виде.
 
     ТЕКСТ ДЛЯ АНАЛИЗА:
     {text}
