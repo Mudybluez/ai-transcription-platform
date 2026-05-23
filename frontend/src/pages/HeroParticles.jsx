@@ -70,6 +70,7 @@ const HeroParticles = () => {
 
         let width = 0;
         let height = 0;
+        let smoothWeight = 0; // Плавный глобальный вес для сглаженного волнового притяжения и распада
 
         // Настройка плотности:
         // Всего 300 звезд (больше точек для насыщенного космоса и жирного контура)
@@ -99,9 +100,13 @@ const HeroParticles = () => {
                 const vx = (Math.random() - 0.5) * 0.05;
                 const vy = (Math.random() - 0.5) * 0.05;
 
-                // Случайное смещение по толщине от -7.5px до +7.5px для жирного (bold) начертания
-                const thickness = 15; 
-                const thickOffset = (Math.random() - 0.5) * thickness;
+                // Жирное начертание скобок по площади (толщина увеличена до 26px по просьбе пользователя)
+                const thickness = 26; 
+                // Точки выстраивают ТОЛЬКО границы (border) скобок, внутри скобок абсолютно ПУСТО!
+                // Половина точек идет на внешнюю границу, половина на внутреннюю
+                const borderSide = i % 2 === 0 ? 1 : -1;
+                // Небольшое размытие около границ (+/-0.8px) для естественности, но центр остается пустым
+                const thickOffset = borderSide * (thickness / 2) + (Math.random() - 0.5) * 0.8;
 
                 particles.push({
                     id: i,
@@ -205,20 +210,22 @@ const HeroParticles = () => {
             const hookWidth = 24; 
             const cuspWidth = 26; 
 
-            // Расчет глобального веса притяжения (weight)
+            // Расчет целевого глобального веса притяжения (weight)
             const influenceRadius = 250;
-            let weight = 0;
+            let targetWeight = 0;
 
             if (mouse.active) {
                 if (distance === 0) {
-                    weight = 1.0;
+                    targetWeight = 1.0;
                 } else if (distance < influenceRadius) {
-                    weight = Math.pow(1 - distance / influenceRadius, 1.4);
+                    targetWeight = Math.pow(1 - distance / influenceRadius, 1.4);
                 }
             }
 
-            // ПРИМЕЧАНИЕ: Твердые линии бэкглоу скобок полностью убраны по просьбе пользователя!
-            // Скобки вырисовываются ИСКЛЮЧИТЕЛЬНО за счет плотных светящихся созвездий точек.
+            // Плавное следование глобального веса за целью (smoothWeight)
+            // При сборке (нарастании) скорость 0.022, при распаде (разлете) - 0.012 (для красивой долгой задержки)
+            const chaseSpeed = targetWeight > smoothWeight ? 0.022 : 0.012;
+            smoothWeight += (targetWeight - smoothWeight) * chaseSpeed;
 
             // ОТРИСОВКА И ФИЗИКА ЧАСТИЦ (ЗВЕЗД)
             ctx.save();
@@ -240,7 +247,7 @@ const HeroParticles = () => {
                         cuspWidth
                     );
                     
-                    // Вычисляем нормальный (перпендикулярный) вектор к кривой Безье для придания "жирности" (толщины) контуру
+                    // Вычисляем нормальный вектор к кривой Безье для придания "жирности" границам скобок
                     const t1 = Math.max(0, p.curveT - 0.01);
                     const t2 = Math.min(1, p.curveT + 0.01);
                     const pt1 = getBracePoint(p.targetSide, t1, cx, cy, braceOffset, braceHeight, hookWidth, cuspWidth);
@@ -250,49 +257,48 @@ const HeroParticles = () => {
                     const dy = pt2.y - pt1.y;
                     const len = Math.sqrt(dx * dx + dy * dy) || 1;
                     
-                    // Перпендикуляр (нормаль)
                     const nx = -dy / len;
                     const ny = dx / len;
 
-                    // Добавляем смещение по толщине для жирного начертания скобок
+                    // Добавляем перпендикулярное смещение по границам (hollow bold контур)
                     targetX = pt.x + nx * p.thickOffset;
                     targetY = pt.y + ny * p.thickOffset;
                 }
 
-                // Индивидуальный расчет веса сборки с органичной прогрессивной задержкой
+                // Индивидуальный расчет локального веса частицы с волновой задержкой
                 if (p.isBraceOutline) {
-                    // Задержка зависит от расстояния точки до центрального носика (t = 0.5)
-                    // Точки в центре собираются сразу, а края - с красивым плавным запаздыванием (волновой эффект)
+                    // Задержка зависит от расстояния точки до центрального носика скобки (t = 0.5)
                     const distanceFromCenter = Math.abs(p.curveT - 0.5);
                     const delay = distanceFromCenter * 0.95 + (p.id % 6) * 0.04;
-                    const targetLocalWeight = weight > 0.01 ? Math.max(0, weight - delay) : 0;
+                    const targetLocalWeight = smoothWeight > 0.01 ? Math.max(0, smoothWeight - delay) : 0;
 
-                    // Медленная и плавная сборка/распад контура (скорость 0.015 вместо прежней быстрой анимации)
-                    p.localWeight += (targetLocalWeight - p.localWeight) * 0.015;
+                    // Медленная и плавная сборка/разлет контура (интерполяция 0.018)
+                    p.localWeight += (targetLocalWeight - p.localWeight) * 0.018;
                 }
 
                 // Физика пружин невесомости (Spring Physics) на основе локального веса сборки
                 if (p.isBraceOutline && p.localWeight > 0.005) {
                     // Сила притяжения растет нелинейно по мере сборки
                     const springK = 0.038 * Math.pow(p.localWeight, 1.8);
-                    const damping = 0.85; // Торможение в космическом эфире для плавного оседания
+                    const damping = 0.86; // Торможение в космосе (вязкая среда)
 
+                    // Вычисляем ускорение к целевым координатам границ
                     const ax = (targetX - p.x) * springK;
                     const ay = (targetY - p.y) * springK;
 
-                    // Легкие энергетические флуктуации (угасают при полной сборке)
-                    const vibration = 0.035 * (1 - p.localWeight);
+                    // Добавляем микрошум для живой вибрации
+                    const vibration = 0.03 * (1 - p.localWeight);
 
                     p.vx = p.vx * damping + ax + (Math.random() - 0.5) * vibration;
                     p.vy = p.vy * damping + ay + (Math.random() - 0.5) * vibration;
                 } else {
-                    // В режиме покоя (или для фоновых звезд)
+                    // Режим покоя: свободный космический дрейф
                     const noiseStrength = 0.0014;
                     p.vx += (Math.random() - 0.5) * noiseStrength;
                     p.vy += (Math.random() - 0.5) * noiseStrength;
 
-                    // Ограничение скорости для величественного дрейфа
-                    const maxSpeed = p.isBraceOutline ? 0.38 : 0.06;
+                    // Ограничение скорости величественного полета
+                    const maxSpeed = p.isBraceOutline ? 0.35 : 0.06;
                     const speed = Math.sqrt(p.vx * p.vx + p.vy * p.vy);
                     if (speed > maxSpeed) {
                         p.vx = (p.vx / speed) * maxSpeed;
@@ -303,11 +309,11 @@ const HeroParticles = () => {
                 p.x += p.vx;
                 p.y += p.vy;
 
-                // Мягкий отскок от краев Canvas
+                // Упругий отскок от краев экрана
                 if (p.x < 0 || p.x > width) p.vx *= -0.7;
                 if (p.y < 0 || p.y > height) p.vy *= -0.7;
 
-                // 120 фоновых звезд: мягко парят и мерцают
+                // 120 фоновых звезд: парят и мерцают
                 if (!p.isBraceOutline) {
                     const twinkle = 0.12 + Math.sin(now * 0.0018 + p.seed) * 0.08;
                     ctx.beginPath();
@@ -318,23 +324,25 @@ const HeroParticles = () => {
                     return;
                 }
 
-                // 180 контурных звезд скобок: всегда отображают свои уникальные неоновые blend-цвета
+                // 180 контурных звезд скобок: всегда отображают свои уникальные blend-цвета
                 const particleColor = p.baseColor;
                 const opacity = 0.28 + p.localWeight * 0.65;
-                const size = p.size * (1.1 + p.localWeight * 0.65);
+                
+                // Чуть уменьшенный размер при сборке для сохранения зазоров/пространства между звездами
+                const size = p.size * (0.9 + p.localWeight * 0.35); 
 
-                // Цветной неоновый ореол вокруг собранных в контур частиц скобок
+                // Мягкий неоновый ореол вокруг собранных частиц
                 if (p.localWeight > 0.02) {
                     ctx.save();
                     ctx.beginPath();
                     ctx.arc(p.x, p.y, size * 2.8, 0, Math.PI * 2);
                     ctx.fillStyle = particleColor;
-                    ctx.globalAlpha = p.localWeight * 0.15;
+                    ctx.globalAlpha = p.localWeight * 0.14;
                     ctx.fill();
                     ctx.restore();
                 }
 
-                // Отрисовка супер-объемных стеклянных сфер с 3D-бликом
+                // Отрисовка объемных стеклянных звезд
                 ctx.save();
                 ctx.beginPath();
                 ctx.arc(p.x, p.y, size, 0, Math.PI * 2);
@@ -348,7 +356,7 @@ const HeroParticles = () => {
                     size
                 );
                 
-                grad.addColorStop(0, '#ffffff'); // Объемный блик сверху-слева
+                grad.addColorStop(0, '#ffffff'); // Световой блик
                 grad.addColorStop(0.2, particleColor); // Основной цвет звезды
                 grad.addColorStop(0.85, lerpColor(particleColor, '#000000', 0.55)); // Тень на сфере
                 grad.addColorStop(1, 'transparent');
