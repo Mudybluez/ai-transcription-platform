@@ -158,9 +158,9 @@ const Login = () => {
             setIsError(true);
             setMessage(error.response?.data?.message || t('server_error', 'Произошла ошибка соединения с сервером'));
             
-            // Если ошибка входа из-за неподтвержденной почты
-            if (error.response?.data?.emailUnverified) {
-                setUnverifiedEmail(error.response.data.email || email);
+            // Если ошибка входа из-за неподтвержденной почты (HTTP 403)
+            if (error.response?.status === 403 || error.response?.data?.emailUnverified) {
+                setUnverifiedEmail(error.response?.data?.email || email);
             } else {
                 setUnverifiedEmail('');
             }
