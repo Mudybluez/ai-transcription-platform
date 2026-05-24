@@ -14,8 +14,25 @@ const GlobalMindMap = () => {
     const [mindMapData, setMindMapData] = useState({ nodes: [], links: [] });
     const [loading, setLoading] = useState(true);
 
+    const [userRole, setUserRole] = useState(localStorage.getItem('role') || 'Standard');
+
+    const fetchUserProfile = async () => {
+        const userId = localStorage.getItem('userId');
+        if (!userId) return;
+        try {
+            const res = await api.get(`/users/profile/${userId}`);
+            if (res.data && res.data.role) {
+                localStorage.setItem('role', res.data.role);
+                setUserRole(res.data.role);
+            }
+        } catch (e) {
+            console.error("Error fetching user profile", e);
+        }
+    };
+
     useEffect(() => {
         loadHistory();
+        fetchUserProfile();
     }, []);
 
     const loadHistory = async () => {
@@ -154,25 +171,32 @@ const GlobalMindMap = () => {
         setIsMobileMenuOpen(false);
     };
 
-    const NavItems = () => (
-        <>
-            <select 
-                className="lang-switcher" 
-                onChange={(e) => changeLanguage(e.target.value)} 
-                value={i18n.language}
-            >
-                <option value="en">EN</option>
-                <option value="ru">RU</option>
-                <option value="kk">KK</option>
-            </select>
-            <Link to="/" className="nav-link" onClick={() => setIsMobileMenuOpen(false)}>{t('back_btn')}</Link>
-            <Link to="/profile" className="nav-link" onClick={() => setIsMobileMenuOpen(false)}>{t('profile')}</Link>
-            <span className="nav-link logout" onClick={() => {
-                localStorage.clear();
-                window.location.href = '/login';
-            }}>{t('logout')}</span>
-        </>
-    );
+    const NavItems = () => {
+        const displayRole = userRole === 'admin' ? 'Admin' : userRole;
+        return (
+            <>
+                <span className={`role-badge-nav role-badge-${userRole.toLowerCase()}`}>
+                    {displayRole}
+                </span>
+
+                <select 
+                    className="lang-switcher" 
+                    onChange={(e) => changeLanguage(e.target.value)} 
+                    value={i18n.language}
+                >
+                    <option value="en">EN</option>
+                    <option value="ru">RU</option>
+                    <option value="kk">KK</option>
+                </select>
+                <Link to="/" className="nav-link" onClick={() => setIsMobileMenuOpen(false)}>{t('back_btn')}</Link>
+                <Link to="/profile" className="nav-link" onClick={() => setIsMobileMenuOpen(false)}>{t('profile')}</Link>
+                <span className="nav-link logout" onClick={() => {
+                    localStorage.clear();
+                    window.location.href = '/login';
+                }}>{t('logout')}</span>
+            </>
+        );
+    };
 
     return (
         <div className="dashboard-container fade-in">

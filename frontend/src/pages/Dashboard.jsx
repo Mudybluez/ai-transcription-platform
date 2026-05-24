@@ -41,6 +41,22 @@ const Dashboard = () => {
         return localStorage.getItem('skipIntro') === 'true';
     });
 
+    const [userRole, setUserRole] = useState(localStorage.getItem('role') || 'Standard');
+
+    const fetchUserProfile = async () => {
+        const userId = localStorage.getItem('userId');
+        if (!userId) return;
+        try {
+            const res = await api.get(`/users/profile/${userId}`);
+            if (res.data && res.data.role) {
+                localStorage.setItem('role', res.data.role);
+                setUserRole(res.data.role);
+            }
+        } catch (e) {
+            console.error("Error fetching user profile", e);
+        }
+    };
+
     const handleIntroComplete = () => {
         setIntroState('blurring');
         localStorage.setItem('skipIntro', 'true');
@@ -143,29 +159,36 @@ const Dashboard = () => {
         setIsMobileMenuOpen(false);
     };
 
-    const NavItems = () => (
-        <>
-            <select 
-                className="lang-switcher" 
-                onChange={(e) => changeLanguage(e.target.value)} 
-                value={i18n.language}
-            >
-                <option value="en">EN</option>
-                <option value="ru">RU</option>
-                <option value="kk">KK</option>
-            </select>
+    const NavItems = () => {
+        const displayRole = userRole === 'admin' ? 'Admin' : userRole;
+        return (
+            <>
+                <span className={`role-badge-nav role-badge-${userRole.toLowerCase()}`}>
+                    {displayRole}
+                </span>
 
-            {localStorage.getItem('role') === 'admin' && (
-                <Link to="/admin" className="nav-link" onClick={() => setIsMobileMenuOpen(false)}>{t('admin_panel')}</Link>
-            )}
-            <Link to="/mindmap" className="nav-link" onClick={() => setIsMobileMenuOpen(false)}>{t('tab_mindmap', 'Карта знаний')}</Link>
-            <Link to="/profile" className="nav-link" onClick={() => setIsMobileMenuOpen(false)}>{t('profile')}</Link>
-            <span className="nav-link logout" onClick={() => {
-                localStorage.clear();
-                window.location.href = '/login';
-            }}>{t('logout')}</span>
-        </>
-    );
+                <select 
+                    className="lang-switcher" 
+                    onChange={(e) => changeLanguage(e.target.value)} 
+                    value={i18n.language}
+                >
+                    <option value="en">EN</option>
+                    <option value="ru">RU</option>
+                    <option value="kk">KK</option>
+                </select>
+
+                {localStorage.getItem('role') === 'admin' && (
+                    <Link to="/admin" className="nav-link" onClick={() => setIsMobileMenuOpen(false)}>{t('admin_panel')}</Link>
+                )}
+                <Link to="/mindmap" className="nav-link" onClick={() => setIsMobileMenuOpen(false)}>{t('tab_mindmap', 'Карта знаний')}</Link>
+                <Link to="/profile" className="nav-link" onClick={() => setIsMobileMenuOpen(false)}>{t('profile')}</Link>
+                <span className="nav-link logout" onClick={() => {
+                    localStorage.clear();
+                    window.location.href = '/login';
+                }}>{t('logout')}</span>
+            </>
+        );
+    };
 
     useEffect(() => {
         return () => {
@@ -268,6 +291,7 @@ const Dashboard = () => {
 
     useEffect(() => {
         loadHistory();
+        fetchUserProfile();
     }, []);
 
     // Эффект для обработки перехода с глобальной карты связей (state из react-router)

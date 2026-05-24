@@ -14,6 +14,7 @@ const Profile = () => {
     const [oldPassword, setOldPassword] = useState('');
     const [newPassword, setNewPassword] = useState('');
     const [isChanging, setIsChanging] = useState(false);
+    const [userRole, setUserRole] = useState(localStorage.getItem('role') || 'Standard');
     
     const [newUsername, setNewUsername] = useState(localStorage.getItem('username') || '');
     const [isUpdatingUsername, setIsUpdatingUsername] = useState(false);
@@ -41,6 +42,13 @@ const Profile = () => {
         try {
             const historyRes = await api.get('/history');
             const statsRes = await api.get(`/user/stats/${user.id}`);
+            
+            // Также запросим свежий профиль для обновления роли в реальном времени
+            const profileRes = await api.get(`/users/profile/${user.id}`);
+            if (profileRes.data && profileRes.data.role) {
+                localStorage.setItem('role', profileRes.data.role);
+                setUserRole(profileRes.data.role);
+            }
             
             const lastDate = historyRes.data.length > 0 
                 ? new Date(historyRes.data[0].created_at).toLocaleDateString('ru-RU')
@@ -129,7 +137,9 @@ const Profile = () => {
                     <div className="profile-avatar">{user.username.charAt(0).toUpperCase()}</div>
                     <h2>{user.username}</h2>
                     <p className="profile-email">{user.email}</p>
-                    <div className="role-badge">{user.role === 'admin' ? t('admin_panel') : t('user_role_pro')}</div>
+                    <div className={`role-badge-nav role-badge-${userRole.toLowerCase()}`} style={{ fontSize: '13px', padding: '6px 14px', borderRadius: '12px', margin: '0 auto 30px auto' }}>
+                        {userRole === 'admin' ? 'Admin' : userRole}
+                    </div>
 
                     <div className="profile-stats">
                         <div className="stat-box">

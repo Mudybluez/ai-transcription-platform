@@ -1285,3 +1285,57 @@ html, body {
     transform: translateY(-1px);
     box-shadow: 0 4px 12px rgba(99, 102, 241, 0.4);
 }
+
+/* --- РОЛЕВЫЕ БЕЙДЖИ В НАВИГАЦИИ (PREMIUM GLASSMORPHISM) --- */
+.role-badge-nav {
+    display: inline-block;
+    padding: 6px 12px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    margin-right: 12px;
+    vertical-align: middle;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+    backdrop-filter: blur(5px);
+    transition: all 0.3s ease;
+}
+
+.role-badge-standard {
+    background: rgba(148, 163, 184, 0.12);
+    color: #cbd5e1;
+    border: 1px solid rgba(148, 163, 184, 0.25);
+}
+
+.role-badge-lite {
+    background: rgba(56, 189, 248, 0.12);
+    color: #38bdf8;
+    border: 1px solid rgba(56, 189, 248, 0.25);
+    text-shadow: 0 0 8px rgba(56, 189, 248, 0.3);
+}
+
+.role-badge-pro {
+    background: rgba(168, 85, 247, 0.15);
+    color: #c084fc;
+    border: 1px solid rgba(168, 85, 247, 0.3);
+    text-shadow: 0 0 10px rgba(168, 85, 247, 0.5);
+    animation: pro-glow 3s infinite alternate;
+}
+
+.role-badge-admin {
+    background: rgba(239, 68, 68, 0.15);
+    color: #fca5a5;
+    border: 1px solid rgba(239, 68, 68, 0.3);
+    text-shadow: 0 0 8px rgba(239, 68, 68, 0.3);
+}
+
+@keyframes pro-glow {
+    0% {
+        box-shadow: 0 0 5px rgba(168, 85, 247, 0.2), inset 0 0 5px rgba(168, 85, 247, 0.1);
+    }
+    100% {
+        box-shadow: 0 0 15px rgba(168, 85, 247, 0.5), inset 0 0 10px rgba(168, 85, 247, 0.2);
+        border-color: rgba(168, 85, 247, 0.6);
+    }
+}

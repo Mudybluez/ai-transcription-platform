@@ -92,6 +92,29 @@ const AdminPanel = () => {
         return <Navigate to="/" />;
     }
 
+    const handleRoleChange = async (userId, newRole) => {
+        try {
+            await api.post('/users/update-role', { userId, newRole });
+            
+            // Локально обновляем роль пользователя в состоянии
+            setUsers(prevUsers => 
+                prevUsers.map(u => u.id === userId ? { ...u, role: newRole } : u)
+            );
+
+            // Если обновили свою собственную роль, обновим и в localStorage
+            const currentUserId = localStorage.getItem('userId');
+            if (String(userId) === String(currentUserId)) {
+                localStorage.setItem('role', newRole);
+                if (newRole !== 'admin') {
+                    window.location.href = '/';
+                }
+            }
+        } catch (error) {
+            console.error("Ошибка при обновлении роли:", error);
+            alert(error.response?.data?.message || "Не удалось обновить роль пользователя");
+        }
+    };
+
     return (
         <div className="dashboard-container fade-in">
             <header className="top-nav">
@@ -166,9 +189,28 @@ const AdminPanel = () => {
                                     <td><strong>{user.username}</strong></td>
                                     <td>{user.email}</td>
                                     <td>
-                                        <span className={`chip ${user.role === 'admin' ? 'chip-admin' : 'chip-user'}`}>
-                                            {user.role}
-                                        </span>
+                                        <select 
+                                            value={user.role} 
+                                            onChange={(e) => handleRoleChange(user.id, e.target.value)}
+                                            className="admin-role-select"
+                                            style={{
+                                                background: 'rgba(15, 23, 42, 0.65)',
+                                                border: '1px solid rgba(255, 255, 255, 0.1)',
+                                                borderRadius: '8px',
+                                                color: 'white',
+                                                padding: '6px 12px',
+                                                cursor: 'pointer',
+                                                fontSize: '13px',
+                                                fontFamily: 'inherit',
+                                                outline: 'none',
+                                                transition: 'all 0.3s'
+                                            }}
+                                        >
+                                            <option value="Standard">Standard</option>
+                                            <option value="Lite">Lite</option>
+                                            <option value="Pro">Pro</option>
+                                            <option value="admin">Admin</option>
+                                        </select>
                                     </td>
                                     <td>{new Date(user.created_at).toLocaleDateString(i18n.language === 'ru' ? 'ru-RU' : 'en-US')}</td>
                                     <td>
