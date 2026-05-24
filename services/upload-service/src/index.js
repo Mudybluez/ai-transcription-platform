@@ -93,6 +93,29 @@ const checkRateLimit = async (req, res, next) => {
         return res.status(401).json({ message: 'Доступ запрещен. Пользователь не аутентифицирован.' });
     }
 
+    const createLimitsExceededNotification = async (uid) => {
+        try {
+            const checkRes = await db.query(
+                "SELECT 1 FROM notifications WHERE user_id = $1 AND type = 'LIMITS_EXCEEDED' AND created_at >= NOW() - INTERVAL '12 hours'",
+                [uid]
+            );
+            if (checkRes.rows.length === 0) {
+                const notifData = {
+                    message_en: 'You have reached your analysis limit (0 requests remaining). Upgrade to PRO for unlimited access!',
+                    message_ru: 'Вы исчерпали доступный лимит анализов (осталось 0 запросов). Перейдите на PRO для безлимитного доступа!',
+                    message_kk: 'Талдаудың қолжетімді лимиті таусылды (0 сұраныс қалды). Шектеусіз кіру үшін PRO-ға өтіңіз!'
+                };
+                await db.query(
+                    'INSERT INTO notifications (user_id, type, data) VALUES ($1, $2, $3)',
+                    [uid, 'LIMITS_EXCEEDED', JSON.stringify(notifData)]
+                );
+                console.log(`🔔 Создано уведомление LIMITS_EXCEEDED для пользователя ${uid}`);
+            }
+        } catch (error) {
+            console.error('Ошибка создания уведомления о лимитах:', error);
+        }
+    };
+
     try {
         // 1. Получаем актуальную роль и кастомные запросы пользователя из базы данных
         const userRes = await db.query('SELECT role, custom_requests FROM users WHERE id = $1', [userId]);
@@ -125,12 +148,21 @@ const checkRateLimit = async (req, res, next) => {
             if (custom_requests > 0) {
                 await db.query('UPDATE users SET custom_requests = custom_requests - 1 WHERE id = $1', [userId]);
                 console.log(`🎟️ Использован 1 кастомный запрос для пользователя ${userId}. Осталось: ${custom_requests - 1}`);
+                
+                if (custom_requests - 1 === 0) {
+                    await createLimitsExceededNotification(userId);
+                }
+                
                 return next();
             }
 
             return res.status(429).json({
                 message: `Лимит запросов на анализ исчерпан. Для вашей роли (${role}) лимит составляет ${limit} запроса(ов) в 12 часов. Вы уже отправили ${requestCount} запрос(ов). Дополнительных кастомных запросов: ${custom_requests || 0}.`
             });
+        }
+
+        if (limit - requestCount === 1 && (!custom_requests || custom_requests === 0)) {
+            await createLimitsExceededNotification(userId);
         }
 
         next();
