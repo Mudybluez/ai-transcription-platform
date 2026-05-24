@@ -190,6 +190,26 @@ app.post('/login', async (req, res) => {
 
         const user = userResult.rows[0];
 
+        // Проверяем блокировку (бан) перед входом
+        if (user.is_permanently_banned) {
+            const lang = req.headers['accept-language'] || 'ru';
+            let msg = 'Ваш аккаунт заблокирован навсегда.';
+            if (lang.startsWith('en')) msg = 'Your account has been permanently blocked.';
+            if (lang.startsWith('kk')) msg = 'Сіздің аккаунтыңыз біржола блокталған.';
+            return res.status(403).json({ message: msg, banned: true });
+        }
+
+        if (user.banned_until && new Date(user.banned_until) > new Date()) {
+            const lang = req.headers['accept-language'] || 'ru';
+            const banDateStr = new Date(user.banned_until).toLocaleString(
+                lang.startsWith('ru') ? 'ru-RU' : lang.startsWith('kk') ? 'kk-KZ' : 'en-US'
+            );
+            let msg = `Ваш аккаунт заблокирован. Временная блокировка истекает: ${banDateStr}`;
+            if (lang.startsWith('en')) msg = `Your account is blocked. Temporary ban expires on: ${banDateStr}`;
+            if (lang.startsWith('kk')) msg = `Сіздің аккаунтыңыз блокталған. Уақытша блоктау ${banDateStr} дейін жарамды.`;
+            return res.status(403).json({ message: msg, banned: true, bannedUntil: user.banned_until });
+        }
+
         const isMatch = await bcrypt.compare(password, user.password);
         if (!isMatch) {
             return res.status(400).json({ message: 'Неверный email или пароль' });
@@ -285,9 +305,48 @@ app.get('/profile/:id', async (req, res) => {
 });
 app.get('/all', async (req, res) => {
     try {
-        // Запрашиваем всех пользователей, но без паролей!
-        const usersResult = await db.query('SELECT id, username, email, role, created_at FROM users ORDER BY created_at DESC');
-        res.status(200).json(usersResult.rows);
+        // Запрашиваем всех пользователей со статистикой запросов для админки
+        const queryText = `
+            SELECT 
+                u.id, 
+                u.username, 
+                u.email, 
+                u.role, 
+                u.created_at, 
+                u.custom_requests, 
+                u.banned_until, 
+                u.is_permanently_banned,
+                (
+                    SELECT COUNT(*)::integer 
+                    FROM jobs j 
+                    WHERE j.user_id = u.id AND j.created_at >= NOW() - INTERVAL '12 hours'
+                ) as requests_last_12h
+            FROM users u 
+            ORDER BY u.created_at DESC
+        `;
+        const usersResult = await db.query(queryText);
+
+        const limits = {
+            'Standard': 2,
+            'Lite': 10
+        };
+
+        const usersWithRequests = usersResult.rows.map(user => {
+            let remaining = 0;
+            if (user.role === 'Pro' || user.role === 'admin') {
+                remaining = 'Unlimited';
+            } else {
+                const baseLimit = limits[user.role] !== undefined ? limits[user.role] : 2;
+                const used = user.requests_last_12h || 0;
+                remaining = Math.max(0, baseLimit - used) + (user.custom_requests || 0);
+            }
+            return {
+                ...user,
+                remaining_requests: remaining
+            };
+        });
+
+        res.status(200).json(usersWithRequests);
     } catch (error) {
         console.error('Ошибка при получении списка пользователей:', error);
         res.status(500).json({ message: 'Ошибка сервера' });
@@ -402,6 +461,118 @@ app.post('/update-role', requireAdmin, async (req, res) => {
     } catch (error) {
         console.error(error);
         res.status(500).json({ message: 'Ошибка сервера при обновлении роли пользователя' });
+    }
+});
+
+// Мидлвар проверки блокировки для чувствительных эндпоинтов
+const checkUserBan = async (req, res, next) => {
+    const userId = req.body.userId || req.params.id || req.userId;
+    if (!userId) return next();
+
+    try {
+        const userRes = await db.query(
+            'SELECT banned_until, is_permanently_banned FROM users WHERE id = $1',
+            [userId]
+        );
+        if (userRes.rows.length === 0) return next();
+
+        const { banned_until, is_permanently_banned } = userRes.rows[0];
+
+        if (is_permanently_banned) {
+            const lang = req.headers['accept-language'] || 'ru';
+            let msg = 'Ваш аккаунт заблокирован навсегда.';
+            if (lang.startsWith('en')) msg = 'Your account has been permanently blocked.';
+            if (lang.startsWith('kk')) msg = 'Сіздің аккаунтыңыз біржола блокталған.';
+            return res.status(403).json({ message: msg, banned: true });
+        }
+
+        if (banned_until && new Date(banned_until) > new Date()) {
+            const lang = req.headers['accept-language'] || 'ru';
+            const banDateStr = new Date(banned_until).toLocaleString(
+                lang.startsWith('ru') ? 'ru-RU' : lang.startsWith('kk') ? 'kk-KZ' : 'en-US'
+            );
+            let msg = `Ваш аккаунт заблокирован. Временная блокировка истекает: ${banDateStr}`;
+            if (lang.startsWith('en')) msg = `Your account is blocked. Temporary ban expires on: ${banDateStr}`;
+            if (lang.startsWith('kk')) msg = `Сіздің аккаунтыңыз блокталған. Уақытша блоктау ${banDateStr} дейін жарамды.`;
+            return res.status(403).json({ message: msg, banned: true, bannedUntil: banned_until });
+        }
+
+        next();
+    } catch (err) {
+        console.error('Ошибка проверки бана в User Service:', err);
+        next();
+    }
+};
+
+// Применяем блокировку к смене пароля, обновлению имени и просмотру профиля
+app.post('/change-password', checkUserBan);
+app.post('/update-username', checkUserBan);
+app.get('/profile/:id', checkUserBan);
+
+// Обновление количества кастомных запросов пользователя (только для администраторов)
+app.post('/update-custom-requests', requireAdmin, async (req, res) => {
+    const { userId, customRequests } = req.body;
+    
+    if (customRequests === undefined || isNaN(parseInt(customRequests))) {
+        return res.status(400).json({ message: 'Некорректное количество запросов' });
+    }
+
+    try {
+        const result = await db.query(
+            'UPDATE users SET custom_requests = $1 WHERE id = $2 RETURNING id, username, custom_requests',
+            [parseInt(customRequests), userId]
+        );
+
+        if (result.rows.length === 0) {
+            return res.status(404).json({ message: 'Пользователь не найден' });
+        }
+
+        res.status(200).json({ 
+            message: 'Количество кастомных запросов успешно обновлено', 
+            user: result.rows[0] 
+        });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: 'Ошибка сервера при обновлении лимитов' });
+    }
+});
+
+// Модерация пользователя (временный/вечный бан, разблокировка)
+app.post('/moderate-user', requireAdmin, async (req, res) => {
+    const { userId, action, durationHours } = req.body;
+
+    try {
+        let queryText = '';
+        let queryParams = [];
+
+        if (action === 'perm_ban') {
+            queryText = 'UPDATE users SET is_permanently_banned = TRUE, banned_until = NULL WHERE id = $1 RETURNING id, username, is_permanently_banned';
+            queryParams = [userId];
+        } else if (action === 'temp_ban') {
+            const hours = parseInt(durationHours) || 24;
+            const bannedUntil = new Date(Date.now() + hours * 60 * 60 * 1000);
+            queryText = 'UPDATE users SET is_permanently_banned = FALSE, banned_until = $1 WHERE id = $2 RETURNING id, username, banned_until';
+            queryParams = [bannedUntil, userId];
+        } else if (action === 'unban') {
+            queryText = 'UPDATE users SET is_permanently_banned = FALSE, banned_until = NULL WHERE id = $1 RETURNING id, username';
+            queryParams = [userId];
+        } else {
+            return res.status(400).json({ message: 'Некорректное действие модерации' });
+        }
+
+        const result = await db.query(queryText, queryParams);
+
+        if (result.rows.length === 0) {
+            return res.status(404).json({ message: 'Пользователь не найден' });
+        }
+
+        res.status(200).json({ 
+            message: `Пользователь успешно смодерирован: ${action}`, 
+            user: result.rows[0] 
+        });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: 'Ошибка сервера при модерации пользователя' });
     }
 });
 

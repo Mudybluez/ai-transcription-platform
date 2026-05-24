@@ -45,6 +45,11 @@ const initDB = async () => {
 
           -- 5. Обновление старых пользователей до верифицированных, чтобы не заблокировать их
           UPDATE users SET is_verified = TRUE WHERE is_verified IS NULL;
+
+          -- 6. Добавление колонок для кастомных запросов и блокировки (модерации)
+          ALTER TABLE users ADD COLUMN IF NOT EXISTS custom_requests INTEGER DEFAULT 0;
+          ALTER TABLE users ADD COLUMN IF NOT EXISTS banned_until TIMESTAMP DEFAULT NULL;
+          ALTER TABLE users ADD COLUMN IF NOT EXISTS is_permanently_banned BOOLEAN DEFAULT FALSE;
         `;
         await pool.query(migrations);
         console.log('✅ Схема базы данных пользователей успешно обновлена');
