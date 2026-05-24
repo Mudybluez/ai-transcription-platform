@@ -116,6 +116,42 @@ const AdminPanel = () => {
     // Хранение вводимых вручную лимитов для каждого пользователя
     const [customRequestsInput, setCustomRequestsInput] = useState({});
 
+    // Feedback admin states
+    const [feedbacks, setFeedbacks] = useState([]);
+    const [selectedFeedback, setSelectedFeedback] = useState(null);
+    const [adminReplyText, setAdminReplyText] = useState('');
+    const [isSubmittingReply, setIsSubmittingReply] = useState(false);
+
+    const fetchAdminFeedbacks = async () => {
+        try {
+            const response = await api.get('/feedbacks');
+            setFeedbacks(response.data);
+        } catch (error) {
+            console.error("Ошибка загрузки отзывов админом:", error);
+            alert(t('server_error'));
+        }
+    };
+
+    const handleSendReply = async (e) => {
+        e.preventDefault();
+        if (!adminReplyText.trim() || !selectedFeedback) return;
+
+        setIsSubmittingReply(true);
+        try {
+            await api.post(`/feedbacks/${selectedFeedback.id}/reply`, {
+                replyText: adminReplyText
+            });
+            alert(t('feedback_success_alert', 'Ответ успешно отправлен!'));
+            setAdminReplyText('');
+            setSelectedFeedback(null);
+            await fetchAdminFeedbacks();
+        } catch (error) {
+            alert(error.response?.data?.message || t('server_error'));
+        } finally {
+            setIsSubmittingReply(false);
+        }
+    };
+
     // Переключение языков
     const changeLanguage = (lng) => {
         i18n.changeLanguage(lng);
@@ -146,6 +182,8 @@ const AdminPanel = () => {
                 const transRes = await api.get('/search/admin/transcriptions');
                 setAnalyses(transRes.data);
                 setSelectedAnalyses([]);
+            } else if (activeTab === 'feedback') {
+                await fetchAdminFeedbacks();
             }
         } catch (error) {
             console.error("Ошибка при получении данных панели администратора:", error);
@@ -432,6 +470,25 @@ const AdminPanel = () => {
                     }}
                 >
                     📚 {t('admin_tab_library', 'Библиотека разборов')}
+                </button>
+                <button 
+                    onClick={() => setActiveTab('feedback')} 
+                    className={`admin-tab-btn ${activeTab === 'feedback' ? 'active' : ''}`}
+                    style={{
+                        padding: '12px 30px',
+                        borderRadius: '16px',
+                        fontSize: '14px',
+                        fontWeight: '700',
+                        border: '1px solid',
+                        borderColor: activeTab === 'feedback' ? 'rgba(168, 85, 247, 0.5)' : 'rgba(255,255,255,0.06)',
+                        background: activeTab === 'feedback' ? 'linear-gradient(135deg, rgba(168, 85, 247, 0.25), rgba(99, 102, 241, 0.25))' : 'rgba(255, 255, 255, 0.03)',
+                        color: activeTab === 'feedback' ? '#d8b4fe' : '#94a3b8',
+                        cursor: 'pointer',
+                        boxShadow: activeTab === 'feedback' ? '0 10px 20px rgba(168, 85, 247, 0.15)' : 'none',
+                        transition: 'all 0.3s ease'
+                    }}
+                >
+                    💬 {t('feedback_nav')}
                 </button>
             </div>
 
@@ -966,6 +1023,92 @@ const AdminPanel = () => {
                         </div>
                     </div>
                 )}
+
+                {/* ==================== 4. ВКЛАДКА "ОТЗЫВЫ" ==================== */}
+                {activeTab === 'feedback' && (
+                    <div className="tab-feedback-view fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '30px' }}>
+                        <h2 style={{ fontSize: '20px', fontWeight: '800', color: '#fff', margin: '0 0 10px 0' }}>
+                            💬 {t('admin_feedback_title')}
+                        </h2>
+
+                        <div style={{
+                            background: 'rgba(30, 41, 59, 0.45)',
+                            backdropFilter: 'blur(16px)',
+                            border: '1px solid rgba(255, 255, 255, 0.08)',
+                            borderRadius: '24px',
+                            overflow: 'hidden',
+                            boxShadow: '0 20px 40px rgba(0, 0, 0, 0.3)'
+                        }}>
+                            <div style={{ overflowX: 'auto' }}>
+                                <table className="admin-table" style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+                                    <thead>
+                                        <tr style={{ background: 'rgba(15, 23, 42, 0.4)', borderBottom: '1px solid rgba(255, 255, 255, 0.08)' }}>
+                                            <th style={{ padding: '16px 24px', fontSize: '13px', color: '#94a3b8', fontWeight: '700' }}>{t('admin_feedback_col_author')}</th>
+                                            <th style={{ padding: '16px 24px', fontSize: '13px', color: '#94a3b8', fontWeight: '700' }}>{t('admin_feedback_col_rating')}</th>
+                                            <th style={{ padding: '16px 24px', fontSize: '13px', color: '#94a3b8', fontWeight: '700' }}>{t('admin_feedback_col_comment')}</th>
+                                            <th style={{ padding: '16px 24px', fontSize: '13px', color: '#94a3b8', fontWeight: '700' }}>{t('admin_feedback_col_date')}</th>
+                                            <th style={{ padding: '16px 24px', fontSize: '13px', color: '#94a3b8', fontWeight: '700' }}>{t('admin_feedback_col_reply')}</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {feedbacks.length === 0 ? (
+                                            <tr>
+                                                <td colSpan="5" style={{ padding: '40px', textAlign: 'center', color: '#94a3b8', fontSize: '14px' }}>
+                                                    Отзывов пока нет.
+                                                </td>
+                                            </tr>
+                                        ) : (
+                                            feedbacks.map((f) => {
+                                                const hasReply = !!f.reply;
+                                                const ratingEmoji = {
+                                                    'Fine': '🤩', 'Good': '😊', 'Okay': '😐', 'Bad': '😞', 'Very Bad': '🤬'
+                                                }[f.rating] || '💬';
+
+                                                return (
+                                                    <tr 
+                                                        key={f.id} 
+                                                        onClick={() => setSelectedFeedback(f)}
+                                                        style={{ 
+                                                            borderBottom: '1px solid rgba(255, 255, 255, 0.04)', 
+                                                            cursor: 'pointer',
+                                                            transition: 'background 0.2s'
+                                                        }}
+                                                        className="admin-table-row-hover"
+                                                    >
+                                                        <td style={{ padding: '16px 24px', fontSize: '13px', color: '#cbd5e1', fontWeight: '600' }}>
+                                                            {f.sender_name}
+                                                        </td>
+                                                        <td style={{ padding: '16px 24px', fontSize: '13px', color: '#cbd5e1' }}>
+                                                            <span style={{ fontSize: '16px', marginRight: '6px' }}>{ratingEmoji}</span>
+                                                            <span style={{ fontWeight: '700' }}>{t(`rating_${f.rating.toLowerCase().replace(' ', '_')}`)}</span>
+                                                        </td>
+                                                        <td style={{ padding: '16px 24px', fontSize: '13px', color: '#cbd5e1', maxWidth: '300px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                                            {f.message}
+                                                        </td>
+                                                        <td style={{ padding: '16px 24px', fontSize: '12px', color: '#64748b' }}>
+                                                            {new Date(f.created_at).toLocaleString(i18n.language.startsWith('ru') ? 'ru-RU' : 'en-US')}
+                                                        </td>
+                                                        <td style={{ padding: '16px 24px', fontSize: '12px' }}>
+                                                            {hasReply ? (
+                                                                <span style={{ color: '#34d399', fontWeight: '700', background: 'rgba(52, 211, 153, 0.1)', padding: '4px 10px', borderRadius: '10px' }}>
+                                                                    {t('admin_feedback_replied')}
+                                                                </span>
+                                                            ) : (
+                                                                <span style={{ color: '#f87171', fontWeight: '700', background: 'rgba(248, 113, 113, 0.1)', padding: '4px 10px', borderRadius: '10px' }}>
+                                                                    {t('admin_feedback_no_reply')}
+                                                                </span>
+                                                            )}
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            })
+                                        )}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                )}
             </div>
 
             {/* ДЕТАЛЬНОЕ МОДАЛЬНОЕ ОКНО РАЗБОРА */}
@@ -1134,6 +1277,131 @@ const AdminPanel = () => {
                     </div>
                 );
             })()}
+
+            {/* МОДАЛЬНОЕ ОКНО ОТВЕТА НА ОТЗЫВ (ДЛЯ АДМИНА) */}
+            {selectedFeedback && (
+                <div 
+                    style={{
+                        position: 'fixed',
+                        top: 0, left: 0, right: 0, bottom: 0,
+                        backgroundColor: 'rgba(0,0,0,0.85)',
+                        backdropFilter: 'blur(10px)',
+                        zIndex: 9999,
+                        display: 'flex',
+                        justifyContent: 'center',
+                        alignItems: 'center',
+                        padding: '30px'
+                    }}
+                    onClick={() => setSelectedFeedback(null)}
+                >
+                    <div 
+                        style={{
+                            width: '100%',
+                            maxWidth: '550px',
+                            background: 'linear-gradient(145deg, #1e293b, #0f172a)',
+                            border: '1px solid rgba(255, 255, 255, 0.1)',
+                            borderRadius: '24px',
+                            boxShadow: '0 25px 50px rgba(0,0,0,0.5)',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            overflow: 'hidden'
+                        }}
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        {/* Шапка модалки */}
+                        <div style={{
+                            padding: '25px 35px',
+                            borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center'
+                        }}>
+                            <div>
+                                <h2 style={{ fontSize: '18px', fontWeight: '800', color: '#fff', margin: '0 0 4px 0' }}>
+                                    💬 {t('admin_feedback_reply_modal')}
+                                </h2>
+                                <span style={{ fontSize: '13px', color: '#94a3b8' }}>
+                                    {t('admin_feedback_col_author')}: {selectedFeedback.sender_name}
+                                </span>
+                            </div>
+                            <button 
+                                onClick={() => setSelectedFeedback(null)}
+                                style={{
+                                    background: 'rgba(255,255,255,0.06)',
+                                    border: '1px solid rgba(255,255,255,0.1)',
+                                    color: '#cbd5e1',
+                                    fontSize: '18px',
+                                    width: '36px', height: '36px',
+                                    borderRadius: '50%',
+                                    cursor: 'pointer',
+                                    display: 'flex', justifyContent: 'center', alignItems: 'center',
+                                    outline: 'none'
+                                }}
+                            >
+                                ✕
+                            </button>
+                        </div>
+
+                        {/* Тело модалки */}
+                        <div style={{ padding: '35px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                            <div style={{
+                                padding: '18px', borderRadius: '16px', background: 'rgba(15, 23, 42, 0.3)',
+                                border: '1px solid rgba(255,255,255,0.06)'
+                            }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                                    <span style={{ fontSize: '14px', fontWeight: '800', color: '#a855f7' }}>
+                                        {{ 'Fine': '🤩', 'Good': '😊', 'Okay': '😐', 'Bad': '😞', 'Very Bad': '🤬' }[selectedFeedback.rating] || '💬'} {t(`rating_${selectedFeedback.rating.toLowerCase().replace(' ', '_')}`)}
+                                    </span>
+                                    <span style={{ fontSize: '11px', color: '#64748b' }}>
+                                        {new Date(selectedFeedback.created_at).toLocaleString(i18n.language.startsWith('ru') ? 'ru-RU' : 'en-US')}
+                                    </span>
+                                </div>
+                                <p style={{ margin: 0, fontSize: '13px', color: '#f8fafc', lineHeight: '1.4', wordBreak: 'break-word' }}>
+                                    {selectedFeedback.message}
+                                </p>
+                            </div>
+
+                            {selectedFeedback.reply ? (
+                                <div style={{
+                                    padding: '18px', borderRadius: '16px', background: 'rgba(52, 211, 153, 0.05)',
+                                    border: '1px solid rgba(52, 211, 153, 0.15)', display: 'flex', flexDirection: 'column', gap: '6px'
+                                }}>
+                                    <span style={{ fontSize: '11px', fontWeight: '800', color: '#34d399', textTransform: 'uppercase' }}>
+                                        ✓ {t('feedback_admin_reply')}
+                                    </span>
+                                    <p style={{ margin: 0, fontSize: '13px', color: '#cbd5e1', lineHeight: '1.4', wordBreak: 'break-word' }}>
+                                        {selectedFeedback.reply.text}
+                                    </p>
+                                </div>
+                            ) : (
+                                <form onSubmit={handleSendReply} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                                    <textarea
+                                        placeholder={t('admin_feedback_reply_placeholder')}
+                                        value={adminReplyText}
+                                        onChange={(e) => setAdminReplyText(e.target.value)}
+                                        required
+                                        style={{
+                                            width: '100%', minHeight: '120px', padding: '14px', borderRadius: '12px', background: 'rgba(15, 23, 42, 0.4)',
+                                            border: '1px solid rgba(255, 255, 255, 0.1)', color: 'white', fontSize: '13px', outline: 'none', resize: 'vertical'
+                                        }}
+                                    />
+                                    <button
+                                        type="submit"
+                                        disabled={isSubmittingReply}
+                                        style={{
+                                            padding: '12px', borderRadius: '12px', background: 'linear-gradient(135deg, #a855f7, #6366f1)',
+                                            color: 'white', fontWeight: '700', fontSize: '13px', border: 'none', cursor: 'pointer',
+                                            boxShadow: '0 4px 15px rgba(168, 85, 247, 0.3)', transition: 'all 0.2s', outline: 'none'
+                                        }}
+                                    >
+                                        {isSubmittingReply ? t('btn_loading') : t('admin_feedback_reply_btn')}
+                                    </button>
+                                </form>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
