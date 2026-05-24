@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../api';
 import { useTranslation } from 'react-i18next';
@@ -15,6 +15,41 @@ const Login = () => {
     const [isError, setIsError] = useState(false);
     
     const [passwordScore, setPasswordScore] = useState(0);
+
+    useEffect(() => {
+        // Проверяем наличие параметра ?verified=true в URL
+        const queryParams = new URLSearchParams(window.location.search);
+        if (queryParams.get('verified') === 'true') {
+            setIsError(false);
+            setMessage('Email успешно подтвержден! Теперь вы можете войти в свой аккаунт.');
+        }
+
+        // Динамически загружаем Google reCAPTCHA v3
+        const siteKey = import.meta.env.VITE_RECAPTCHA_SITE_KEY;
+        if (siteKey) {
+            const existingScript = document.getElementById('recaptcha-v3-script');
+            if (!existingScript) {
+                const script = document.createElement('script');
+                script.src = `https://www.google.com/recaptcha/api.js?render=${siteKey}`;
+                script.id = 'recaptcha-v3-script';
+                script.async = true;
+                script.defer = true;
+                document.body.appendChild(script);
+            }
+        }
+
+        // Cleanup script on unmount
+        return () => {
+            const script = document.getElementById('recaptcha-v3-script');
+            if (script) {
+                script.remove();
+            }
+            const badge = document.querySelector('.grecaptcha-badge');
+            if (badge) {
+                badge.remove();
+            }
+        };
+    }, []);
 
     const checkPasswordScore = (pass) => {
         if (!pass) return 0;
@@ -74,11 +109,28 @@ const Login = () => {
                 }
             } else {
                 // Логика регистрации
-                await api.post('/users/register', { username, email, password });
+                let recaptchaToken = null;
+                const siteKey = import.meta.env.VITE_RECAPTCHA_SITE_KEY;
+                
+                if (siteKey && window.grecaptcha) {
+                    try {
+                        recaptchaToken = await new Promise((resolve, reject) => {
+                            window.grecaptcha.ready(() => {
+                                window.grecaptcha.execute(siteKey, { action: 'register' })
+                                    .then(resolve)
+                                    .catch(reject);
+                            });
+                        });
+                    } catch (err) {
+                        console.error('Ошибка генерации токена reCAPTCHA:', err);
+                    }
+                }
+
+                await api.post('/users/register', { username, email, password, recaptchaToken });
                 
                 setIsLoginMode(true);
                 setIsError(false);
-                setMessage(t('registration_success'));
+                setMessage('Регистрация прошла успешно! На вашу почту отправлено письмо со ссылкой для верификации. Пожалуйста, подтвердите email перед входом.');
                 // Очищаем поля
                 setPassword(''); 
             }
