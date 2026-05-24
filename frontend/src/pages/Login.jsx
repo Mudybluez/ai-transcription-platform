@@ -17,6 +17,7 @@ const Login = () => {
     const [passwordScore, setPasswordScore] = useState(0);
 
     const [unverifiedEmail, setUnverifiedEmail] = useState('');
+    const [recaptchaSiteKey, setRecaptchaSiteKey] = useState(null);
     const [isResending, setIsResending] = useState(false);
 
     const handleResend = async () => {
@@ -43,19 +44,29 @@ const Login = () => {
             setMessage('Email успешно подтвержден! Теперь вы можете войти в свой аккаунт.');
         }
 
-        // Динамически загружаем Google reCAPTCHA v3
-        const siteKey = import.meta.env.VITE_RECAPTCHA_SITE_KEY;
-        if (siteKey) {
-            const existingScript = document.getElementById('recaptcha-v3-script');
-            if (!existingScript) {
-                const script = document.createElement('script');
-                script.src = `https://www.google.com/recaptcha/api.js?render=${siteKey}`;
-                script.id = 'recaptcha-v3-script';
-                script.async = true;
-                script.defer = true;
-                document.body.appendChild(script);
+        // Загружаем публичный ключ reCAPTCHA с бэкенда в рантайме
+        const fetchRecaptchaKey = async () => {
+            try {
+                const res = await api.get('/users/recaptcha-site-key');
+                const siteKey = res.data.siteKey;
+                if (siteKey) {
+                    setRecaptchaSiteKey(siteKey);
+                    const existingScript = document.getElementById('recaptcha-v3-script');
+                    if (!existingScript) {
+                        const script = document.createElement('script');
+                        script.src = `https://www.google.com/recaptcha/api.js?render=${siteKey}`;
+                        script.id = 'recaptcha-v3-script';
+                        script.async = true;
+                        script.defer = true;
+                        document.body.appendChild(script);
+                    }
+                }
+            } catch (err) {
+                console.error('Ошибка получения конфигурации reCAPTCHA:', err);
             }
-        }
+        };
+
+        fetchRecaptchaKey();
 
         // Cleanup script on unmount
         return () => {
@@ -129,7 +140,7 @@ const Login = () => {
             } else {
                 // Логика регистрации
                 let recaptchaToken = null;
-                const siteKey = import.meta.env.VITE_RECAPTCHA_SITE_KEY;
+                const siteKey = recaptchaSiteKey;
                 
                 if (siteKey && window.grecaptcha) {
                     try {
