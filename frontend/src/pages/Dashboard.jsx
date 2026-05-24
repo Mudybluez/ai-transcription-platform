@@ -9,6 +9,7 @@ import MindMap from './MindMap';
 import SolarSystemBackground from './SolarSystemBackground';
 import HeroParticles from './HeroParticles';
 import { downloadYoutubeClientSide } from '../utils/youtubeDownloader';
+import NotificationsBell from '../components/NotificationsBell';
 
 const Dashboard = () => {
     // 1. Hooks (States & Refs)
@@ -42,6 +43,45 @@ const Dashboard = () => {
     });
 
     const [userRole, setUserRole] = useState(localStorage.getItem('role') || 'Standard');
+
+    // Feedback states
+    const [isFeedbackModalOpen, setIsFeedbackModalOpen] = useState(false);
+    const [feedbackModalTab, setFeedbackModalTab] = useState('write');
+    const [feedbacks, setFeedbacks] = useState([]);
+    const [feedbackRating, setFeedbackRating] = useState('Fine');
+    const [feedbackMessage, setFeedbackMessage] = useState('');
+    const [isSubmittingFeedback, setIsSubmittingFeedback] = useState(false);
+
+    const fetchUserFeedbacks = async () => {
+        try {
+            const response = await api.get('/feedbacks');
+            setFeedbacks(response.data);
+        } catch (error) {
+            console.error('Ошибка загрузки отзывов:', error);
+        }
+    };
+
+    const handleFeedbackSubmit = async (e) => {
+        e.preventDefault();
+        if (!feedbackMessage.trim()) return;
+
+        setIsSubmittingFeedback(true);
+        try {
+            await api.post('/feedbacks', {
+                rating: feedbackRating,
+                message: feedbackMessage
+            });
+            alert(t('feedback_success_alert', 'Спасибо за ваш отзыв!'));
+            setFeedbackMessage('');
+            setFeedbackRating('Fine');
+            fetchUserFeedbacks();
+            setFeedbackModalTab('history');
+        } catch (error) {
+            alert(error.response?.data?.message || t('error_alert'));
+        } finally {
+            setIsSubmittingFeedback(false);
+        }
+    };
 
     const fetchUserProfile = async () => {
         const userId = localStorage.getItem('userId');
@@ -167,6 +207,8 @@ const Dashboard = () => {
                     {displayRole}
                 </span>
 
+                <NotificationsBell />
+
                 <select 
                     className="lang-switcher" 
                     onChange={(e) => changeLanguage(e.target.value)} 
@@ -181,6 +223,11 @@ const Dashboard = () => {
                     <Link to="/admin" className="nav-link" onClick={() => setIsMobileMenuOpen(false)}>{t('admin_panel')}</Link>
                 )}
                 <Link to="/mindmap" className="nav-link" onClick={() => setIsMobileMenuOpen(false)}>{t('tab_mindmap', 'Карта знаний')}</Link>
+                
+                <span className="nav-link" onClick={() => { setIsFeedbackModalOpen(true); setIsMobileMenuOpen(false); }} style={{ cursor: 'pointer' }}>
+                    💬 {t('feedback_nav')}
+                </span>
+
                 <Link to="/profile" className="nav-link" onClick={() => setIsMobileMenuOpen(false)}>{t('profile')}</Link>
                 <span className="nav-link logout" onClick={() => {
                     localStorage.clear();
@@ -292,6 +339,7 @@ const Dashboard = () => {
     useEffect(() => {
         loadHistory();
         fetchUserProfile();
+        fetchUserFeedbacks();
     }, []);
 
     // Эффект для обработки перехода с глобальной карты связей (state из react-router)
@@ -1087,6 +1135,197 @@ ${detailed}`;
                 >
                     ↑
                 </button>
+            )}
+
+            {isFeedbackModalOpen && (
+                <div 
+                    className="modal-overlay fade-in"
+                    style={{
+                        position: 'fixed',
+                        top: 0, left: 0, right: 0, bottom: 0,
+                        backgroundColor: 'rgba(15, 23, 42, 0.75)',
+                        backdropFilter: 'blur(12px)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        zIndex: 10000,
+                    }}
+                    onClick={() => setIsFeedbackModalOpen(false)}
+                >
+                    <div 
+                        className="modal-content fade-in-up"
+                        style={{
+                            background: 'rgba(30, 41, 59, 0.85)',
+                            backdropFilter: 'blur(20px)',
+                            border: '1px solid rgba(255, 255, 255, 0.08)',
+                            borderRadius: '24px',
+                            width: '90%',
+                            maxWidth: '520px',
+                            maxHeight: '90vh',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)',
+                            overflow: 'hidden',
+                        }}
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        {/* Шапка модалки */}
+                        <div style={{
+                            padding: '24px',
+                            borderBottom: '1px solid rgba(255, 255, 255, 0.06)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            background: 'rgba(15, 23, 42, 0.2)'
+                        }}>
+                            <h2 style={{ margin: 0, fontSize: '20px', fontWeight: '800', background: 'linear-gradient(135deg, #a855f7, #6366f1)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+                                {t('feedback_title')}
+                            </h2>
+                            <button 
+                                onClick={() => setIsFeedbackModalOpen(false)}
+                                style={{ background: 'none', border: 'none', color: '#94a3b8', fontSize: '24px', cursor: 'pointer', outline: 'none' }}
+                            >
+                                ×
+                            </button>
+                        </div>
+
+                        {/* Переключатель вкладок */}
+                        <div style={{ display: 'flex', borderBottom: '1px solid rgba(255, 255, 255, 0.04)' }}>
+                            <button 
+                                onClick={() => setFeedbackModalTab('write')}
+                                style={{
+                                    flex: 1, padding: '14px', border: 'none', background: 'none', color: feedbackModalTab === 'write' ? '#a855f7' : '#94a3b8',
+                                    fontWeight: '700', fontSize: '14px', cursor: 'pointer', borderBottom: feedbackModalTab === 'write' ? '2px solid #a855f7' : 'none', outline: 'none'
+                                }}
+                            >
+                                {t('feedback_modal_title')}
+                            </button>
+                            <button 
+                                onClick={() => setFeedbackModalTab('history')}
+                                style={{
+                                    flex: 1, padding: '14px', border: 'none', background: 'none', color: feedbackModalTab === 'history' ? '#a855f7' : '#94a3b8',
+                                    fontWeight: '700', fontSize: '14px', cursor: 'pointer', borderBottom: feedbackModalTab === 'history' ? '2px solid #a855f7' : 'none', outline: 'none'
+                                }}
+                            >
+                                {t('feedback_nav')} ({feedbacks.length})
+                            </button>
+                        </div>
+
+                        {/* Содержимое вкладок */}
+                        <div style={{ padding: '24px', overflowY: 'auto', flex: 1 }}>
+                            {feedbackModalTab === 'write' ? (
+                                <form onSubmit={handleFeedbackSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                                    <div>
+                                        <label style={{ display: 'block', color: '#cbd5e1', fontSize: '14px', fontWeight: '600', marginBottom: '12px' }}>
+                                            {t('feedback_rating_label')}
+                                        </label>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', gap: '8px' }}>
+                                            {[
+                                                { key: 'Fine', emoji: '🤩', text: t('rating_fine') },
+                                                { key: 'Good', emoji: '😊', text: t('rating_good') },
+                                                { key: 'Okay', emoji: '😐', text: t('rating_okay') },
+                                                { key: 'Bad', emoji: '😞', text: t('rating_bad') },
+                                                { key: 'Very Bad', emoji: '🤬', text: t('rating_very_bad') }
+                                            ].map((r) => (
+                                                <button
+                                                    key={r.key}
+                                                    type="button"
+                                                    onClick={() => setFeedbackRating(r.key)}
+                                                    style={{
+                                                        flex: 1, padding: '10px 4px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px',
+                                                        borderRadius: '12px', background: feedbackRating === r.key ? 'rgba(168, 85, 247, 0.15)' : 'rgba(30, 41, 59, 0.4)',
+                                                        border: feedbackRating === r.key ? '1px solid #a855f7' : '1px solid rgba(255, 255, 255, 0.06)',
+                                                        cursor: 'pointer', color: 'white', transition: 'all 0.2s', outline: 'none'
+                                                    }}
+                                                >
+                                                    <span style={{ fontSize: '24px' }}>{r.emoji}</span>
+                                                    <span style={{ fontSize: '9px', fontWeight: '700', textTransform: 'uppercase', tracking: '0.5px' }}>{r.text}</span>
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    <div>
+                                        <textarea
+                                            placeholder={t('feedback_comment_placeholder')}
+                                            value={feedbackMessage}
+                                            onChange={(e) => setFeedbackMessage(e.target.value)}
+                                            required
+                                            style={{
+                                                width: '100%', minHeight: '110px', padding: '14px', borderRadius: '12px', background: 'rgba(15, 23, 42, 0.3)',
+                                                border: '1px solid rgba(255, 255, 255, 0.1)', color: 'white', fontSize: '13px', outline: 'none', resize: 'vertical'
+                                            }}
+                                        />
+                                    </div>
+
+                                    <button
+                                        type="submit"
+                                        disabled={isSubmittingFeedback}
+                                        style={{
+                                            padding: '12px', borderRadius: '12px', background: 'linear-gradient(135deg, #a855f7, #6366f1)',
+                                            color: 'white', fontWeight: '700', fontSize: '14px', border: 'none', cursor: 'pointer',
+                                            boxShadow: '0 4px 15px rgba(168, 85, 247, 0.3)', transition: 'all 0.2s', outline: 'none'
+                                        }}
+                                    >
+                                        {isSubmittingFeedback ? t('btn_loading') : t('feedback_submit_btn')}
+                                    </button>
+                                </form>
+                            ) : (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                                    {feedbacks.length === 0 ? (
+                                        <div style={{ textAlign: 'center', padding: '40px 10px', color: '#94a3b8', fontSize: '13px' }}>
+                                            💬 Поделитесь своим мнением о нашей системе!
+                                        </div>
+                                    ) : (
+                                        feedbacks.map((f) => {
+                                            const ratingEmoji = {
+                                                'Fine': '🤩', 'Good': '😊', 'Okay': '😐', 'Bad': '😞', 'Very Bad': '🤬'
+                                            }[f.rating] || '💬';
+
+                                            return (
+                                                <div 
+                                                    key={f.id} 
+                                                    style={{
+                                                        padding: '16px', borderRadius: '16px', background: 'rgba(15, 23, 42, 0.25)',
+                                                        border: '1px solid rgba(255, 255, 255, 0.04)', display: 'flex', flexDirection: 'column', gap: '10px'
+                                                    }}
+                                                >
+                                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                                        <span style={{ fontSize: '18px' }}>
+                                                            {ratingEmoji} <strong style={{ fontSize: '12px', color: '#cbd5e1' }}>{t(`rating_${f.rating.toLowerCase().replace(' ', '_')}`)}</strong>
+                                                        </span>
+                                                        <span style={{ fontSize: '10px', color: '#64748b' }}>
+                                                            {new Date(f.created_at).toLocaleDateString(i18n.language.startsWith('ru') ? 'ru-RU' : 'en-US')}
+                                                        </span>
+                                                    </div>
+                                                    <p style={{ margin: 0, fontSize: '13px', color: '#f8fafc', lineHeight: '1.4', wordBreak: 'break-word' }}>{f.message}</p>
+                                                    
+                                                    {/* Ответ админа (маскированный) */}
+                                                    {f.reply && (
+                                                        <div style={{
+                                                            marginTop: '8px', padding: '12px', borderRadius: '12px', background: 'rgba(99, 102, 241, 0.08)',
+                                                            borderLeft: '3px solid #6366f1', display: 'flex', flexDirection: 'column', gap: '6px'
+                                                        }}>
+                                                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                                                <span style={{ fontSize: '11px', fontWeight: '800', color: '#818cf8', textTransform: 'uppercase' }}>
+                                                                    🛡️ {t('feedback_admin_role')}
+                                                                </span>
+                                                                <span style={{ fontSize: '9px', color: '#64748b' }}>
+                                                                    {new Date(f.reply.created_at).toLocaleDateString(i18n.language.startsWith('ru') ? 'ru-RU' : 'en-US')}
+                                                                </span>
+                                                            </div>
+                                                            <p style={{ margin: 0, fontSize: '12px', color: '#cbd5e1', lineHeight: '1.4', wordBreak: 'break-word' }}>{f.reply.text}</p>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            )
+                                        })
+                                    )}
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
             )}
         </div>
         </>

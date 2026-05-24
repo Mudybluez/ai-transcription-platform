@@ -4,6 +4,7 @@ import api from '../api';
 import './Dashboard.css';
 import { useTranslation } from 'react-i18next';
 import MindMap from './MindMap';
+import NotificationsBell from '../components/NotificationsBell';
 
 const GlobalMindMap = () => {
     const navigate = useNavigate();
@@ -178,6 +179,8 @@ const GlobalMindMap = () => {
                 <span className={`role-badge-nav role-badge-${userRole.toLowerCase()}`}>
                     {displayRole}
                 </span>
+
+                <NotificationsBell />
 
                 <select 
                     className="lang-switcher" 
