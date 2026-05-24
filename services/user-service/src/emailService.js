@@ -12,7 +12,7 @@ Subject:  \x1b[35mПодтверждение регистрации на пла�
 Пожалуйста, подтвердите вашу почту, перейдя по следующей ссылке:
 🔗 \x1b[4m\x1b[34m${verificationLink}\x1b[0m
 
-Срок действия ссылки: 24 часа.
+Срок действия ссылки: 3 минуты.
 ${line}
 `;
     console.log(boxContent);
@@ -48,7 +48,7 @@ ${line}
                         <div style="margin: 30px 0; text-align: center;">
                             <a href="${verificationLink}" style="background-color: #6366f1; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: bold; display: inline-block; box-shadow: 0 4px 6px rgba(99, 102, 241, 0.2);">Подтвердить Email</a>
                         </div>
-                        <p style="color: #64748b; font-size: 14px; border-top: 1px solid #e2e8f0; padding-top: 15px;">Ссылка действительна в течение 24 часов.</p>
+                        <p style="color: #64748b; font-size: 14px; border-top: 1px solid #e2e8f0; padding-top: 15px;">Ссылка действительна в течение 3 минут.</p>
                     </div>
                 `
             });
