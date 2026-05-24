@@ -79,6 +79,8 @@ const HeroParticles = () => {
         const numParticles = 300;
         const braceParticlesCount = 180; 
         const particles = [];
+        let gravityPoints = [];
+        let lastGravitySpawnTime = 0;
 
         // 5 красивых blend-цветов (белый, голубой, фиолетовый, розовый, ярко-оранжевый)
         const particleColors = [
@@ -106,12 +108,23 @@ const HeroParticles = () => {
                 const borderSide = i % 2 === 0 ? 1 : -1;
                 const thickOffset = borderSide * (thickness / 2) + (Math.random() - 0.5) * 0.8;
 
+                const targetSide = isBraceOutline ? (i < braceParticlesCount / 2 ? 'left' : 'right') : null;
+                let homeX;
+                if (isBraceOutline) {
+                    if (targetSide === 'left') {
+                        homeX = Math.random() * (w * 0.43);
+                    } else {
+                        homeX = w * 0.57 + Math.random() * (w * 0.43);
+                    }
+                } else {
+                    homeX = Math.random() * w;
+                }
+
                 particles.push({
                     id: i,
                     x: Math.random() * w,
                     y: Math.random() * h,
-                    // Домашняя позиция, равномерно распределенная по всему экрану
-                    homeX: Math.random() * w,
+                    homeX,
                     homeY: Math.random() * h,
                     vx,
                     vy,
@@ -120,8 +133,7 @@ const HeroParticles = () => {
                     seed: Math.random() * 100,
                     
                     isBraceOutline,
-                    targetSide: isBraceOutline ? (i < braceParticlesCount / 2 ? 'left' : 'right') : null,
-                    // Распределение частиц равномерно вдоль кривой Безье (от 0 до 1)
+                    targetSide,
                     curveT: isBraceOutline ? (i % (braceParticlesCount / 2)) / (braceParticlesCount / 2 - 1) : 0,
                     thickOffset,
                     localWeight: 0
@@ -189,6 +201,40 @@ const HeroParticles = () => {
             const now = performance.now();
             ctx.clearRect(0, 0, width, height);
 
+            // --- Управление гравитационными точками (появляются раз в 6 секунд) ---
+            if (now - lastGravitySpawnTime > 6000) {
+                lastGravitySpawnTime = now;
+                const gx = width * 0.2 + Math.random() * (width * 0.6);
+                const gy = height * 0.2 + Math.random() * (height * 0.6);
+                gravityPoints.push({
+                    x: gx,
+                    y: gy,
+                    spawnTime: now,
+                    duration: 3800,
+                    maxStrength: 0.0022
+                });
+            }
+
+            // Фильтруем только активные
+            gravityPoints = gravityPoints.filter(gp => now - gp.spawnTime < gp.duration);
+
+            // Отрисовка неонового пульса гравитационных точек
+            gravityPoints.forEach(gp => {
+                const age = now - gp.spawnTime;
+                const progress = age / gp.duration;
+                const intensity = Math.sin(progress * Math.PI);
+                
+                ctx.save();
+                ctx.beginPath();
+                ctx.arc(gp.x, gp.y, 10 * intensity, 0, Math.PI * 2);
+                ctx.fillStyle = '#6366f1';
+                ctx.globalAlpha = intensity * 0.15;
+                ctx.shadowBlur = 20;
+                ctx.shadowColor = '#6366f1';
+                ctx.fill();
+                ctx.restore();
+            });
+
             const mouse = mouseRef.current;
             const cx = width / 2;
             const cy = height / 2;
@@ -206,6 +252,28 @@ const HeroParticles = () => {
 
             const braceOffset = Math.min(410, width * 0.44); 
             const braceHeight = Math.min(180, height * 0.75); 
+
+            // Векторное поле течений (Fluid Flow Field) для придания живой органики в idle
+            const timeScale = now * 0.0006;
+            const getFluidVelocity = (x, y, seed) => {
+                const scale1 = 0.003;
+                const scale2 = 0.01;
+                
+                // Октава 1: Плавные глобальные течения (крупные волны)
+                const angle1 = Math.sin(y * scale1 + timeScale * 0.4) * Math.cos(x * scale1 - timeScale * 0.3) * Math.PI * 2;
+                const vx1 = Math.cos(angle1) * 0.45;
+                const vy1 = Math.sin(angle1) * 0.45;
+
+                // Октава 2: Турбулентные завихрения (микро-вихри)
+                const angle2 = Math.cos(x * scale2 + timeScale * 0.8 + seed) * Math.sin(y * scale2 - timeScale * 0.6) * Math.PI * 1.5;
+                const vx2 = Math.cos(angle2) * 0.25;
+                const vy2 = Math.sin(angle2) * 0.25;
+
+                return {
+                    x: vx1 + vx2,
+                    y: vy1 + vy2
+                };
+            };
 
             // Настройки изящных изгибов скобок
             const hookWidth = 24; 
@@ -236,13 +304,73 @@ const HeroParticles = () => {
                 let targetX = p.x;
                 let targetY = p.y;
 
-                // 120 фоновых звезд: мягко парят по экрану и мерцают
+                // 120 фоновых звезд: мягко текут по векторному полю и мерцают
                 if (!p.isBraceOutline) {
-                    p.x += p.vx;
-                    p.y += p.vy;
+                    p.xVelocity = p.xVelocity || (Math.random() - 0.5) * 0.2;
+                    p.yVelocity = p.yVelocity || (Math.random() - 0.5) * 0.2;
 
-                    if (p.x < 0 || p.x > width) p.vx *= -1;
-                    if (p.y < 0 || p.y > height) p.vy *= -1;
+                    const flow = getFluidVelocity(p.x, p.y, p.seed);
+
+                    let gravityPullX = 0;
+                    let gravityPullY = 0;
+                    gravityPoints.forEach(gp => {
+                        const age = now - gp.spawnTime;
+                        const progress = age / gp.duration;
+                        const intensity = Math.sin(progress * Math.PI);
+                        
+                        const dx = gp.x - p.x;
+                        const dy = gp.y - p.y;
+                        const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+                        
+                        const force = (gp.maxStrength * intensity) / (dist + 50);
+                        gravityPullX += dx * force;
+                        gravityPullY += dy * force;
+                    });
+
+                    const damping = 0.95;
+                    p.xVelocity = p.xVelocity * damping + flow.x * 0.08 + gravityPullX;
+                    p.yVelocity = p.yVelocity * damping + flow.y * 0.08 + gravityPullY;
+
+                    // Container collision bounce for background particles
+                    if (p.x >= rx && p.x <= rx + tw && p.y >= ry && p.y <= ry + th) {
+                        p.xVelocity *= -1;
+                        p.yVelocity *= -1;
+                        
+                        const distLeft = p.x - rx;
+                        const distRight = (rx + tw) - p.x;
+                        const distTop = p.y - ry;
+                        const distBottom = (ry + th) - p.y;
+                        
+                        const minDist = Math.min(distLeft, distRight, distTop, distBottom);
+                        if (minDist === distLeft) p.x = rx - 2;
+                        else if (minDist === distRight) p.x = rx + tw + 2;
+                        else if (minDist === distTop) p.y = ry - 2;
+                        else p.y = ry + th + 2;
+                    }
+
+                    // Velocity clamping
+                    const maxSpeed = 2.0;
+                    const speed = Math.sqrt(p.xVelocity * p.xVelocity + p.yVelocity * p.yVelocity);
+                    if (speed > maxSpeed) {
+                        p.xVelocity = (p.xVelocity / speed) * maxSpeed;
+                        p.yVelocity = (p.yVelocity / speed) * maxSpeed;
+                    }
+
+                    p.x += p.xVelocity;
+                    p.y += p.yVelocity;
+
+                    // Мягкая коррекция у краев экрана (padding 25px) для предотвращения залипания
+                    const padding = 25;
+                    if (p.x < padding) p.x += 0.8;
+                    else if (p.x > width - padding) p.x -= 0.8;
+                    if (p.y < padding) p.y += 0.8;
+                    else if (p.y > height - padding) p.y -= 0.8;
+
+                    // Мягкие отскоки от границ
+                    if (p.x < 0) { p.x = 0; p.xVelocity *= -0.7; }
+                    if (p.x > width) { p.x = width; p.xVelocity *= -0.7; }
+                    if (p.y < 0) { p.y = 0; p.yVelocity *= -0.7; }
+                    if (p.y > height) { p.y = height; p.yVelocity *= -0.7; }
 
                     const twinkle = 0.12 + Math.sin(now * 0.0018 + p.seed) * 0.08;
                     ctx.beginPath();
@@ -254,12 +382,19 @@ const HeroParticles = () => {
                 }
 
                 // 180 контурных звезд скобок:
-                // 1. Медленно обновляем координаты их домашней космической позиции (дрейф звезд)
-                p.homeX += p.vx * 0.5;
-                p.homeY += p.vy * 0.5;
+                // 1. Медленно обновляем координаты их домашней позиции вдоль течения жидкости
+                const homeFlow = getFluidVelocity(p.homeX, p.homeY, p.seed);
+                p.homeX += homeFlow.x * 0.7;
+                p.homeY += homeFlow.y * 0.7;
 
-                if (p.homeX < 0 || p.homeX > width) p.vx *= -1;
-                if (p.homeY < 0 || p.homeY > height) p.vy *= -1;
+                // Мягкие отскоки домашней позиции от соответствующих половин экрана
+                const minHomeX = p.targetSide === 'left' ? 0 : width * 0.57;
+                const maxHomeX = p.targetSide === 'left' ? width * 0.43 : width;
+
+                if (p.homeX < minHomeX) { p.homeX = minHomeX; p.vx *= -1; }
+                if (p.homeX > maxHomeX) { p.homeX = maxHomeX; p.vx *= -1; }
+                if (p.homeY < 0) { p.homeY = 0; p.vy *= -1; }
+                if (p.homeY > height) { p.homeY = height; p.vy *= -1; }
 
                 // 2. Рассчитываем их целевые координаты на скобках
                 const pt = getBracePoint(
@@ -303,8 +438,8 @@ const HeroParticles = () => {
                     }
                 }
 
-                // Плавная и отзывчивая сборка/разлет (0.055 при нарастании, 0.035 при разлете)
-                const reactionSpeed = targetLocalWeight > p.localWeight ? 0.055 : 0.035;
+                // Ускоренная сборка для быстрого морфинга (0.09 при нарастании, 0.04 при разлете)
+                const reactionSpeed = targetLocalWeight > p.localWeight ? 0.09 : 0.04;
                 p.localWeight += (targetLocalWeight - p.localWeight) * reactionSpeed;
 
                 // 4. КОНЕЧНАЯ ЦЕЛЬ - интерполяция между домашней дрейфующей позицией и скобкой!
@@ -312,10 +447,10 @@ const HeroParticles = () => {
                 targetX = p.homeX + (braceX - p.homeX) * p.localWeight;
                 targetY = p.homeY + (braceY - p.homeY) * p.localWeight;
 
-                // 5. Единая физика пружин (Spring Physics) в невесомости
-                // Жесткость пружины растет со сборкой скобок, но имеет базовый уровень в покое для дрейфа звезд
-                const springK = 0.018 + 0.047 * Math.pow(p.localWeight, 1.8);
-                const damping = 0.85;
+                // 5. Единая физика пружин (Spring Physics) в невесомости + жидкостное течение
+                // Повышенная жесткость пружин для быстрой сборки менее чем за 1.5 секунды
+                const springK = 0.024 + 0.065 * Math.pow(p.localWeight, 1.8);
+                const damping = 0.82;
 
                 // Ускорение к динамической цели
                 const ax = (targetX - p.x) * springK;
@@ -324,18 +459,87 @@ const HeroParticles = () => {
                 // Добавляем микрошум для живой вибрации
                 const vibration = 0.03 * (1 - p.localWeight);
 
+                // Добавляем прямую силу течения жидкости в покое (убывает по мере сборки скобок)
+                const pFlow = getFluidVelocity(p.x, p.y, p.seed);
+                const fluidForceX = pFlow.x * 0.16 * (1 - p.localWeight);
+                const fluidForceY = pFlow.y * 0.16 * (1 - p.localWeight);
+
                 p.xVelocity = p.xVelocity || 0;
                 p.yVelocity = p.yVelocity || 0;
 
-                p.xVelocity = p.xVelocity * damping + ax + (Math.random() - 0.5) * vibration;
-                p.yVelocity = p.yVelocity * damping + ay + (Math.random() - 0.5) * vibration;
+                // Gentle gravity pull for contour particles in idle
+                let gravityPullX = 0;
+                let gravityPullY = 0;
+                gravityPoints.forEach(gp => {
+                    const age = now - gp.spawnTime;
+                    const progress = age / gp.duration;
+                    const intensity = Math.sin(progress * Math.PI);
+                    
+                    const dx = gp.x - p.x;
+                    const dy = gp.y - p.y;
+                    const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+                    
+                    const force = (gp.maxStrength * intensity) / (dist + 50);
+                    gravityPullX += dx * force;
+                    gravityPullY += dy * force;
+                });
+                
+                // Scale gravity pull by (1 - p.localWeight) so it only acts in idle
+                gravityPullX *= (1 - p.localWeight);
+                gravityPullY *= (1 - p.localWeight);
+
+                p.xVelocity = p.xVelocity * damping + ax + fluidForceX + gravityPullX + (Math.random() - 0.5) * vibration;
+                p.yVelocity = p.yVelocity * damping + ay + fluidForceY + gravityPullY + (Math.random() - 0.5) * vibration;
+
+                // Жидкостная амортизация/отталкивание от краев контейнера (padding 35px) в покое
+                const padding = 35;
+                if (p.x < padding) {
+                    p.xVelocity += (padding - p.x) * 0.04 * (1 - p.localWeight);
+                } else if (p.x > width - padding) {
+                    p.xVelocity -= (p.x - (width - padding)) * 0.04 * (1 - p.localWeight);
+                }
+                if (p.y < padding) {
+                    p.yVelocity += (padding - p.y) * 0.04 * (1 - p.localWeight);
+                } else if (p.y > height - padding) {
+                    p.yVelocity -= (p.y - (height - padding)) * 0.04 * (1 - p.localWeight);
+                }
+
+                // Container collision bounce for contour particles in idle
+                if (p.localWeight < 0.15) {
+                    if (p.x >= rx && p.x <= rx + tw && p.y >= ry && p.y <= ry + th) {
+                        p.xVelocity *= -1;
+                        p.yVelocity *= -1;
+                        
+                        // Push out of container to prevent getting stuck
+                        const distLeft = p.x - rx;
+                        const distRight = (rx + tw) - p.x;
+                        const distTop = p.y - ry;
+                        const distBottom = (ry + th) - p.y;
+                        
+                        const minDist = Math.min(distLeft, distRight, distTop, distBottom);
+                        if (minDist === distLeft) p.x = rx - 2;
+                        else if (minDist === distRight) p.x = rx + tw + 2;
+                        else if (minDist === distTop) p.y = ry - 2;
+                        else p.y = ry + th + 2;
+                    }
+                }
+
+                // Ограничение максимальной скорости (velocity clamping) для идеальной стабильности
+                const maxSpeed = 3.5;
+                const speed = Math.sqrt(p.xVelocity * p.xVelocity + p.yVelocity * p.yVelocity);
+                if (speed > maxSpeed) {
+                    p.xVelocity = (p.xVelocity / speed) * maxSpeed;
+                    p.yVelocity = (p.yVelocity / speed) * maxSpeed;
+                }
 
                 p.x += p.xVelocity;
                 p.y += p.yVelocity;
 
-                // Граничные отскоки
-                if (p.x < 0 || p.x > width) p.vx *= -0.7;
-                if (p.y < 0 || p.y > height) p.vy *= -0.7;
+                // Мягкие отскоки от границ экрана с гашением скорости для предотвращения мерцания и разгонов
+                if (p.x < 0) { p.x = 0; p.xVelocity *= -0.7; }
+                if (p.x > width) { p.x = width; p.xVelocity *= -0.7; }
+                if (p.y < 0) { p.y = 0; p.yVelocity *= -0.7; }
+                if (p.y > height) { p.y = height; p.yVelocity *= -0.7; }
 
                 // 6. Отрисовка созвездий: всегда отображают свои уникальные неоновые blend-цвета
                 const particleColor = p.baseColor;
