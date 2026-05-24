@@ -576,6 +576,217 @@ app.post('/moderate-user', requireAdmin, async (req, res) => {
     }
 });
 
+// --- СИСТЕМА ОТЗЫВОВ И УВЕДОМЛЕНИЙ ---
+
+const authenticateToken = (req, res, next) => {
+    const authHeader = req.headers['authorization'];
+    if (!authHeader) {
+        return res.status(401).json({ message: 'Доступ запрещен. Токен не предоставлен.' });
+    }
+
+    const token = authHeader.split(' ')[1];
+    try {
+        const decoded = jwt.verify(token, JWT_SECRET);
+        req.userId = decoded.userId;
+        req.userRole = decoded.role;
+        next();
+    } catch (e) {
+        return res.status(403).json({ message: 'Недействительный или просроченный токен.' });
+    }
+};
+
+// Отправка отзыва
+app.post('/feedbacks', authenticateToken, async (req, res) => {
+    const { rating, message } = req.body;
+    const userId = req.userId;
+
+    if (!rating || !message) {
+        return res.status(400).json({ message: 'Рейтинг и сообщение обязательны для заполнения.' });
+    }
+
+    const validRatings = ['Fine', 'Good', 'Okay', 'Bad', 'Very Bad'];
+    if (!validRatings.includes(rating)) {
+        return res.status(400).json({ message: 'Недопустимый рейтинг.' });
+    }
+
+    try {
+        const result = await db.query(
+            'INSERT INTO feedbacks (user_id, rating, message) VALUES ($1, $2, $3) RETURNING *',
+            [userId, rating, message]
+        );
+        res.status(201).json(result.rows[0]);
+    } catch (err) {
+        console.error('Ошибка создания отзыва:', err);
+        res.status(500).json({ message: 'Ошибка сервера при отправке отзыва.' });
+    }
+});
+
+// Получение списка отзывов
+app.get('/feedbacks', authenticateToken, async (req, res) => {
+    const userId = req.userId;
+    const userRole = req.userRole;
+
+    try {
+        if (userRole === 'admin') {
+            const queryText = `
+                SELECT 
+                    f.id, 
+                    f.rating, 
+                    f.message, 
+                    f.created_at, 
+                    u.username as sender_name,
+                    fr.reply_text,
+                    fr.created_at as reply_created_at
+                FROM feedbacks f
+                JOIN users u ON f.user_id = u.id
+                LEFT JOIN feedback_replies fr ON f.id = fr.feedback_id
+                ORDER BY f.created_at DESC
+            `;
+            const result = await db.query(queryText);
+            
+            const mapped = result.rows.map(row => ({
+                id: row.id,
+                rating: row.rating,
+                message: row.message,
+                created_at: row.created_at,
+                sender_name: row.sender_name,
+                reply: row.reply_text ? {
+                    text: row.reply_text,
+                    sender_role: 'Admin',
+                    created_at: row.reply_created_at
+                } : null
+            }));
+
+            res.status(200).json(mapped);
+        } else {
+            const queryText = `
+                SELECT 
+                    f.id, 
+                    f.rating, 
+                    f.message, 
+                    f.created_at,
+                    fr.reply_text,
+                    fr.created_at as reply_created_at
+                FROM feedbacks f
+                LEFT JOIN feedback_replies fr ON f.id = fr.feedback_id
+                WHERE f.user_id = $1
+                ORDER BY f.created_at DESC
+            `;
+            const result = await db.query(queryText, [userId]);
+            
+            const mapped = result.rows.map(row => ({
+                id: row.id,
+                rating: row.rating,
+                message: row.message,
+                created_at: row.created_at,
+                reply: row.reply_text ? {
+                    text: row.reply_text,
+                    sender_role: 'Admin',
+                    created_at: row.reply_created_at
+                } : null
+            }));
+
+            res.status(200).json(mapped);
+        }
+    } catch (err) {
+        console.error('Ошибка получения отзывов:', err);
+        res.status(500).json({ message: 'Ошибка сервера при получении отзывов.' });
+    }
+});
+
+// Ответ на отзыв (только для админов)
+app.post('/feedbacks/:id/reply', requireAdmin, async (req, res) => {
+    const feedbackId = req.params.id;
+    const { replyText } = req.body;
+    const adminId = req.userId;
+
+    if (!replyText || replyText.trim() === '') {
+        return res.status(400).json({ message: 'Текст ответа обязателен.' });
+    }
+
+    try {
+        const feedbackRes = await db.query('SELECT user_id, message FROM feedbacks WHERE id = $1', [feedbackId]);
+        if (feedbackRes.rows.length === 0) {
+            return res.status(404).json({ message: 'Отзыв не найден.' });
+        }
+        const feedback = feedbackRes.rows[0];
+
+        const replyResult = await db.query(
+            'INSERT INTO feedback_replies (feedback_id, admin_id, reply_text) VALUES ($1, $2, $3) RETURNING *',
+            [feedbackId, adminId, replyText]
+        );
+
+        const snippet = feedback.message.length > 50 ? feedback.message.substring(0, 50) + '...' : feedback.message;
+        const notifData = {
+            feedback_id: feedbackId,
+            feedback_snippet: snippet,
+            message_en: 'An administrator replied to your feedback!',
+            message_ru: 'Администратор ответил на ваш отзыв!',
+            message_kk: 'Әкімші сіздің пікіріңізге жауап берді!'
+        };
+
+        await db.query(
+            'INSERT INTO notifications (user_id, type, data) VALUES ($1, $2, $3)',
+            [feedback.user_id, 'ADMIN_RESPONSE', JSON.stringify(notifData)]
+        );
+
+        res.status(201).json(replyResult.rows[0]);
+    } catch (err) {
+        console.error('Ошибка при ответе на отзыв:', err);
+        res.status(500).json({ message: 'Ошибка сервера при отправке ответа.' });
+    }
+});
+
+// Получение уведомлений
+app.get('/notifications', authenticateToken, async (req, res) => {
+    const userId = req.userId;
+    try {
+        const result = await db.query(
+            'SELECT * FROM notifications WHERE user_id = $1 ORDER BY created_at DESC',
+            [userId]
+        );
+        res.status(200).json(result.rows);
+    } catch (err) {
+        console.error('Ошибка получения уведомлений:', err);
+        res.status(500).json({ message: 'Ошибка сервера при получении уведомлений.' });
+    }
+});
+
+// Пометить уведомление как прочитанное
+app.post('/notifications/:id/read', authenticateToken, async (req, res) => {
+    const notifId = req.params.id;
+    const userId = req.userId;
+
+    try {
+        const result = await db.query(
+            'UPDATE notifications SET is_read = TRUE WHERE id = $1 AND user_id = $2 RETURNING *',
+            [notifId, userId]
+        );
+        if (result.rows.length === 0) {
+            return res.status(404).json({ message: 'Уведомление не найдено.' });
+        }
+        res.status(200).json(result.rows[0]);
+    } catch (err) {
+        console.error('Ошибка при отметке прочитанным:', err);
+        res.status(500).json({ message: 'Ошибка сервера.' });
+    }
+});
+
+// Пометить все уведомления как прочитанные
+app.post('/notifications/read-all', authenticateToken, async (req, res) => {
+    const userId = req.userId;
+    try {
+        await db.query(
+            'UPDATE notifications SET is_read = TRUE WHERE user_id = $1 AND is_read = FALSE',
+            [userId]
+        );
+        res.status(200).json({ message: 'Все уведомления помечены как прочитанные.' });
+    } catch (err) {
+        console.error('Ошибка при отметке всех прочитанными:', err);
+        res.status(500).json({ message: 'Ошибка сервера.' });
+    }
+});
+
 app.listen(PORT, () => {
     console.log(`👤 User Service запущен на порту ${PORT}`);
 });
