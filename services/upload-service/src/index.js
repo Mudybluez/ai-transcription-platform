@@ -46,6 +46,46 @@ const getUserFromToken = (req, res, next) => {
     next();
 };
 
+// Мидлвар для проверки блокировки (бана) пользователя
+const checkUserBan = async (req, res, next) => {
+    const userId = req.userId;
+    if (!userId) return next();
+
+    try {
+        const userRes = await db.query(
+            'SELECT banned_until, is_permanently_banned FROM users WHERE id = $1',
+            [userId]
+        );
+        if (userRes.rows.length === 0) return next();
+
+        const { banned_until, is_permanently_banned } = userRes.rows[0];
+
+        if (is_permanently_banned) {
+            const lang = req.headers['accept-language'] || 'ru';
+            let msg = 'Ваш аккаунт заблокирован навсегда.';
+            if (lang.startsWith('en')) msg = 'Your account has been permanently blocked.';
+            if (lang.startsWith('kk')) msg = 'Сіздің аккаунтыңыз біржола блокталған.';
+            return res.status(403).json({ message: msg, banned: true });
+        }
+
+        if (banned_until && new Date(banned_until) > new Date()) {
+            const lang = req.headers['accept-language'] || 'ru';
+            const banDateStr = new Date(banned_until).toLocaleString(
+                lang.startsWith('ru') ? 'ru-RU' : lang.startsWith('kk') ? 'kk-KZ' : 'en-US'
+            );
+            let msg = `Ваш аккаунт заблокирован. Временная блокировка истекает: ${banDateStr}`;
+            if (lang.startsWith('en')) msg = `Your account is blocked. Temporary ban expires on: ${banDateStr}`;
+            if (lang.startsWith('kk')) msg = `Сіздің аккаунтыңыз блокталған. Уақытша блоктау ${banDateStr} дейін жарамды.`;
+            return res.status(403).json({ message: msg, banned: true, bannedUntil: banned_until });
+        }
+
+        next();
+    } catch (err) {
+        console.error('Ошибка проверки бана в Upload Service:', err);
+        next();
+    }
+};
+
 // Мидлвар для лимитирования частоты запросов на анализ (rate-limiting)
 const checkRateLimit = async (req, res, next) => {
     const userId = req.userId;
@@ -54,9 +94,12 @@ const checkRateLimit = async (req, res, next) => {
     }
 
     try {
-        // 1. Получаем актуальную роль пользователя из базы данных
-        const userRes = await db.query('SELECT role FROM users WHERE id = $1', [userId]);
-        const role = userRes.rows.length > 0 ? userRes.rows[0].role : 'Standard';
+        // 1. Получаем актуальную роль и кастомные запросы пользователя из базы данных
+        const userRes = await db.query('SELECT role, custom_requests FROM users WHERE id = $1', [userId]);
+        if (userRes.rows.length === 0) {
+            return res.status(404).json({ message: 'Пользователь не найден.' });
+        }
+        const { role, custom_requests } = userRes.rows[0];
 
         // Pro и admin имеют безлимитный доступ
         if (role === 'Pro' || role === 'admin') {
@@ -78,8 +121,15 @@ const checkRateLimit = async (req, res, next) => {
         const limit = limits[role] !== undefined ? limits[role] : 2;
 
         if (requestCount >= limit) {
+            // Если стандартный лимит превышен, проверяем кастомные запросы
+            if (custom_requests > 0) {
+                await db.query('UPDATE users SET custom_requests = custom_requests - 1 WHERE id = $1', [userId]);
+                console.log(`🎟️ Использован 1 кастомный запрос для пользователя ${userId}. Осталось: ${custom_requests - 1}`);
+                return next();
+            }
+
             return res.status(429).json({
-                message: `Лимит запросов на анализ исчерпан. Для вашей роли (${role}) лимит составляет ${limit} запроса(ов) в 12 часов. Вы уже отправили ${requestCount} запрос(ов).`
+                message: `Лимит запросов на анализ исчерпан. Для вашей роли (${role}) лимит составляет ${limit} запроса(ов) в 12 часов. Вы уже отправили ${requestCount} запрос(ов). Дополнительных кастомных запросов: ${custom_requests || 0}.`
             });
         }
 
@@ -120,7 +170,7 @@ const checkEmailVerification = async (req, res, next) => {
 };
 
 // Роут для загрузки файла
-app.post('/', getUserFromToken, checkEmailVerification, checkRateLimit, upload.single('mediaFile'), async (req, res) => {
+app.post('/', getUserFromToken, checkUserBan, checkEmailVerification, checkRateLimit, upload.single('mediaFile'), async (req, res) => {
     if (!req.file) {
         return res.status(400).json({ message: 'Файл не загружен' });
     }
@@ -190,7 +240,7 @@ const extractYoutubeId = (url) => {
 };
 
 // Роут для обработки YouTube ссылок
-app.post('/youtube', getUserFromToken, checkEmailVerification, checkRateLimit, async (req, res) => {
+app.post('/youtube', getUserFromToken, checkUserBan, checkEmailVerification, checkRateLimit, async (req, res) => {
     const { url } = req.body; 
     const userId = req.userId || 1;
 
