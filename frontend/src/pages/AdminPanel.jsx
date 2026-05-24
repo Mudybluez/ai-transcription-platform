@@ -138,18 +138,94 @@ const AdminPanel = () => {
         i18n.changeLanguage(lng);
     };
 
+    // Нормализация списка стран от AstroProxy
+    const normalizeCountries = (data) => {
+        if (!data) return [];
+        if (Array.isArray(data)) {
+            return data.map(item => {
+                if (typeof item === 'string') {
+                    return { code: item, name: item };
+                }
+                return {
+                    code: item.code || item.id || item.country || '',
+                    name: item.name || item.code || item.id || ''
+                };
+            }).filter(c => c.code);
+        }
+        if (typeof data === 'object') {
+            return Object.entries(data).map(([code, name]) => ({
+                code: code,
+                name: typeof name === 'string' ? name : code
+            }));
+        }
+        return [];
+    };
+
+    // Нормализация списка городов от AstroProxy
+    const normalizeCities = (data, countryCode) => {
+        if (!data) return [];
+        if (Array.isArray(data)) {
+            return data.map(item => {
+                if (typeof item === 'string') {
+                    return { id: item, name: item, country: countryCode };
+                }
+                return {
+                    id: item.id || item.code || item.name || '',
+                    name: item.name || item.id || '',
+                    country: item.country || countryCode
+                };
+            }).filter(c => c.id);
+        }
+        if (typeof data === 'object') {
+            return Object.entries(data).map(([id, name]) => ({
+                id: id,
+                name: typeof name === 'string' ? name : id,
+                country: countryCode
+            }));
+        }
+        return [];
+    };
+
+    // Нормализация списка операторов от AstroProxy
+    const normalizeOperators = (data, countryCode) => {
+        if (!data) return [];
+        if (Array.isArray(data)) {
+            return data.map(item => {
+                if (typeof item === 'string') {
+                    return { id: item, name: item, country: countryCode };
+                }
+                return {
+                    id: item.id || item.name || '',
+                    name: item.name || item.id || '',
+                    country: item.country || countryCode
+                };
+            }).filter(o => o.id);
+        }
+        if (typeof data === 'object') {
+            return Object.entries(data).map(([id, name]) => ({
+                id: id,
+                name: typeof name === 'string' ? name : id,
+                country: countryCode
+            }));
+        }
+        return [];
+    };
+
     // Загрузка списков городов и операторов в зависимости от страны
     const fetchGeoParams = async (countryCode) => {
+        if (!countryCode || countryCode === 'undefined') return;
         try {
             const citiesRes = await api.get(`/search/admin/proxy/cities?country=${countryCode}`);
-            setCities(citiesRes.data.data || []);
+            const rawCities = citiesRes.data.data || citiesRes.data || [];
+            setCities(normalizeCities(rawCities, countryCode));
         } catch (e) {
             console.error("Ошибка при получении списка городов AstroProxy:", e);
         }
 
         try {
             const operatorsRes = await api.get(`/search/admin/proxy/operators?country=${countryCode}`);
-            setOperators(operatorsRes.data.data || []);
+            const rawOperators = operatorsRes.data.data || operatorsRes.data || [];
+            setOperators(normalizeOperators(rawOperators, countryCode));
         } catch (e) {
             console.error("Ошибка при получении списка операторов AstroProxy:", e);
         }
@@ -171,14 +247,15 @@ const AdminPanel = () => {
                 setIsLoadingProxyData(true);
                 try {
                     const portsRes = await api.get('/search/admin/proxy/ports');
-                    setPorts(portsRes.data.data || []);
+                    setPorts(portsRes.data.data || portsRes.data || []);
 
                     const countriesRes = await api.get('/search/admin/proxy/countries');
-                    const fetchedCountries = countriesRes.data.data || [];
-                    setCountries(fetchedCountries);
+                    const rawCountries = countriesRes.data.data || countriesRes.data || [];
+                    const normalized = normalizeCountries(rawCountries);
+                    setCountries(normalized);
 
                     // Определяем страну по умолчанию (первая из списка или 'RU')
-                    const defaultCountry = fetchedCountries.length > 0 ? fetchedCountries[0].code : 'RU';
+                    const defaultCountry = normalized.length > 0 ? normalized[0].code : 'RU';
                     setWizardConfig(prev => ({ ...prev, country: defaultCountry }));
 
                     // Загружаем города и операторы для этой страны
