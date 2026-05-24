@@ -50,6 +50,91 @@ const initDB = async () => {
           ALTER TABLE users ADD COLUMN IF NOT EXISTS custom_requests INTEGER DEFAULT 0;
           ALTER TABLE users ADD COLUMN IF NOT EXISTS banned_until TIMESTAMP DEFAULT NULL;
           ALTER TABLE users ADD COLUMN IF NOT EXISTS is_permanently_banned BOOLEAN DEFAULT FALSE;
+
+          -- 7. Создание таблицы отзывов (feedbacks)
+          CREATE TABLE IF NOT EXISTS feedbacks (
+            id SERIAL PRIMARY KEY,
+            user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+            rating VARCHAR(50) NOT NULL,
+            message TEXT NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+          );
+
+          -- 8. Создание таблицы ответов на отзывы (feedback_replies)
+          CREATE TABLE IF NOT EXISTS feedback_replies (
+            id SERIAL PRIMARY KEY,
+            feedback_id INTEGER REFERENCES feedbacks(id) ON DELETE CASCADE,
+            admin_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+            reply_text TEXT NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+          );
+
+          -- 9. Создание таблицы уведомлений (notifications)
+          CREATE TABLE IF NOT EXISTS notifications (
+            id SERIAL PRIMARY KEY,
+            user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+            type VARCHAR(100) NOT NULL,
+            data JSONB NOT NULL,
+            is_read BOOLEAN DEFAULT FALSE,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+          );
+
+          -- 10. Триггер готовности анализа (Analysis Ready)
+          CREATE OR REPLACE FUNCTION notify_analysis_ready()
+          RETURNS TRIGGER AS $$
+          BEGIN
+              IF NEW.status = 'COMPLETED' AND (OLD.status IS NULL OR OLD.status != 'COMPLETED') THEN
+                  IF NOT EXISTS (
+                      SELECT 1 FROM notifications 
+                      WHERE user_id = NEW.user_id 
+                        AND type = 'ANALYSIS_READY' 
+                        AND (data->>'job_id')::int = NEW.id
+                  ) THEN
+                      INSERT INTO notifications (user_id, type, data)
+                      VALUES (
+                          NEW.user_id,
+                          'ANALYSIS_READY',
+                          json_build_object(
+                              'job_id', NEW.id,
+                              'file_name', NEW.file_name,
+                              'message_en', 'Analysis of "' || NEW.file_name || '" is ready!',
+                              'message_ru', 'Анализ файла "' || NEW.file_name || '" готов!',
+                              'message_kk', '"' || NEW.file_name || '" файлының талдауы дайын!'
+                          )
+                      );
+                  END IF;
+              END IF;
+              RETURN NEW;
+          END;
+          $$ LANGUAGE plpgsql;
+
+          DROP TRIGGER IF EXISTS trigger_analysis_ready ON jobs;
+          CREATE TRIGGER trigger_analysis_ready
+          AFTER UPDATE ON jobs
+          FOR EACH ROW
+          EXECUTE FUNCTION notify_analysis_ready();
+
+          -- 11. Триггер для PG LISTEN/NOTIFY при вставке уведомлений (Live)
+          CREATE OR REPLACE FUNCTION notify_new_notification()
+          RETURNS TRIGGER AS $$
+          BEGIN
+              PERFORM pg_notify('new_notification', json_build_object(
+                  'id', NEW.id,
+                  'user_id', NEW.user_id,
+                  'type', NEW.type,
+                  'data', NEW.data,
+                  'is_read', NEW.is_read,
+                  'created_at', NEW.created_at
+              )::text);
+              RETURN NEW;
+          END;
+          $$ LANGUAGE plpgsql;
+
+          DROP TRIGGER IF EXISTS trigger_new_notification ON notifications;
+          CREATE TRIGGER trigger_new_notification
+          AFTER INSERT ON notifications
+          FOR EACH ROW
+          EXECUTE FUNCTION notify_new_notification();
         `;
         await pool.query(migrations);
         console.log('✅ Схема базы данных пользователей успешно обновлена');
