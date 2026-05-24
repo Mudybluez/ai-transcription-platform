@@ -23,6 +23,31 @@ const initDB = async () => {
     try {
         await pool.query(queryText);
         console.log('✅ Таблица пользователей готова');
+
+        // Миграция схемы БД для 3-уровневой системы ролей и монетизации
+        const migrations = `
+          -- 1. Смена дефолтного значения роли на Standard
+          ALTER TABLE users ALTER COLUMN role SET DEFAULT 'Standard';
+
+          -- 2. Обновление старых ролей 'user' и NULL на 'Standard'
+          UPDATE users SET role = 'Standard' WHERE role = 'user' OR role IS NULL;
+
+          -- 3. Добавление колонок подписки/монетизации (для будущего расширения)
+          ALTER TABLE users ADD COLUMN IF NOT EXISTS subscription_status VARCHAR(50) DEFAULT 'inactive';
+          ALTER TABLE users ADD COLUMN IF NOT EXISTS subscription_expires_at TIMESTAMP;
+          ALTER TABLE users ADD COLUMN IF NOT EXISTS billing_customer_id VARCHAR(255);
+
+          -- 4. Добавление колонок для верификации почты
+          ALTER TABLE users ADD COLUMN IF NOT EXISTS is_verified BOOLEAN DEFAULT FALSE;
+          ALTER TABLE users ADD COLUMN IF NOT EXISTS verification_token VARCHAR(255);
+          ALTER TABLE users ADD COLUMN IF NOT EXISTS verification_token_expires_at TIMESTAMP;
+          ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verified_at TIMESTAMP;
+
+          -- 5. Обновление старых пользователей до верифицированных, чтобы не заблокировать их
+          UPDATE users SET is_verified = TRUE WHERE is_verified IS NULL;
+        `;
+        await pool.query(migrations);
+        console.log('✅ Схема базы данных пользователей успешно обновлена');
     } catch (err) {
         console.error('❌ Ошибка инициализации БД:', err);
     }
