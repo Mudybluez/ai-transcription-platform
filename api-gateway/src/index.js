@@ -70,6 +70,9 @@ app.use('/api/search/admin/stats', proxy(process.env.SEARCH_SERVICE_URL || 'http
 app.use('/api/search/admin/proxy-stats', proxy(process.env.SEARCH_SERVICE_URL || 'http://localhost:3003', {
     proxyReqPathResolver: () => '/admin/proxy-stats'
 }));
+app.use('/api/search/admin/proxy', proxy(process.env.SEARCH_SERVICE_URL || 'http://localhost:3003', {
+    proxyReqPathResolver: (req) => '/admin/proxy' + req.url
+}));
 app.use('/api/search/admin/transcriptions/bulk', proxy(process.env.SEARCH_SERVICE_URL || 'http://localhost:3003', {
     proxyReqPathResolver: () => '/admin/transcriptions/bulk'
 }));
