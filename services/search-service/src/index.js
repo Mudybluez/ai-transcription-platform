@@ -256,11 +256,6 @@ app.get('/admin/proxy-stats', requireAdmin, async (req, res) => {
     }
 });
 
-// Проксирование всех запросов управления AstroProxy (только для администраторов)
-app.all('/admin/proxy/*', requireAdmin, async (req, res) => {
-    return astroproxyService.handleAstroProxyRequest(req, res);
-});
-
 // Получение списка всех разборов на платформе (только для администраторов)
 app.get('/admin/transcriptions', requireAdmin, async (req, res) => {
     try {
