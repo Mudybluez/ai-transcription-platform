@@ -1,5 +1,3 @@
-const axios = require('axios');
-
 const getProxyStats = async () => {
     const apiKey = process.env.ASTROPROXY_API_KEY;
     if (!apiKey) {
@@ -15,15 +13,21 @@ const getProxyStats = async () => {
     }
 
     try {
-        // Официальный эндпоинт AstroProxy API для получения трафика портов
-        // Например: https://api.astroproxy.com/v1/stats?api_key=YOUR_KEY
-        // Пользователь может заменить URL и параметры под структуру своего тарифа
-        const response = await axios.get(`https://api.astroproxy.com/v1/stats`, {
-            params: { api_key: apiKey },
-            timeout: 5000
-        });
+        // Использование встроенного глобального fetch (доступен в Node.js v18+)
+        // Устанавливаем таймаут запроса в 5 секунд с помощью AbortController
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 5000);
 
-        const data = response.data;
+        const response = await fetch(`https://api.astroproxy.com/v1/stats?api_key=${encodeURIComponent(apiKey)}`, {
+            signal: controller.signal
+        });
+        clearTimeout(timeoutId);
+
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const data = await response.json();
         const spentBytes = data.traffic_used || data.used || 0;
         const limitBytes = data.traffic_limit || data.limit || 1073741824;
 
