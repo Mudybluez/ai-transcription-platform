@@ -130,7 +130,7 @@ const SolarSystemBackground = ({ history = [], introState = 'playing', onIntroCo
         if (!canvas) return;
 
         const ctx = canvas.getContext('2d');
-        let animationFrameId;
+        let animationFrameId = null;
 
         let width = window.innerWidth;
         let height = window.innerHeight;
