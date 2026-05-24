@@ -266,6 +266,12 @@ app.post('/resend-verification', async (req, res) => {
     }
 });
 
+// Получение публичного ключа reCAPTCHA для фронтенда
+app.get('/recaptcha-site-key', (req, res) => {
+    const siteKey = process.env.VITE_RECAPTCHA_SITE_KEY || process.env.RECAPTCHA_SITE_KEY || null;
+    res.json({ siteKey });
+});
+
 app.get('/profile/:id', async (req, res) => {
     try {
         const userResult = await db.query('SELECT id, username, email, role, created_at FROM users WHERE id = $1', [req.params.id]);
