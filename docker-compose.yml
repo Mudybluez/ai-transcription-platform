@@ -149,6 +149,7 @@ services:
       - POSTGRES_HOST=postgres
       - REDIS_URL=redis://redis:6379
       - JWT_SECRET=super_secret_jwt_key
+      - ASTROPROXY_API_KEY=${ASTROPROXY_API_KEY}
     networks:
       - ai_network
     depends_on:
