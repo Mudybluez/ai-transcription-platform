@@ -67,6 +67,15 @@ app.use('/api/upload', proxy(process.env.UPLOAD_SERVICE_URL || 'http://localhost
 app.use('/api/search/admin/stats', proxy(process.env.SEARCH_SERVICE_URL || 'http://localhost:3003', {
     proxyReqPathResolver: () => '/admin/stats'
 }));
+app.use('/api/search/admin/proxy-stats', proxy(process.env.SEARCH_SERVICE_URL || 'http://localhost:3003', {
+    proxyReqPathResolver: () => '/admin/proxy-stats'
+}));
+app.use('/api/search/admin/transcriptions/bulk', proxy(process.env.SEARCH_SERVICE_URL || 'http://localhost:3003', {
+    proxyReqPathResolver: () => '/admin/transcriptions/bulk'
+}));
+app.use('/api/search/admin/transcriptions', proxy(process.env.SEARCH_SERVICE_URL || 'http://localhost:3003', {
+    proxyReqPathResolver: () => '/admin/transcriptions'
+}));
 app.use('/api/search', proxy(process.env.SEARCH_SERVICE_URL || 'http://localhost:3003'));
 
 app.use('/api/history/all/clear', proxy(process.env.SEARCH_SERVICE_URL || 'http://localhost:3003', {
