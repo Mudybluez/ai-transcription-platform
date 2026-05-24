@@ -138,6 +138,23 @@ const AdminPanel = () => {
         i18n.changeLanguage(lng);
     };
 
+    // Загрузка списков городов и операторов в зависимости от страны
+    const fetchGeoParams = async (countryCode) => {
+        try {
+            const citiesRes = await api.get(`/search/admin/proxy/cities?country=${countryCode}`);
+            setCities(citiesRes.data.data || []);
+        } catch (e) {
+            console.error("Ошибка при получении списка городов AstroProxy:", e);
+        }
+
+        try {
+            const operatorsRes = await api.get(`/search/admin/proxy/operators?country=${countryCode}`);
+            setOperators(operatorsRes.data.data || []);
+        } catch (e) {
+            console.error("Ошибка при получении списка операторов AstroProxy:", e);
+        }
+    };
+
     // Загрузка общих данных для текущей активной вкладки
     const fetchTabDependencies = async () => {
         if (role !== 'admin') return;
@@ -157,13 +174,15 @@ const AdminPanel = () => {
                     setPorts(portsRes.data.data || []);
 
                     const countriesRes = await api.get('/search/admin/proxy/countries');
-                    setCountries(countriesRes.data.data || []);
+                    const fetchedCountries = countriesRes.data.data || [];
+                    setCountries(fetchedCountries);
 
-                    const citiesRes = await api.get('/search/admin/proxy/cities');
-                    setCities(citiesRes.data.data || []);
+                    // Определяем страну по умолчанию (первая из списка или 'RU')
+                    const defaultCountry = fetchedCountries.length > 0 ? fetchedCountries[0].code : 'RU';
+                    setWizardConfig(prev => ({ ...prev, country: defaultCountry }));
 
-                    const operatorsRes = await api.get('/search/admin/proxy/operators');
-                    setOperators(operatorsRes.data.data || []);
+                    // Загружаем города и операторы для этой страны
+                    await fetchGeoParams(defaultCountry);
                 } catch (pe) {
                     console.error("Ошибка загрузки портов/гео AstroProxy:", pe);
                 } finally {
@@ -914,7 +933,11 @@ const AdminPanel = () => {
                                         </label>
                                         <select 
                                             value={wizardConfig.country}
-                                            onChange={(e) => setWizardConfig(prev => ({ ...prev, country: e.target.value }))}
+                                            onChange={async (e) => {
+                                                const selectedCountry = e.target.value;
+                                                setWizardConfig(prev => ({ ...prev, country: selectedCountry }));
+                                                await fetchGeoParams(selectedCountry);
+                                            }}
                                             style={{
                                                 background: 'rgba(15, 23, 42, 0.6)',
                                                 border: '1px solid rgba(255, 255, 255, 0.08)',
