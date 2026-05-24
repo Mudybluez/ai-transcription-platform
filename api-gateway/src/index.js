@@ -20,8 +20,13 @@ app.use(express.json());
 
 // Мидлвар для проверки JWT токена (авторизация)
 const authenticateToken = (req, res, next) => {
-    // Пропускаем роуты авторизации
-    if (req.path.includes('/api/users/login') || req.path.includes('/api/users/register')) {
+    // Пропускаем роуты авторизации и верификации
+    if (
+        req.path.includes('/api/users/login') || 
+        req.path.includes('/api/users/register') ||
+        req.path.includes('/api/users/verify-email') ||
+        req.path.includes('/api/users/resend-verification')
+    ) {
         return next();
     }
 
