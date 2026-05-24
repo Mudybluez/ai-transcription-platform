@@ -360,6 +360,41 @@ const handleAstroProxyRequest = async (req, res) => {
         const response = await fetch(targetUrl.toString(), options);
         clearTimeout(timeoutId);
 
+        if (!response.ok) {
+            console.warn(`[AstroProxy] External API returned error status ${response.status} for ${apiPath}. Returning safe fallback.`);
+            
+            let fallbackData = [];
+            if (apiPath.includes('balance')) {
+                fallbackData = { balance: 0.00, currency: 2 };
+            } else if (apiPath.includes('ports')) {
+                fallbackData = [];
+            } else if (apiPath.includes('countries')) {
+                fallbackData = [
+                    {"code": "RU", "name": "Russia"},
+                    {"code": "KZ", "name": "Kazakhstan"},
+                    {"code": "US", "name": "United States"}
+                ];
+            } else if (apiPath.includes('cities')) {
+                fallbackData = [
+                    {"id": "moscow", "name": "Moscow", "country": "RU"},
+                    {"id": "almaty", "name": "Almaty", "country": "KZ"},
+                    {"id": "astana", "name": "Astana", "country": "KZ"}
+                ];
+            } else if (apiPath.includes('operators')) {
+                fallbackData = [
+                    {"id": "mts", "name": "MTS", "country": "RU"},
+                    {"id": "beeline", "name": "Beeline", "country": "KZ"},
+                    {"id": "kcell", "name": "Kcell", "country": "KZ"}
+                ];
+            }
+            
+            return res.status(200).json({
+                status: "ok",
+                data: fallbackData,
+                warning: `External AstroProxy API returned ${response.status}. Using local geo fallback.`
+            });
+        }
+
         const responseData = await response.json();
         return res.status(response.status).json(responseData);
     } catch (error) {
