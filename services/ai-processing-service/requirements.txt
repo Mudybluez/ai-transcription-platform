@@ -6,3 +6,4 @@ torch==2.2.1
 numpy<2
 yt-dlp
 json-repair==0.35.0
+youtube-transcript-api

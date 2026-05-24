@@ -4,7 +4,7 @@ import json
 import pika
 import requests
 from db import init_db, update_job_status, save_result
-from ai_core import transcribe_audio, analyze_content, download_youtube_audio
+from ai_core import transcribe_audio, analyze_content, download_youtube_audio, get_youtube_transcript
 
 # Инициализируем БД при старте
 init_db()
@@ -13,12 +13,20 @@ RABBITMQ_URL = os.getenv("RABBITMQ_URL", "amqp://guest:guest@rabbitmq:5672/")
 
 def connect_to_rabbitmq():
     """Подключение к RabbitMQ с механизмом повторных попыток (для старта Docker)"""
+    # Добавляем ?heartbeat=0 для отключения таймаутов простоя при длительном распознавании Whisper / ИИ анализе
+    url = RABBITMQ_URL
+    if "heartbeat" in url:
+        import re
+        url = re.sub(r'([\?&])heartbeat=\d+', r'\1heartbeat=0', url)
+    else:
+        url += ("&" if "?" in url else "?") + "heartbeat=0"
+
     while True:
         try:
-            connection = pika.BlockingConnection(pika.URLParameters(RABBITMQ_URL))
+            connection = pika.BlockingConnection(pika.URLParameters(url))
             channel = connection.channel()
             channel.queue_declare(queue='transcription_jobs', durable=True)
-            print("Успешное подключение к RabbitMQ")
+            print("Успешное подключение к RabbitMQ (Heartbeat отключен для предотвращения StreamLostError)")
             return connection, channel
         except Exception as e:
             print(f"Ожидание RabbitMQ... Ошибка: {e}")
@@ -40,17 +48,25 @@ def callback(ch, method, properties, body):
     try:
         update_job_status(job_id, "PROCESSING")
         
+        raw_text = None
         if is_youtube:
-            print("📺 Скачивание аудио с YouTube...")
-            audio_to_process = download_youtube_audio(file_path)
+            print("📺 Попытка получить субтитры напрямую (гибридная стратегия)...")
+            raw_text = get_youtube_transcript(file_path, language=language)
+            
+        if raw_text:
+            print("🚀 Текст успешно получен напрямую из субтитров. Пропускаем Whisper.")
         else:
-            audio_to_process = file_path
+            if is_youtube:
+                print("📺 Скачивание аудио с YouTube...")
+                audio_to_process = download_youtube_audio(file_path)
+            else:
+                audio_to_process = file_path
 
-        print(f"Начинаем транскрибацию...")
-        raw_text = transcribe_audio(audio_to_process, language=language)
-        print(f"Транскрибация завершена. Длина: {len(raw_text)} символов.")
-        if is_youtube and os.path.exists(audio_to_process):
-            os.remove(audio_to_process)
+            print(f"Начинаем транскрибацию...")
+            raw_text = transcribe_audio(audio_to_process, language=language)
+            print(f"Транскрибация завершена. Длина: {len(raw_text)} символов.")
+            if is_youtube and os.path.exists(audio_to_process):
+                os.remove(audio_to_process)
 
         print(f"Анализ в Gemini (мультиязычный)...")
         
