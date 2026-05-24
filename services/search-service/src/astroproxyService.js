@@ -1,3 +1,45 @@
+const apiCache = {};
+
+// Сброс кэша
+const clearApiCache = () => {
+    console.log('[AstroProxy Cache] Clearing all cached entries due to mutation');
+    for (const key in apiCache) {
+        delete apiCache[key];
+    }
+};
+
+// Функция кеширования GET-запросов к AstroProxy с TTL в 45 секунд
+const cachedAstroProxyGet = async (urlStr, signal = null, ttlSeconds = 45) => {
+    const now = Date.now();
+    
+    if (apiCache[urlStr] && (now - apiCache[urlStr].timestamp < ttlSeconds * 1000)) {
+        console.log(`[AstroProxy Cache] Hit for ${urlStr}`);
+        return apiCache[urlStr].data;
+    }
+    
+    console.log(`[AstroProxy Cache] Miss for ${urlStr}. Fetching live...`);
+    const options = {};
+    if (signal) {
+        options.signal = signal;
+    }
+    
+    const response = await fetch(urlStr, options);
+    if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    const data = await response.json();
+    
+    // Кешируем только успешные ответы
+    if (data && data.status === 'ok') {
+        apiCache[urlStr] = {
+            timestamp: now,
+            data: data
+        };
+    }
+    
+    return data;
+};
+
 const getProxyStats = async () => {
     const apiKey = process.env.ASTROPROXY_API_KEY;
     if (!apiKey) {
@@ -19,15 +61,17 @@ const getProxyStats = async () => {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 5000);
 
-        // 1. Запрос баланса по API: https://astroproxy.com/api/v1/balance?token=TOKEN
-        const balancePromise = fetch(`https://astroproxy.com/api/v1/balance?token=${encodeURIComponent(apiKey)}`, {
-            signal: controller.signal
-        }).then(r => r.ok ? r.json() : null);
+        // 1. Запрос баланса по API с кешированием
+        const balancePromise = cachedAstroProxyGet(
+            `https://astroproxy.com/api/v1/balance?token=${encodeURIComponent(apiKey)}`,
+            controller.signal
+        ).catch(() => null);
 
-        // 2. Запрос портов по API: https://astroproxy.com/api/v1/ports?token=TOKEN
-        const portsPromise = fetch(`https://astroproxy.com/api/v1/ports?token=${encodeURIComponent(apiKey)}`, {
-            signal: controller.signal
-        }).then(r => r.ok ? r.json() : null);
+        // 2. Запрос портов по API с кешированием
+        const portsPromise = cachedAstroProxyGet(
+            `https://astroproxy.com/api/v1/ports?token=${encodeURIComponent(apiKey)}`,
+            controller.signal
+        ).catch(() => null);
 
         const [balanceData, portsData] = await Promise.all([balancePromise, portsPromise]);
         clearTimeout(timeoutId);
@@ -282,6 +326,19 @@ const handleAstroProxyRequest = async (req, res) => {
         
         // Обязательно добавляем token
         targetUrl.searchParams.set('token', apiKey);
+
+        // Проверяем, можно ли обслужить GET-запрос из кэша
+        if (req.method === 'GET' && !apiPath.includes('newip')) {
+            try {
+                const responseData = await cachedAstroProxyGet(targetUrl.toString(), null, 45);
+                return res.status(200).json(responseData);
+            } catch (cacheError) {
+                console.warn(`[AstroProxy Cache] GET failed (falling back to live): ${cacheError.message}`);
+            }
+        }
+
+        // В случае мутации (POST, DELETE, PATCH, newip) сбрасываем весь кэш
+        clearApiCache();
 
         const options = {
             method: req.method,
