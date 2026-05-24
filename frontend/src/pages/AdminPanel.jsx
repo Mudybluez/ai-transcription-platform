@@ -107,23 +107,6 @@ const AdminPanel = () => {
         source: 'placeholder'
     });
     
-    // Состояния интерактивного управления AstroProxy
-    const [ports, setPorts] = useState([]);
-    const [countries, setCountries] = useState([]);
-    const [cities, setCities] = useState([]);
-    const [operators, setOperators] = useState([]);
-    const [isLoadingProxyData, setIsLoadingProxyData] = useState(false);
-    const [actionLoadingId, setActionLoadingId] = useState(null);
-    const [wizardConfig, setWizardConfig] = useState({
-        name: 'New Custom Port',
-        country: 'RU',
-        city: 'moscow',
-        operator: 'mts',
-        trafficLimit: '1073741824' // 1 GB
-    });
-    const [calculatedPrice, setCalculatedPrice] = useState(null);
-    const [isCalculating, setIsCalculating] = useState(false);
-    
     // Состояния для Библиотеки разборов
     const [analyses, setAnalyses] = useState([]);
     const [selectedAnalyses, setSelectedAnalyses] = useState([]);
@@ -138,99 +121,6 @@ const AdminPanel = () => {
         i18n.changeLanguage(lng);
     };
 
-    // Нормализация списка стран от AstroProxy
-    const normalizeCountries = (data) => {
-        if (!data) return [];
-        if (Array.isArray(data)) {
-            return data.map(item => {
-                if (typeof item === 'string') {
-                    return { code: item, name: item };
-                }
-                return {
-                    code: item.code || item.id || item.country || '',
-                    name: item.name || item.code || item.id || ''
-                };
-            }).filter(c => c.code);
-        }
-        if (typeof data === 'object') {
-            return Object.entries(data).map(([code, name]) => ({
-                code: code,
-                name: typeof name === 'string' ? name : code
-            }));
-        }
-        return [];
-    };
-
-    // Нормализация списка городов от AstroProxy
-    const normalizeCities = (data, countryCode) => {
-        if (!data) return [];
-        if (Array.isArray(data)) {
-            return data.map(item => {
-                if (typeof item === 'string') {
-                    return { id: item, name: item, country: countryCode };
-                }
-                return {
-                    id: item.id || item.code || item.name || '',
-                    name: item.name || item.id || '',
-                    country: item.country || countryCode
-                };
-            }).filter(c => c.id);
-        }
-        if (typeof data === 'object') {
-            return Object.entries(data).map(([id, name]) => ({
-                id: id,
-                name: typeof name === 'string' ? name : id,
-                country: countryCode
-            }));
-        }
-        return [];
-    };
-
-    // Нормализация списка операторов от AstroProxy
-    const normalizeOperators = (data, countryCode) => {
-        if (!data) return [];
-        if (Array.isArray(data)) {
-            return data.map(item => {
-                if (typeof item === 'string') {
-                    return { id: item, name: item, country: countryCode };
-                }
-                return {
-                    id: item.id || item.name || '',
-                    name: item.name || item.id || '',
-                    country: item.country || countryCode
-                };
-            }).filter(o => o.id);
-        }
-        if (typeof data === 'object') {
-            return Object.entries(data).map(([id, name]) => ({
-                id: id,
-                name: typeof name === 'string' ? name : id,
-                country: countryCode
-            }));
-        }
-        return [];
-    };
-
-    // Загрузка списков городов и операторов в зависимости от страны
-    const fetchGeoParams = async (countryCode) => {
-        if (!countryCode || countryCode === 'undefined') return;
-        try {
-            const citiesRes = await api.get(`/search/admin/proxy/cities?country=${countryCode}`);
-            const rawCities = citiesRes.data.data || citiesRes.data || [];
-            setCities(normalizeCities(rawCities, countryCode));
-        } catch (e) {
-            console.error("Ошибка при получении списка городов AstroProxy:", e);
-        }
-
-        try {
-            const operatorsRes = await api.get(`/search/admin/proxy/operators?country=${countryCode}`);
-            const rawOperators = operatorsRes.data.data || operatorsRes.data || [];
-            setOperators(normalizeOperators(rawOperators, countryCode));
-        } catch (e) {
-            console.error("Ошибка при получении списка операторов AstroProxy:", e);
-        }
-    };
-
     // Загрузка общих данных для текущей активной вкладки
     const fetchTabDependencies = async () => {
         if (role !== 'admin') return;
@@ -242,29 +132,6 @@ const AdminPanel = () => {
 
                 const proxyRes = await api.get('/search/admin/proxy-stats');
                 setProxyStats(proxyRes.data);
-
-                // Загружаем активные порты прокси и параметры селекторов
-                setIsLoadingProxyData(true);
-                try {
-                    const portsRes = await api.get('/search/admin/proxy/ports');
-                    setPorts(portsRes.data.data || portsRes.data || []);
-
-                    const countriesRes = await api.get('/search/admin/proxy/countries');
-                    const rawCountries = countriesRes.data.data || countriesRes.data || [];
-                    const normalized = normalizeCountries(rawCountries);
-                    setCountries(normalized);
-
-                    // Определяем страну по умолчанию (первая из списка или 'RU')
-                    const defaultCountry = normalized.length > 0 ? normalized[0].code : 'RU';
-                    setWizardConfig(prev => ({ ...prev, country: defaultCountry }));
-
-                    // Загружаем города и операторы для этой страны
-                    await fetchGeoParams(defaultCountry);
-                } catch (pe) {
-                    console.error("Ошибка загрузки портов/гео AstroProxy:", pe);
-                } finally {
-                    setIsLoadingProxyData(false);
-                }
             } else if (activeTab === 'users') {
                 const usersRes = await api.get('/users/all');
                 setUsers(usersRes.data);
@@ -384,118 +251,6 @@ const AdminPanel = () => {
             return;
         }
         handleModerateUser(userId, 'temp_ban', hours);
-    };
-
-    // --- ОБРАБОТЧИКИ ДЛЯ ИНТЕРАКТИВНОГО УПРАВЛЕНИЯ ASTROPROXY ---
-
-    // Обновление/Смена IP
-    const handleNewIp = async (portId) => {
-        setActionLoadingId(`newip-${portId}`);
-        try {
-            const res = await api.get(`/search/admin/proxy/ports/${portId}/newip`);
-            if (res.data && res.data.status === 'ok') {
-                const newIp = res.data.data?.new_ip || 'N/A';
-                alert(t('admin_proxy_newip_success', `Внешний IP порта успешно обновлен на: ${newIp}`));
-                setPorts(prev => prev.map(p => p.id === portId ? { ...p, ip: newIp } : p));
-            } else {
-                alert(res.data?.message || "Ошибка смены IP");
-            }
-        } catch (error) {
-            console.error("Ошибка при смене IP:", error);
-            alert("Не удалось сменить IP прокси");
-        } finally {
-            setActionLoadingId(null);
-        }
-    };
-
-    // Продление порта
-    const handleRenewPort = async (portId) => {
-        setActionLoadingId(`renew-${portId}`);
-        try {
-            const res = await api.post(`/search/admin/proxy/ports/${portId}/renew`);
-            if (res.data && res.data.status === 'ok') {
-                alert(t('admin_proxy_renew_success', 'Порт успешно продлен на AstroProxy!'));
-            } else {
-                alert(res.data?.message || "Ошибка продления порта");
-            }
-        } catch (error) {
-            console.error("Ошибка продления порта:", error);
-            alert("Не удалось продлить порт");
-        } finally {
-            setActionLoadingId(null);
-        }
-    };
-
-    // Удаление порта
-    const handleDeletePort = async (portId) => {
-        if (!confirm(t('admin_proxy_delete_confirm', 'Вы уверены, что хотите удалить этот порт из AstroProxy?'))) return;
-        setActionLoadingId(`delete-${portId}`);
-        try {
-            const res = await api.delete(`/search/admin/proxy/ports/${portId}`);
-            if (res.data && res.data.status === 'ok') {
-                alert(t('admin_proxy_delete_success', 'Порт успешно удален!'));
-                setPorts(prev => prev.filter(p => p.id !== portId));
-            } else {
-                alert(res.data?.message || "Ошибка удаления порта");
-            }
-        } catch (error) {
-            console.error("Ошибка удаления порта:", error);
-            alert("Не удалось удалить порт");
-        } finally {
-            setActionLoadingId(null);
-        }
-    };
-
-    // Расчет стоимости
-    const handleCalculatePrice = async () => {
-        setIsCalculating(true);
-        try {
-            const res = await api.post('/search/admin/proxy/calculate', {
-                country: wizardConfig.country,
-                city: wizardConfig.city,
-                operator: wizardConfig.operator,
-                traffic_limit: parseInt(wizardConfig.trafficLimit)
-            });
-            if (res.data && res.data.status === 'ok') {
-                setCalculatedPrice(res.data.data?.price || 0);
-            } else {
-                alert(res.data?.message || "Ошибка расчета цены");
-            }
-        } catch (error) {
-            console.error("Ошибка при расчете цены прокси:", error);
-            alert("Не удалось рассчитать стоимость");
-        } finally {
-            setIsCalculating(false);
-        }
-    };
-
-    // Покупка порта
-    const handleBuyPort = async () => {
-        setActionLoadingId('buy-port');
-        try {
-            const res = await api.post('/search/admin/proxy/ports', {
-                name: wizardConfig.name,
-                country: wizardConfig.country,
-                city: wizardConfig.city,
-                operator: wizardConfig.operator,
-                traffic_limit: parseInt(wizardConfig.trafficLimit)
-            });
-            if (res.data && res.data.status === 'ok') {
-                alert(t('admin_proxy_buy_success', 'Порт успешно приобретен на AstroProxy!'));
-                const newPort = res.data.data;
-                if (newPort) {
-                    setPorts(prev => [...prev, newPort]);
-                }
-                setCalculatedPrice(null);
-            } else {
-                alert(res.data?.message || "Ошибка покупки порта");
-            }
-        } catch (error) {
-            console.error("Ошибка покупки порта:", error);
-            alert("Не удалось приобрести порт");
-        } finally {
-            setActionLoadingId(null);
-        }
     };
 
     // --- ОБРАБОТЧИКИ ДЛЯ БИБЛИОТЕКИ РАЗБОРОВ ---
@@ -745,56 +500,27 @@ const AdminPanel = () => {
                             </div>
                         </div>
 
-                        {/* Интеграция с AstroProxy */}
+                        {/* Объем обработанного трафика */}
                         <div className="admin-table-container" style={{
                             background: 'linear-gradient(135deg, rgba(30, 41, 59, 0.4), rgba(15, 23, 42, 0.5))',
                             borderRadius: '24px',
                             border: '1px solid rgba(255,255,255,0.06)',
                             padding: '35px',
-                            boxShadow: '0 15px 35px rgba(0, 0, 0, 0.2)'
+                            boxShadow: '0 15px 35px rgba(0, 0, 0, 0.2)',
+                            marginBottom: '30px'
                         }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '25px', flexWrap: 'wrap', gap: '15px' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '15px' }}>
                                 <div>
-                                    <h3 style={{ fontSize: '18px', fontWeight: '800', color: '#fff', margin: '0 0 5px 0' }}>
-                                        🌐 {t('admin_astroproxy_usage', 'Использование трафика AstroProxy')}
+                                    <h3 style={{ fontSize: '18px', fontWeight: '800', color: '#fff', margin: '0' }}>
+                                        📊 {t('admin_astroproxy_usage', 'Объем обработанного трафика')}
                                     </h3>
-                                    {proxyStats.source === 'placeholder' && (
-                                        <span style={{
-                                            fontSize: '11px',
-                                            fontWeight: '700',
-                                            color: '#fbbf24',
-                                            background: 'rgba(251, 191, 36, 0.1)',
-                                            border: '1px solid rgba(251, 191, 36, 0.3)',
-                                            padding: '4px 10px',
-                                            borderRadius: '8px',
-                                            display: 'inline-block'
-                                        }}>
-                                            ⚠️ {t('admin_astroproxy_demo', 'Демонстрационный режим (без API ключа)')}
-                                        </span>
-                                    )}
                                 </div>
-                                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '6px' }}>
-                                    <div style={{ fontSize: '20px', fontWeight: '800', color: '#e2e8f0' }}>
-                                        <span className="text-purple" style={{ color: '#a855f7' }}>{proxyStats.spentMB} MB</span> {t('admin_astroproxy_of', 'из')} {proxyStats.limitMB} MB
-                                    </div>
-                                    {proxyStats.balance !== undefined && (
-                                        <span style={{ 
-                                            fontSize: '13px', 
-                                            fontWeight: '800', 
-                                            color: '#10b981', 
-                                            background: 'rgba(16, 185, 129, 0.12)', 
-                                            border: '1px solid rgba(16, 185, 129, 0.25)', 
-                                            padding: '4px 12px', 
-                                            borderRadius: '8px',
-                                            textShadow: '0 0 8px rgba(16, 185, 129, 0.3)'
-                                        }}>
-                                            💰 Balance: {proxyStats.balance.toFixed(2)} {proxyStats.currency || 'USD'}
-                                        </span>
-                                    )}
+                                <div style={{ fontSize: '20px', fontWeight: '800', color: '#e2e8f0' }}>
+                                    <span className="text-purple" style={{ color: '#a855f7' }}>{proxyStats.spentMB} MB</span> {t('admin_astroproxy_of', 'из')} {proxyStats.limitMB} MB
                                 </div>
                             </div>
 
-                            {/* Прогресс-бар AstroProxy */}
+                            {/* Прогресс-бар трафика */}
                             <div style={{
                                 height: '24px',
                                 width: '100%',
@@ -804,8 +530,7 @@ const AdminPanel = () => {
                                 border: '1px solid rgba(255, 255, 255, 0.05)',
                                 display: 'flex',
                                 alignItems: 'center',
-                                padding: '2px',
-                                marginBottom: '15px'
+                                padding: '2px'
                             }}>
                                 <div style={{
                                     height: '100%',
@@ -823,359 +548,6 @@ const AdminPanel = () => {
                                     color: '#fff'
                                 }}>
                                     {proxyStats.percentUsed}%
-                                </div>
-                            </div>
-
-                            {/* Разделитель */}
-                            <hr style={{ border: '0', borderTop: '1px solid rgba(255,255,255,0.08)', margin: '25px 0' }} />
-
-                            {/* СЕКЦИЯ 1: СПИСОК АКТИВНЫХ ПОРТОВ */}
-                            <div style={{ marginBottom: '30px' }}>
-                                <h4 style={{ fontSize: '16px', fontWeight: '800', color: '#fff', marginBottom: '15px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                    🔌 {t('admin_proxy_active_ports', 'Активные прокси-порты AstroProxy')}
-                                </h4>
-
-                                {isLoadingProxyData ? (
-                                    <div style={{ color: '#94a3b8', fontSize: '14px', padding: '15px', textAlign: 'center' }}>
-                                        🌀 {t('loading', 'Загрузка портов...')}
-                                    </div>
-                                ) : ports.length === 0 ? (
-                                    <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px dashed rgba(255,255,255,0.1)', borderRadius: '12px', color: '#94a3b8', fontSize: '13px', padding: '20px', textAlign: 'center' }}>
-                                        📭 {t('admin_proxy_no_ports', 'Активные порты не найдены')}
-                                    </div>
-                                ) : (
-                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '20px' }}>
-                                        {ports.map((port) => {
-                                            const usedMB = parseFloat(((port.traffic_used || 0) / (1024 * 1024)).toFixed(1));
-                                            const limitMB = parseFloat(((port.traffic_limit || 1073741824) / (1024 * 1024)).toFixed(1));
-                                            const percent = Math.min(Math.round((usedMB / limitMB) * 100), 100);
-                                            
-                                            return (
-                                                <div key={port.id} style={{
-                                                    background: 'rgba(15, 23, 42, 0.4)',
-                                                    border: '1px solid rgba(255,255,255,0.05)',
-                                                    borderRadius: '16px',
-                                                    padding: '20px',
-                                                    display: 'flex',
-                                                    flexDirection: 'column',
-                                                    gap: '12px'
-                                                }}>
-                                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                                        <span style={{ fontWeight: '800', color: '#fff', fontSize: '14px' }}>
-                                                            {port.name || `Port #${port.id}`}
-                                                        </span>
-                                                        <span style={{
-                                                            fontSize: '11px',
-                                                            fontWeight: '800',
-                                                            color: port.status === 'active' ? '#10b981' : '#f43f5e',
-                                                            background: port.status === 'active' ? 'rgba(16, 185, 129, 0.1)' : 'rgba(244, 63, 94, 0.1)',
-                                                            border: port.status === 'active' ? '1px solid rgba(16, 185, 129, 0.3)' : '1px solid rgba(244, 63, 94, 0.3)',
-                                                            padding: '2px 8px',
-                                                            borderRadius: '6px'
-                                                        }}>
-                                                            {port.status?.toUpperCase()}
-                                                        </span>
-                                                    </div>
-
-                                                    <div style={{ fontSize: '13px', color: '#cbd5e1', fontFamily: 'monospace' }}>
-                                                        🔗 {port.ip}:{port.port}
-                                                    </div>
-
-                                                    <div style={{ fontSize: '12px', color: '#94a3b8' }}>
-                                                        🌍 {port.country} | 🏙️ {port.city} | 📡 {port.operator}
-                                                    </div>
-
-                                                    <div style={{ margin: '4px 0' }}>
-                                                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: '#94a3b8', marginBottom: '4px' }}>
-                                                            <span>📊 Трафик:</span>
-                                                            <span>{usedMB} MB / {limitMB} MB ({percent}%)</span>
-                                                        </div>
-                                                        <div style={{ height: '6px', width: '100%', background: 'rgba(255,255,255,0.05)', borderRadius: '3px', overflow: 'hidden' }}>
-                                                            <div style={{ height: '100%', width: `${percent}%`, background: 'linear-gradient(90deg, #6366f1, #a855f7)', borderRadius: '3px' }} />
-                                                        </div>
-                                                    </div>
-
-                                                    <div style={{ display: 'flex', gap: '8px', marginTop: '5px' }}>
-                                                        <button 
-                                                            disabled={actionLoadingId !== null}
-                                                            onClick={() => handleNewIp(port.id)}
-                                                            style={{
-                                                                flex: 1,
-                                                                background: 'rgba(168, 85, 247, 0.12)',
-                                                                border: '1px solid rgba(168, 85, 247, 0.25)',
-                                                                borderRadius: '8px',
-                                                                color: '#c084fc',
-                                                                padding: '6px 0',
-                                                                fontSize: '11px',
-                                                                fontWeight: '800',
-                                                                cursor: 'pointer',
-                                                                transition: 'all 0.2s',
-                                                                display: 'flex',
-                                                                justifyContent: 'center',
-                                                                alignItems: 'center',
-                                                                gap: '4px'
-                                                            }}
-                                                        >
-                                                            🔄 {t('admin_proxy_change_ip', 'Сменить IP')}
-                                                        </button>
-                                                        
-                                                        <button 
-                                                            disabled={actionLoadingId !== null}
-                                                            onClick={() => handleRenewPort(port.id)}
-                                                            style={{
-                                                                flex: 1,
-                                                                background: 'rgba(16, 185, 129, 0.12)',
-                                                                border: '1px solid rgba(16, 185, 129, 0.25)',
-                                                                borderRadius: '8px',
-                                                                color: '#34d399',
-                                                                padding: '6px 0',
-                                                                fontSize: '11px',
-                                                                fontWeight: '800',
-                                                                cursor: 'pointer',
-                                                                transition: 'all 0.2s',
-                                                                display: 'flex',
-                                                                justifyContent: 'center',
-                                                                alignItems: 'center',
-                                                                gap: '4px'
-                                                            }}
-                                                        >
-                                                            ⏳ {t('admin_proxy_renew', 'Продлить')}
-                                                        </button>
-
-                                                        <button 
-                                                            disabled={actionLoadingId !== null}
-                                                            onClick={() => handleDeletePort(port.id)}
-                                                            style={{
-                                                                background: 'rgba(244, 63, 94, 0.12)',
-                                                                border: '1px solid rgba(244, 63, 94, 0.25)',
-                                                                borderRadius: '8px',
-                                                                color: '#f43f5e',
-                                                                padding: '6px 10px',
-                                                                fontSize: '11px',
-                                                                fontWeight: '800',
-                                                                cursor: 'pointer',
-                                                                transition: 'all 0.2s',
-                                                                display: 'flex',
-                                                                alignItems: 'center'
-                                                            }}
-                                                        >
-                                                            🗑️
-                                                        </button>
-                                                    </div>
-                                                </div>
-                                            );
-                                        })}
-                                    </div>
-                                )}
-                            </div>
-
-                            {/* СЕКЦИЯ 2: КОНФИГУРАТОР И ПОКУПКА НОВОГО ПОРТА */}
-                            <div style={{
-                                background: 'rgba(15, 23, 42, 0.25)',
-                                border: '1px solid rgba(255,255,255,0.03)',
-                                borderRadius: '16px',
-                                padding: '25px',
-                                marginTop: '15px'
-                            }}>
-                                <h4 style={{ fontSize: '15px', fontWeight: '800', color: '#fff', marginBottom: '15px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                    🛒 {t('admin_proxy_buy_title', 'Приобрести новый прокси-порт')}
-                                </h4>
-
-                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '15px', marginBottom: '20px' }}>
-                                    {/* Название порта */}
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                                        <label style={{ fontSize: '11px', color: '#94a3b8', fontWeight: '700' }}>
-                                            🏷️ Название порта
-                                        </label>
-                                        <input 
-                                            type="text"
-                                            value={wizardConfig.name}
-                                            onChange={(e) => setWizardConfig(prev => ({ ...prev, name: e.target.value }))}
-                                            style={{
-                                                background: 'rgba(15, 23, 42, 0.6)',
-                                                border: '1px solid rgba(255, 255, 255, 0.08)',
-                                                borderRadius: '8px',
-                                                color: '#fff',
-                                                padding: '8px 12px',
-                                                fontSize: '13px',
-                                                outline: 'none'
-                                            }}
-                                        />
-                                    </div>
-
-                                    {/* Выбор Страны */}
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                                        <label style={{ fontSize: '11px', color: '#94a3b8', fontWeight: '700' }}>
-                                            🌍 Страна
-                                        </label>
-                                        <select 
-                                            value={wizardConfig.country}
-                                            onChange={async (e) => {
-                                                const selectedCountry = e.target.value;
-                                                setWizardConfig(prev => ({ ...prev, country: selectedCountry }));
-                                                await fetchGeoParams(selectedCountry);
-                                            }}
-                                            style={{
-                                                background: 'rgba(15, 23, 42, 0.6)',
-                                                border: '1px solid rgba(255, 255, 255, 0.08)',
-                                                borderRadius: '8px',
-                                                color: '#fff',
-                                                padding: '8px 12px',
-                                                fontSize: '13px',
-                                                outline: 'none'
-                                            }}
-                                        >
-                                            {countries.map(c => (
-                                                <option key={c.code} value={c.code}>{c.name}</option>
-                                            ))}
-                                            {countries.length === 0 && <option value="RU">Russia</option>}
-                                        </select>
-                                    </div>
-
-                                    {/* Выбор Города */}
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                                        <label style={{ fontSize: '11px', color: '#94a3b8', fontWeight: '700' }}>
-                                            🏙️ Город
-                                        </label>
-                                        <select 
-                                            value={wizardConfig.city}
-                                            onChange={(e) => setWizardConfig(prev => ({ ...prev, city: e.target.value }))}
-                                            style={{
-                                                background: 'rgba(15, 23, 42, 0.6)',
-                                                border: '1px solid rgba(255, 255, 255, 0.08)',
-                                                borderRadius: '8px',
-                                                color: '#fff',
-                                                padding: '8px 12px',
-                                                fontSize: '13px',
-                                                outline: 'none'
-                                            }}
-                                        >
-                                            {cities.filter(c => c.country === wizardConfig.country).map(c => (
-                                                <option key={c.id} value={c.id}>{c.name}</option>
-                                            ))}
-                                            {cities.filter(c => c.country === wizardConfig.country).length === 0 && (
-                                                <>
-                                                    <option value="moscow">Moscow</option>
-                                                    <option value="almaty">Almaty</option>
-                                                    <option value="astana">Astana</option>
-                                                </>
-                                            )}
-                                        </select>
-                                    </div>
-
-                                    {/* Выбор Оператора */}
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                                        <label style={{ fontSize: '11px', color: '#94a3b8', fontWeight: '700' }}>
-                                            📡 Оператор
-                                        </label>
-                                        <select 
-                                            value={wizardConfig.operator}
-                                            onChange={(e) => setWizardConfig(prev => ({ ...prev, operator: e.target.value }))}
-                                            style={{
-                                                background: 'rgba(15, 23, 42, 0.6)',
-                                                border: '1px solid rgba(255, 255, 255, 0.08)',
-                                                borderRadius: '8px',
-                                                color: '#fff',
-                                                padding: '8px 12px',
-                                                fontSize: '13px',
-                                                outline: 'none'
-                                            }}
-                                        >
-                                            {operators.filter(o => o.country === wizardConfig.country).map(o => (
-                                                <option key={o.id} value={o.id}>{o.name}</option>
-                                            ))}
-                                            {operators.filter(o => o.country === wizardConfig.country).length === 0 && (
-                                                <>
-                                                    <option value="mts">MTS</option>
-                                                    <option value="beeline">Beeline</option>
-                                                    <option value="kcell">Kcell</option>
-                                                </>
-                                            )}
-                                        </select>
-                                    </div>
-
-                                    {/* Лимит Трафика */}
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                                        <label style={{ fontSize: '11px', color: '#94a3b8', fontWeight: '700' }}>
-                                            📊 Лимит трафика
-                                        </label>
-                                        <select 
-                                            value={wizardConfig.trafficLimit}
-                                            onChange={(e) => setWizardConfig(prev => ({ ...prev, trafficLimit: e.target.value }))}
-                                            style={{
-                                                background: 'rgba(15, 23, 42, 0.6)',
-                                                border: '1px solid rgba(255, 255, 255, 0.08)',
-                                                borderRadius: '8px',
-                                                color: '#fff',
-                                                padding: '8px 12px',
-                                                fontSize: '13px',
-                                                outline: 'none'
-                                            }}
-                                        >
-                                            <option value="536870912">500 MB</option>
-                                            <option value="1073741824">1 GB</option>
-                                            <option value="5368709120">5 GB</option>
-                                            <option value="10737418240">10 GB</option>
-                                        </select>
-                                    </div>
-                                </div>
-
-                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '15px' }}>
-                                    <div style={{ display: 'flex', gap: '10px' }}>
-                                        <button 
-                                            disabled={isCalculating}
-                                            onClick={handleCalculatePrice}
-                                            style={{
-                                                background: 'rgba(255,255,255,0.04)',
-                                                border: '1px solid rgba(255,255,255,0.1)',
-                                                borderRadius: '10px',
-                                                color: '#fff',
-                                                padding: '10px 20px',
-                                                fontSize: '13px',
-                                                fontWeight: '800',
-                                                cursor: 'pointer',
-                                                transition: 'all 0.2s'
-                                            }}
-                                        >
-                                            {isCalculating ? '🔄...' : '🧮 Рассчитать стоимость'}
-                                        </button>
-
-                                        <button 
-                                            disabled={actionLoadingId === 'buy-port'}
-                                            onClick={handleBuyPort}
-                                            style={{
-                                                background: 'linear-gradient(135deg, #6366f1, #a855f7)',
-                                                border: 'none',
-                                                borderRadius: '10px',
-                                                color: '#fff',
-                                                padding: '10px 24px',
-                                                fontSize: '13px',
-                                                fontWeight: '800',
-                                                cursor: 'pointer',
-                                                boxShadow: '0 4px 15px rgba(168,85,247,0.3)',
-                                                transition: 'all 0.2s'
-                                            }}
-                                        >
-                                            {actionLoadingId === 'buy-port' ? '⏳...' : '🛍️ Купить порт'}
-                                        </button>
-                                    </div>
-
-                                    {calculatedPrice !== null && (
-                                        <div style={{
-                                            background: 'rgba(16, 185, 129, 0.12)',
-                                            border: '1px solid rgba(16, 185, 129, 0.25)',
-                                            padding: '8px 18px',
-                                            borderRadius: '10px',
-                                            color: '#10b981',
-                                            fontSize: '14px',
-                                            fontWeight: '800',
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            gap: '6px'
-                                        }}>
-                                            💰 Расчетная цена: {calculatedPrice.toFixed(2)} USD
-                                        </div>
-                                    )}
                                 </div>
                             </div>
                         </div>
