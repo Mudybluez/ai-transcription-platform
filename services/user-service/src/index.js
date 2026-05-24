@@ -111,7 +111,7 @@ app.post('/register', async (req, res) => {
 
         // 6. Генерация токена верификации почты
         const verificationToken = crypto.randomBytes(32).toString('hex');
-        const verificationTokenExpiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // Срок действия 24 часа
+        const verificationTokenExpiresAt = new Date(Date.now() + 3 * 60 * 1000); // Срок действия 3 минуты
 
         // 7. Сохранение в БД (по умолчанию is_verified = FALSE)
         const newUser = await db.query(
@@ -195,6 +195,15 @@ app.post('/login', async (req, res) => {
             return res.status(400).json({ message: 'Неверный email или пароль' });
         }
 
+        // Проверяем верификацию почты перед входом
+        if (user.is_verified === false) {
+            return res.status(403).json({ 
+                message: 'Ваш email-адрес не подтвержден. Пожалуйста, подтвердите email перед входом в систему.',
+                emailUnverified: true,
+                email: user.email
+            });
+        }
+
         const payload = {
             userId: user.id,
             role: user.role
@@ -210,6 +219,50 @@ app.post('/login', async (req, res) => {
     } catch (error) {
         console.error(error);
         res.status(500).json({ message: 'Ошибка сервера при входе' });
+    }
+});
+
+// Повторная отправка ссылки для подтверждения email
+app.post('/resend-verification', async (req, res) => {
+    const { email } = req.body;
+
+    if (!email) {
+        return res.status(400).json({ message: 'Email не указан.' });
+    }
+
+    try {
+        const userResult = await db.query('SELECT * FROM users WHERE email = $1', [email]);
+        if (userResult.rows.length === 0) {
+            return res.status(404).json({ message: 'Пользователь с таким email не найден.' });
+        }
+
+        const user = userResult.rows[0];
+        if (user.is_verified) {
+            return res.status(400).json({ message: 'Ваш email уже подтвержден.' });
+        }
+
+        // Генерация нового токена верификации на 3 минуты
+        const verificationToken = crypto.randomBytes(32).toString('hex');
+        const verificationTokenExpiresAt = new Date(Date.now() + 3 * 60 * 1000); // 3 минуты
+
+        await db.query(
+            `UPDATE users 
+             SET verification_token = $1, verification_token_expires_at = $2 
+             WHERE id = $3`,
+            [verificationToken, verificationTokenExpiresAt, user.id]
+        );
+
+        const appUrl = process.env.APP_URL || 'http://localhost:8000';
+        const verificationLink = `${appUrl}/api/users/verify-email?token=${verificationToken}`;
+
+        emailService.sendVerificationEmail(user.email, user.username, verificationLink).catch(err => {
+            console.error('Ошибка фоновой отправки письма верификации:', err);
+        });
+
+        res.status(200).json({ message: 'Ссылка для подтверждения почты успешно отправлена повторно.' });
+    } catch (error) {
+        console.error('Ошибка при повторной отправке верификации:', error);
+        res.status(500).json({ message: 'Ошибка сервера при повторной отправке письма.' });
     }
 });
 
