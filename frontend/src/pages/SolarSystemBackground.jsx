@@ -1,10 +1,11 @@
 import React, { useEffect, useRef } from 'react';
 
-const SolarSystemBackground = ({ history = [], introState = 'playing', onIntroComplete }) => {
+const SolarSystemBackground = ({ history = [], introState = 'playing', onIntroComplete, isPaused = false }) => {
     const canvasRef = useRef(null);
     const introStateRef = useRef(introState);
     const onIntroCompleteRef = useRef(onIntroComplete);
     const planetsRef = useRef([]);
+    const isPausedRef = useRef(isPaused);
 
     useEffect(() => {
         introStateRef.current = introState;
@@ -13,6 +14,16 @@ const SolarSystemBackground = ({ history = [], introState = 'playing', onIntroCo
     useEffect(() => {
         onIntroCompleteRef.current = onIntroComplete;
     }, [onIntroComplete]);
+
+    const restartLoopRef = useRef(null);
+
+    useEffect(() => {
+        isPausedRef.current = isPaused;
+        // When unpausing, restart the RAF loop if it was fully stopped
+        if (!isPaused && restartLoopRef.current) {
+            restartLoopRef.current();
+        }
+    }, [isPaused]);
 
     // Космические цвета для планет и свечений
     const cosmicColors = [
@@ -341,7 +352,18 @@ const SolarSystemBackground = ({ history = [], introState = 'playing', onIntroCo
             ctx.restore();
         };
 
+        // resumeRef holds a function to restart the loop after unpausing
+        let resumeScheduled = false;
+
         const render = () => {
+            // If paused: do NOT schedule next frame. Stop the loop entirely.
+            if (isPausedRef.current) {
+                animationFrameId = null;
+                resumeScheduled = true;
+                return;
+            }
+            resumeScheduled = false;
+
             const now = performance.now();
             drawFrame(now);
 
@@ -356,11 +378,20 @@ const SolarSystemBackground = ({ history = [], introState = 'playing', onIntroCo
 
             animationFrameId = requestAnimationFrame(render);
         };
+
+        // Store restart function so the isPaused effect can restart the loop
+        restartLoopRef.current = () => {
+            if (animationFrameId === null) {
+                render();
+            }
+        };
+
         render();
 
         return () => {
             window.removeEventListener('resize', resizeCanvas);
-            cancelAnimationFrame(animationFrameId);
+            if (animationFrameId !== null) cancelAnimationFrame(animationFrameId);
+            restartLoopRef.current = null;
         };
     }, [introState]);
 

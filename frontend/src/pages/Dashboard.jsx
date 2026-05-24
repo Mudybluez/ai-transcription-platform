@@ -46,6 +46,7 @@ const Dashboard = () => {
 
     // Feedback states
     const [isFeedbackModalOpen, setIsFeedbackModalOpen] = useState(false);
+    const [isFeedbackPromptOpen, setIsFeedbackPromptOpen] = useState(false);
     const [feedbackModalTab, setFeedbackModalTab] = useState('write');
     const [feedbacks, setFeedbacks] = useState([]);
     const [feedbackRating, setFeedbackRating] = useState('Fine');
@@ -561,6 +562,15 @@ const Dashboard = () => {
                                     openItem(finishedJob);
                                     loadHistory();
                                     socket.close();
+
+                                    // Show feedback prompt every 2nd completed analysis
+                                    const prevCount = parseInt(localStorage.getItem('analysisCompletedCount') || '0', 10);
+                                    const nextCount = prevCount + 1;
+                                    localStorage.setItem('analysisCompletedCount', String(nextCount));
+                                    if (nextCount % 2 === 0) {
+                                        // Small delay so the results panel has time to render first
+                                        setTimeout(() => setIsFeedbackPromptOpen(true), 1500);
+                                    }
                                 } else {
                                     startHttpFallback();
                                 }
@@ -825,7 +835,8 @@ ${detailed}`;
             <SolarSystemBackground 
                 history={history} 
                 introState={introState} 
-                onIntroComplete={handleIntroComplete} 
+                onIntroComplete={handleIntroComplete}
+                isPaused={isFeedbackModalOpen || isFeedbackPromptOpen}
             />
             {introState === 'playing' && (
                 <button className="skip-intro-btn" onClick={skipIntro}>
@@ -1135,6 +1146,86 @@ ${detailed}`;
                 >
                     ↑
                 </button>
+            )}
+
+            {/* Two-step feedback prompt: shown after every 2nd analysis */}
+            {isFeedbackPromptOpen && (
+                <div
+                    className="modal-overlay fade-in"
+                    style={{
+                        position: 'fixed',
+                        top: 0, left: 0, right: 0, bottom: 0,
+                        backgroundColor: 'rgba(15, 23, 42, 0.6)',
+                        backdropFilter: 'blur(8px)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        zIndex: 10001,
+                    }}
+                >
+                    <div
+                        className="fade-in-up"
+                        style={{
+                            background: 'rgba(22, 33, 55, 0.95)',
+                            backdropFilter: 'blur(24px)',
+                            border: '1px solid rgba(168, 85, 247, 0.25)',
+                            borderRadius: '24px',
+                            padding: '36px 32px',
+                            width: '90%',
+                            maxWidth: '420px',
+                            boxShadow: '0 30px 60px -12px rgba(0,0,0,0.6), 0 0 0 1px rgba(168,85,247,0.1)',
+                            textAlign: 'center',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: '20px',
+                        }}
+                    >
+                        <div style={{ fontSize: '48px', lineHeight: 1 }}>💬</div>
+                        <div>
+                            <h3 style={{ margin: 0, fontSize: '20px', fontWeight: '800', background: 'linear-gradient(135deg, #a855f7, #6366f1)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+                                {t('feedback_prompt_title', 'Понравился анализ?')}
+                            </h3>
+                            <p style={{ margin: '10px 0 0', fontSize: '14px', color: '#94a3b8', lineHeight: 1.5 }}>
+                                {t('feedback_prompt_subtitle', 'Уделите минуту и оставьте отзыв — это помогает нам стать лучше.')}
+                            </p>
+                        </div>
+                        <div style={{ display: 'flex', gap: '12px' }}>
+                            <button
+                                onClick={() => {
+                                    setIsFeedbackPromptOpen(false);
+                                    setFeedbackModalTab('write');
+                                    setIsFeedbackModalOpen(true);
+                                }}
+                                style={{
+                                    flex: 1, padding: '13px', borderRadius: '14px',
+                                    background: 'linear-gradient(135deg, #a855f7, #6366f1)',
+                                    color: 'white', fontWeight: '700', fontSize: '14px',
+                                    border: 'none', cursor: 'pointer',
+                                    boxShadow: '0 4px 15px rgba(168, 85, 247, 0.35)',
+                                    transition: 'transform 0.15s, box-shadow 0.15s',
+                                }}
+                                onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-1px)'; e.currentTarget.style.boxShadow = '0 6px 20px rgba(168,85,247,0.45)'; }}
+                                onMouseLeave={e => { e.currentTarget.style.transform = ''; e.currentTarget.style.boxShadow = '0 4px 15px rgba(168,85,247,0.35)'; }}
+                            >
+                                ✍️ {t('feedback_prompt_submit', 'Оставить отзыв')}
+                            </button>
+                            <button
+                                onClick={() => setIsFeedbackPromptOpen(false)}
+                                style={{
+                                    flex: 1, padding: '13px', borderRadius: '14px',
+                                    background: 'rgba(30, 41, 59, 0.6)',
+                                    color: '#94a3b8', fontWeight: '600', fontSize: '14px',
+                                    border: '1px solid rgba(255,255,255,0.06)',
+                                    cursor: 'pointer', transition: 'background 0.15s',
+                                }}
+                                onMouseEnter={e => { e.currentTarget.style.background = 'rgba(51,65,85,0.6)'; }}
+                                onMouseLeave={e => { e.currentTarget.style.background = 'rgba(30,41,59,0.6)'; }}
+                            >
+                                {t('feedback_prompt_skip', 'Пропустить')}
+                            </button>
+                        </div>
+                    </div>
+                </div>
             )}
 
             {isFeedbackModalOpen && (

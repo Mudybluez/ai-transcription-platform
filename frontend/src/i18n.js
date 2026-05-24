@@ -175,7 +175,11 @@ const resources = {
       "admin_feedback_no_reply": "Нет ответа",
       "admin_feedback_reply_modal": "Детали отзыва и ответ",
       "admin_feedback_reply_placeholder": "Напишите ваш ответ пользователю...",
-      "admin_feedback_reply_btn": "Отправить ответ"
+      "admin_feedback_reply_btn": "Отправить ответ",
+      "feedback_prompt_title": "Понравился анализ?",
+      "feedback_prompt_subtitle": "Уделите минуту и оставьте отзыв — это помогает нам стать лучше.",
+      "feedback_prompt_submit": "Оставить отзыв",
+      "feedback_prompt_skip": "Пропустить"
     }
   },
   en: {
@@ -349,7 +353,11 @@ const resources = {
       "admin_feedback_no_reply": "No Reply",
       "admin_feedback_reply_modal": "Feedback Details & Reply",
       "admin_feedback_reply_placeholder": "Write your reply to the user...",
-      "admin_feedback_reply_btn": "Send Reply"
+      "admin_feedback_reply_btn": "Send Reply",
+      "feedback_prompt_title": "Enjoyed the analysis?",
+      "feedback_prompt_subtitle": "Take a minute to leave a review — it helps us get better.",
+      "feedback_prompt_submit": "Leave a review",
+      "feedback_prompt_skip": "Skip"
     }
   },
   kk: {
@@ -523,7 +531,11 @@ const resources = {
       "admin_feedback_no_reply": "Жауап жоқ",
       "admin_feedback_reply_modal": "Пікірдің егжей-тегжейі мен жауап",
       "admin_feedback_reply_placeholder": "Пайдаланушыға жауабыңызды жазыңыз...",
-      "admin_feedback_reply_btn": "Жауапты жіберу"
+      "admin_feedback_reply_btn": "Жауапты жіберу",
+      "feedback_prompt_title": "Талдау ұнады ма?",
+      "feedback_prompt_subtitle": "Бір минут бөліп, пікір қалдырыңыз — бұл бізге жақсаруға көмектеседі.",
+      "feedback_prompt_submit": "Пікір қалдыру",
+      "feedback_prompt_skip": "Өткізіп жіберу"
     }
   }
 };
