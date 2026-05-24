@@ -25,7 +25,8 @@ const authenticateToken = (req, res, next) => {
         req.path.includes('/api/users/login') || 
         req.path.includes('/api/users/register') ||
         req.path.includes('/api/users/verify-email') ||
-        req.path.includes('/api/users/resend-verification')
+        req.path.includes('/api/users/resend-verification') ||
+        req.path.includes('/api/users/recaptcha-site-key')
     ) {
         return next();
     }
