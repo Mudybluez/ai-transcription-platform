@@ -56,3 +56,39 @@ def save_result(job_id, user_id, raw_text, analysis_json):
     conn.commit()
     cur.close()
     conn.close()
+
+def create_analysis_ready_notification(job_id, user_id, file_name):
+    """Создает запись уведомления о готовности анализа в таблице notifications"""
+    conn = get_db_connection()
+    cur = conn.cursor()
+    
+    # Проверяем, существует ли уже уведомление
+    cur.execute(
+        "SELECT 1 FROM notifications WHERE user_id = %s AND type = 'ANALYSIS_READY' AND (data->>'job_id')::int = %s",
+        (user_id, job_id)
+    )
+    if cur.fetchone() is None:
+        notif_data = {
+            'job_id': job_id,
+            'file_name': file_name,
+            'message_en': f'Analysis of "{file_name}" is ready!',
+            'message_ru': f'Анализ файла "{file_name}" готов!',
+            'message_kk': f'"{file_name}" файлының талдауы дайын!'
+        }
+        cur.execute(
+            """
+            INSERT INTO notifications (user_id, type, data) 
+            VALUES (%s, %s, %s) 
+            RETURNING id, user_id, type, data, is_read, created_at
+            """,
+            (user_id, 'ANALYSIS_READY', json.dumps(notif_data, ensure_ascii=False))
+        )
+        new_notif = cur.fetchone()
+        conn.commit()
+        cur.close()
+        conn.close()
+        return new_notif
+    
+    cur.close()
+    conn.close()
+    return None

@@ -78,6 +78,35 @@ def callback(ch, method, properties, body):
         save_result(job_id, user_id, raw_text, analysis_data)
         update_job_status(job_id, "COMPLETED")
 
+        # 3.5. Создаем уведомление о готовности анализа и шлем в Gateway
+        file_name = job_data.get('fileName', 'Unknown')
+        try:
+            from db import create_analysis_ready_notification
+            notif = create_analysis_ready_notification(job_id, user_id, file_name)
+            if notif:
+                # notif: (id, user_id, type, data, is_read, created_at)
+                gateway_payload = {
+                    'userId': user_id,
+                    'notification': {
+                        'id': notif[0],
+                        'user_id': notif[1],
+                        'type': notif[2],
+                        'data': notif[3],
+                        'is_read': notif[4],
+                        'created_at': str(notif[5])
+                    }
+                }
+                # Шлем в Gateway
+                for base_url in ["http://api-gateway:3000", "http://localhost:3000"]:
+                    try:
+                        requests.post(f"{base_url}/internal/notify", json=gateway_payload, timeout=2)
+                        print(f"📡 Уведомление о готовности анализа отправлено в Gateway ({base_url})")
+                        break
+                    except Exception:
+                        pass
+        except Exception as ne:
+            print(f"Ошибка при создании уведомления о готовности анализа: {ne}")
+
         # 4. Отправляем данные в mindmap-service, если они есть
         if "mind_map" in analysis_data:
             try:

@@ -102,8 +102,34 @@ app.get('/health', (req, res) => {
     res.status(200).json({ status: 'API Gateway is running' });
 });
 
-// --- WEBSOCKET SERVER FOR JOB UPDATES ---
+// --- WEBSOCKET SERVER & LIVE NOTIFICATIONS ---
+const activeClients = new Map();
+
 const wss = new WebSocket.Server({ noServer: true });
+
+// Внутренний эндпоинт для рассылки уведомлений
+app.post('/internal/notify', (req, res) => {
+    const { userId, notification } = req.body;
+    if (!userId || !notification) {
+        return res.status(400).json({ error: 'Missing userId or notification' });
+    }
+
+    const clients = activeClients.get(parseInt(userId, 10)) || activeClients.get(userId.toString());
+    if (clients && clients.size > 0) {
+        const payload = JSON.stringify({
+            type: 'notification',
+            notification
+        });
+        clients.forEach(ws => {
+            if (ws.readyState === WebSocket.OPEN) {
+                ws.send(payload);
+            }
+        });
+        console.log(`📡 Отправлено WebSocket уведомление пользователю ${userId}`);
+    }
+
+    res.status(200).json({ success: true });
+});
 
 function getJobStatus(jobId) {
     return new Promise((resolve, reject) => {
@@ -192,11 +218,27 @@ wss.on('connection', (ws) => {
     ws.on('close', () => {
         console.log(`🔌 WebSocket connection closed for user ${ws.userId}`);
         if (pollInterval) clearInterval(pollInterval);
+        
+        // Удаляем из активных клиентов
+        if (activeClients.has(ws.userId)) {
+            activeClients.get(ws.userId).delete(ws);
+            if (activeClients.get(ws.userId).size === 0) {
+                activeClients.delete(ws.userId);
+            }
+        }
     });
 
     ws.on('error', (err) => {
         console.error(`WebSocket error for user ${ws.userId}:`, err);
         if (pollInterval) clearInterval(pollInterval);
+        
+        // Удаляем из активных клиентов
+        if (activeClients.has(ws.userId)) {
+            activeClients.get(ws.userId).delete(ws);
+            if (activeClients.get(ws.userId).size === 0) {
+                activeClients.delete(ws.userId);
+            }
+        }
     });
 });
 
@@ -222,6 +264,13 @@ server.on('upgrade', (request, socket, head) => {
 
                 wss.handleUpgrade(request, socket, head, (ws) => {
                     ws.userId = decoded.userId;
+                    
+                    // Добавляем в активные клиенты
+                    if (!activeClients.has(ws.userId)) {
+                        activeClients.set(ws.userId, new Set());
+                    }
+                    activeClients.get(ws.userId).add(ws);
+                    
                     wss.emit('connection', ws, request);
                 });
             });
