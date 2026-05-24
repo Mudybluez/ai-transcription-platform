@@ -2,6 +2,7 @@ const express = require('express');
 const jwt = require('jsonwebtoken');
 const db = require('./db');
 const redisClient = require('./redisClient');
+const astroproxyService = require('./astroproxyService');
 
 const app = express();
 const PORT = process.env.PORT || 3003;
@@ -9,8 +10,8 @@ const JWT_SECRET = process.env.JWT_SECRET || 'super_secret_jwt_key';
 
 app.use(express.json());
 
-// Мидлвар для проверки токена (API Gateway уже пропустил валидный запрос, но нам нужен ID пользователя для изоляции данных)
-const authenticateUser = (req, res, next) => {
+// Мидлвар для проверки токена и проверки блокировки (бана)
+const authenticateUser = async (req, res, next) => {
     const authHeader = req.headers['authorization'];
     if (!authHeader) return res.status(401).json({ message: 'Нет токена' });
 
@@ -18,9 +19,58 @@ const authenticateUser = (req, res, next) => {
     try {
         const decoded = jwt.verify(token, JWT_SECRET);
         req.userId = decoded.userId;
+
+        // Проверяем блокировку (бан) пользователя в базе данных
+        const userRes = await db.query(
+            'SELECT banned_until, is_permanently_banned FROM users WHERE id = $1',
+            [req.userId]
+        );
+        if (userRes.rows.length > 0) {
+            const { banned_until, is_permanently_banned } = userRes.rows[0];
+
+            if (is_permanently_banned) {
+                const lang = req.headers['accept-language'] || 'ru';
+                let msg = 'Ваш аккаунт заблокирован навсегда.';
+                if (lang.startsWith('en')) msg = 'Your account has been permanently blocked.';
+                if (lang.startsWith('kk')) msg = 'Сіздің аккаунтыңыз біржола блокталған.';
+                return res.status(403).json({ message: msg, banned: true });
+            }
+
+            if (banned_until && new Date(banned_until) > new Date()) {
+                const lang = req.headers['accept-language'] || 'ru';
+                const banDateStr = new Date(banned_until).toLocaleString(
+                    lang.startsWith('ru') ? 'ru-RU' : lang.startsWith('kk') ? 'kk-KZ' : 'en-US'
+                );
+                let msg = `Ваш аккаунт заблокирован. Временная блокировка истекает: ${banDateStr}`;
+                if (lang.startsWith('en')) msg = `Your account is blocked. Temporary ban expires on: ${banDateStr}`;
+                if (lang.startsWith('kk')) msg = `Сіздің аккаунтыңыз блокталған. Уақытша блоктау ${banDateStr} дейін жарамды.`;
+                return res.status(403).json({ message: msg, banned: true, bannedUntil: banned_until });
+            }
+        }
+
         next();
     } catch (e) {
         return res.status(401).json({ message: 'Недействительный токен' });
+    }
+};
+
+// Мидлвар для проверки прав администратора
+const requireAdmin = (req, res, next) => {
+    const authHeader = req.headers['authorization'];
+    if (!authHeader) {
+        return res.status(401).json({ message: 'Доступ запрещен. Токен не предоставлен.' });
+    }
+
+    const token = authHeader.split(' ')[1];
+    try {
+        const decoded = jwt.verify(token, JWT_SECRET);
+        if (decoded.role !== 'admin') {
+            return res.status(403).json({ message: 'Доступ запрещен. Требуются права администратора.' });
+        }
+        req.userId = decoded.userId;
+        next();
+    } catch (e) {
+        return res.status(403).json({ message: 'Недействительный или просроченный токен.' });
     }
 };
 
@@ -141,12 +191,20 @@ app.delete('/history/all/clear', authenticateUser, async (req, res) => {
 });
 
 // Статистика для админ-панели (расширенная)
-app.get('/admin/stats', async (req, res) => {
+app.get('/admin/stats', requireAdmin, async (req, res) => {
     try {
         const totalTranscriptions = await db.query('SELECT COUNT(*) FROM transcriptions');
-        const totalUsers = await db.query('SELECT COUNT(DISTINCT user_id) FROM transcriptions');
+        // Общий подсчет пользователей: теперь берем зарегистрированных пользователей из таблицы users!
+        const totalUsers = await db.query('SELECT COUNT(*) FROM users');
         const totalLength = await db.query('SELECT SUM(LENGTH(raw_text)) as total_chars FROM transcriptions');
         
+        // Подсчет за последние 24 часа
+        const total24h = await db.query("SELECT COUNT(*) FROM transcriptions WHERE created_at >= NOW() - INTERVAL '24 hours'");
+        
+        // Подсчет общего количества слов через пробелы (быстрый и легкий способ для больших объемов)
+        const totalWordsQuery = await db.query("SELECT SUM(LENGTH(raw_text) - LENGTH(REPLACE(raw_text, ' ', '')) + 1) as total_words FROM transcriptions");
+        const totalWords = parseInt(totalWordsQuery.rows[0].total_words || 0);
+
         // Активность по дням (последние 7 дней)
         const dailyActivity = await db.query(`
             SELECT DATE_TRUNC('day', created_at) as day, COUNT(*) as count 
@@ -169,6 +227,8 @@ app.get('/admin/stats', async (req, res) => {
             totalTranscriptions: parseInt(totalTranscriptions.rows[0].count),
             totalUsers: parseInt(totalUsers.rows[0].count),
             totalChars: parseInt(totalLength.rows[0].total_chars || 0),
+            totalWords: totalWords,
+            total24h: parseInt(total24h.rows[0].count || 0),
             dailyActivity: dailyActivity.rows.map(r => ({
                 day: r.day.toISOString().split('T')[0],
                 count: parseInt(r.count)
@@ -181,6 +241,60 @@ app.get('/admin/stats', async (req, res) => {
     } catch (error) {
         console.error(error);
         res.status(500).json({ message: 'Ошибка при получении статистики' });
+    }
+});
+
+// Статистика использования прокси AstroProxy (только для администраторов)
+app.get('/admin/proxy-stats', requireAdmin, async (req, res) => {
+    try {
+        const stats = await astroproxyService.getProxyStats();
+        res.status(200).json(stats);
+    } catch (error) {
+        console.error('Ошибка при получении статистики AstroProxy:', error);
+        res.status(500).json({ message: 'Ошибка получения метрик прокси' });
+    }
+});
+
+// Получение списка всех разборов на платформе (только для администраторов)
+app.get('/admin/transcriptions', requireAdmin, async (req, res) => {
+    try {
+        const queryText = `
+            SELECT 
+                t.id, 
+                t.job_id, 
+                t.user_id, 
+                t.raw_text, 
+                t.structured_analysis, 
+                t.created_at,
+                j.file_name,
+                j.file_path as youtube_link,
+                u.username as user_name
+            FROM transcriptions t
+            LEFT JOIN jobs j ON t.job_id = j.id
+            LEFT JOIN users u ON t.user_id = u.id
+            ORDER BY t.created_at DESC
+        `;
+        const result = await db.query(queryText);
+        res.status(200).json(result.rows);
+    } catch (error) {
+        console.error('Ошибка при получении списка всех анализов:', error);
+        res.status(500).json({ message: 'Ошибка сервера при получении списка разборов' });
+    }
+});
+
+// Массовое удаление разборов (только для администраторов)
+app.delete('/admin/transcriptions/bulk', requireAdmin, async (req, res) => {
+    const { ids } = req.body;
+    if (!ids || !Array.isArray(ids) || ids.length === 0) {
+        return res.status(400).json({ message: 'Не предоставлен список ID для удаления' });
+    }
+
+    try {
+        await db.query('DELETE FROM transcriptions WHERE id = ANY($1::int[])', [ids]);
+        res.status(200).json({ message: 'Выбранные разборы успешно удалены' });
+    } catch (error) {
+        console.error('Ошибка массового удаления разборов:', error);
+        res.status(500).json({ message: 'Ошибка сервера при массовом удалении' });
     }
 });
 
