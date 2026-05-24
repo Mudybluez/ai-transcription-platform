@@ -46,8 +46,81 @@ const getUserFromToken = (req, res, next) => {
     next();
 };
 
+// Мидлвар для лимитирования частоты запросов на анализ (rate-limiting)
+const checkRateLimit = async (req, res, next) => {
+    const userId = req.userId;
+    if (!userId) {
+        return res.status(401).json({ message: 'Доступ запрещен. Пользователь не аутентифицирован.' });
+    }
+
+    try {
+        // 1. Получаем актуальную роль пользователя из базы данных
+        const userRes = await db.query('SELECT role FROM users WHERE id = $1', [userId]);
+        const role = userRes.rows.length > 0 ? userRes.rows[0].role : 'Standard';
+
+        // Pro и admin имеют безлимитный доступ
+        if (role === 'Pro' || role === 'admin') {
+            return next();
+        }
+
+        // 2. Считаем количество анализов за последние 12 часов
+        const jobsCountRes = await db.query(
+            "SELECT COUNT(*) FROM jobs WHERE user_id = $1 AND created_at >= NOW() - INTERVAL '12 hours'",
+            [userId]
+        );
+        const requestCount = parseInt(jobsCountRes.rows[0].count, 10);
+
+        // 3. Лимиты по ролям
+        const limits = {
+            'Standard': 2,
+            'Lite': 10
+        };
+        const limit = limits[role] !== undefined ? limits[role] : 2;
+
+        if (requestCount >= limit) {
+            return res.status(429).json({
+                message: `Лимит запросов на анализ исчерпан. Для вашей роли (${role}) лимит составляет ${limit} запроса(ов) в 12 часов. Вы уже отправили ${requestCount} запрос(ов).`
+            });
+        }
+
+        next();
+    } catch (err) {
+        console.error('Ошибка проверки лимитов в Upload Service:', err);
+        res.status(500).json({ message: 'Внутренняя ошибка сервера при проверке лимитов частоты запросов.' });
+    }
+};
+
+// Мидлвар для проверки подтверждения почты (email verification guard)
+const checkEmailVerification = async (req, res, next) => {
+    const userId = req.userId;
+    if (!userId) {
+        return res.status(401).json({ message: 'Доступ запрещен. Пользователь не аутентифицирован.' });
+    }
+
+    try {
+        // Проверяем статус верификации в базе данных
+        const userRes = await db.query('SELECT is_verified FROM users WHERE id = $1', [userId]);
+        if (userRes.rows.length === 0) {
+            return res.status(404).json({ message: 'Пользователь не найден.' });
+        }
+
+        const isVerified = userRes.rows[0].is_verified;
+        if (!isVerified) {
+            return res.status(403).json({
+                message: 'Доступ заблокирован. Пожалуйста, подтвердите ваш email-адрес. Мы отправили ссылку для активации аккаунта на вашу почту.',
+                emailUnverified: true
+            });
+        }
+
+        next();
+    } catch (err) {
+        console.error('Ошибка проверки подтверждения почты в Upload Service:', err);
+        res.status(500).json({ message: 'Внутренняя ошибка сервера при проверке статуса верификации.' });
+    }
+};
+
 // Роут для загрузки файла
-app.post('/', getUserFromToken, upload.single('mediaFile'), async (req, res) => {
+app.post('/', getUserFromToken, checkEmailVerification, checkRateLimit, upload.single('mediaFile'), async (req, res) => {
     if (!req.file) {
         return res.status(400).json({ message: 'Файл не загружен' });
     }
@@ -117,7 +190,7 @@ const extractYoutubeId = (url) => {
 };
 
 // Роут для обработки YouTube ссылок
-app.post('/youtube', getUserFromToken, async (req, res) => {
+app.post('/youtube', getUserFromToken, checkEmailVerification, checkRateLimit, async (req, res) => {
     const { url } = req.body; 
     const userId = req.userId || 1;
 
