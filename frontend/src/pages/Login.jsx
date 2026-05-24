@@ -16,6 +16,25 @@ const Login = () => {
     
     const [passwordScore, setPasswordScore] = useState(0);
 
+    const [unverifiedEmail, setUnverifiedEmail] = useState('');
+    const [isResending, setIsResending] = useState(false);
+
+    const handleResend = async () => {
+        if (!unverifiedEmail) return;
+        setIsResending(true);
+        try {
+            const res = await api.post('/users/resend-verification', { email: unverifiedEmail });
+            setIsError(false);
+            setMessage(res.data.message || 'Ссылка подтверждения успешно отправлена повторно!');
+            setUnverifiedEmail(''); // Очищаем после успешной отправки
+        } catch (err) {
+            setIsError(true);
+            setMessage(err.response?.data?.message || 'Не удалось отправить ссылку повторно. Пожалуйста, попробуйте еще раз.');
+        } finally {
+            setIsResending(false);
+        }
+    };
+
     useEffect(() => {
         // Проверяем наличие параметра ?verified=true в URL
         const queryParams = new URLSearchParams(window.location.search);
@@ -128,6 +147,7 @@ const Login = () => {
 
                 await api.post('/users/register', { username, email, password, recaptchaToken });
                 
+                setUnverifiedEmail(email); // Сохраняем почту для возможности повторной отправки
                 setIsLoginMode(true);
                 setIsError(false);
                 setMessage('Регистрация прошла успешно! На вашу почту отправлено письмо со ссылкой для верификации. Пожалуйста, подтвердите email перед входом.');
@@ -137,6 +157,13 @@ const Login = () => {
         } catch (error) {
             setIsError(true);
             setMessage(error.response?.data?.message || t('server_error', 'Произошла ошибка соединения с сервером'));
+            
+            // Если ошибка входа из-за неподтвержденной почты
+            if (error.response?.data?.emailUnverified) {
+                setUnverifiedEmail(error.response.data.email || email);
+            } else {
+                setUnverifiedEmail('');
+            }
         }
     };
 
@@ -172,16 +199,41 @@ const Login = () => {
                 
                 {message && (
                     <div style={{ 
-                        padding: '10px', 
+                        padding: '12px', 
                         marginBottom: '15px', 
-                        borderRadius: '5px',
-                        backgroundColor: isError ? 'rgba(239, 68, 68, 0.2)' : 'rgba(34, 197, 94, 0.2)',
+                        borderRadius: '8px',
+                        backgroundColor: isError ? 'rgba(239, 68, 68, 0.15)' : 'rgba(34, 197, 94, 0.15)',
                         color: isError ? '#fca5a5' : '#86efac',
                         textAlign: 'center',
                         fontSize: '14px',
-                        border: isError ? '1px solid #ef4444' : '1px solid #22c55e'
+                        border: isError ? '1px solid rgba(239, 68, 68, 0.4)' : '1px solid rgba(34, 197, 94, 0.4)',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '10px',
+                        alignItems: 'center'
                     }}>
-                        {message}
+                        <span>{message}</span>
+                        {unverifiedEmail && (
+                            <button
+                                type="button"
+                                onClick={handleResend}
+                                disabled={isResending}
+                                style={{
+                                    background: 'rgba(99, 102, 241, 0.25)',
+                                    border: '1px solid rgba(99, 102, 241, 0.6)',
+                                    color: '#c7d2fe',
+                                    padding: '6px 12px',
+                                    borderRadius: '6px',
+                                    fontSize: '12px',
+                                    fontWeight: '700',
+                                    cursor: 'pointer',
+                                    transition: 'all 0.2s',
+                                    outline: 'none'
+                                }}
+                            >
+                                {isResending ? 'Отправка...' : 'Отправить письмо еще раз'}
+                            </button>
+                        )}
                     </div>
                 )}
                 
