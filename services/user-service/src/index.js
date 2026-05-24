@@ -578,6 +578,28 @@ app.post('/moderate-user', requireAdmin, async (req, res) => {
 
 // --- СИСТЕМА ОТЗЫВОВ И УВЕДОМЛЕНИЙ ---
 
+const sendNotificationToGateway = async (userId, notification) => {
+    const gatewayUrl = process.env.API_GATEWAY_INTERNAL_URL || 'http://api-gateway:3000';
+    try {
+        await fetch(`${gatewayUrl}/internal/notify`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ userId, notification })
+        });
+    } catch (e) {
+        console.warn(`[Gateway Sync Alert] Failed to send live notification to gateway. Error: ${e.message}`);
+        try {
+            await fetch(`http://localhost:3000/internal/notify`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ userId, notification })
+            });
+        } catch (err) {
+            // Игнорируем, Gateway может быть не запущен в тестах
+        }
+    }
+};
+
 const authenticateToken = (req, res, next) => {
     const authHeader = req.headers['authorization'];
     if (!authHeader) {
@@ -725,10 +747,12 @@ app.post('/feedbacks/:id/reply', requireAdmin, async (req, res) => {
             message_kk: 'Әкімші сіздің пікіріңізге жауап берді!'
         };
 
-        await db.query(
-            'INSERT INTO notifications (user_id, type, data) VALUES ($1, $2, $3)',
+        const notifResult = await db.query(
+            'INSERT INTO notifications (user_id, type, data) VALUES ($1, $2, $3) RETURNING *',
             [feedback.user_id, 'ADMIN_RESPONSE', JSON.stringify(notifData)]
         );
+
+        sendNotificationToGateway(feedback.user_id, notifResult.rows[0]);
 
         res.status(201).json(replyResult.rows[0]);
     } catch (err) {
@@ -752,6 +776,21 @@ app.get('/notifications', authenticateToken, async (req, res) => {
     }
 });
 
+// Пометить все уведомления как прочитанные (должен быть ДО /:id/read)
+app.post('/notifications/read-all', authenticateToken, async (req, res) => {
+    const userId = req.userId;
+    try {
+        await db.query(
+            'UPDATE notifications SET is_read = TRUE WHERE user_id = $1 AND is_read = FALSE',
+            [userId]
+        );
+        res.status(200).json({ message: 'Все уведомления помечены как прочитанные.' });
+    } catch (err) {
+        console.error('Ошибка при отметке всех прочитанными:', err);
+        res.status(500).json({ message: 'Ошибка сервера.' });
+    }
+});
+
 // Пометить уведомление как прочитанное
 app.post('/notifications/:id/read', authenticateToken, async (req, res) => {
     const notifId = req.params.id;
@@ -772,20 +811,6 @@ app.post('/notifications/:id/read', authenticateToken, async (req, res) => {
     }
 });
 
-// Пометить все уведомления как прочитанные
-app.post('/notifications/read-all', authenticateToken, async (req, res) => {
-    const userId = req.userId;
-    try {
-        await db.query(
-            'UPDATE notifications SET is_read = TRUE WHERE user_id = $1 AND is_read = FALSE',
-            [userId]
-        );
-        res.status(200).json({ message: 'Все уведомления помечены как прочитанные.' });
-    } catch (err) {
-        console.error('Ошибка при отметке всех прочитанными:', err);
-        res.status(500).json({ message: 'Ошибка сервера.' });
-    }
-});
 
 app.listen(PORT, () => {
     console.log(`👤 User Service запущен на порту ${PORT}`);

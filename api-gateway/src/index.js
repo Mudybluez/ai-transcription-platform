@@ -97,6 +97,29 @@ app.get('/api/user/stats/:id', proxy(process.env.SEARCH_SERVICE_URL || 'http://l
 // Прокси для MindMap Service
 app.use('/api/mindmap', proxy(process.env.MINDMAP_SERVICE_URL || 'http://mindmap-service:3005'));
 
+// Прокси для Feedbacks (user-service)
+app.post('/api/feedbacks', proxy(process.env.USER_SERVICE_URL || 'http://localhost:3001', {
+    proxyReqPathResolver: () => '/feedbacks'
+}));
+app.get('/api/feedbacks', proxy(process.env.USER_SERVICE_URL || 'http://localhost:3001', {
+    proxyReqPathResolver: () => '/feedbacks'
+}));
+app.post('/api/feedbacks/:id/reply', proxy(process.env.USER_SERVICE_URL || 'http://localhost:3001', {
+    proxyReqPathResolver: (req) => `/feedbacks/${req.params.id}/reply`
+}));
+
+// Прокси для Notifications (user-service)
+app.get('/api/notifications', proxy(process.env.USER_SERVICE_URL || 'http://localhost:3001', {
+    proxyReqPathResolver: () => '/notifications'
+}));
+app.post('/api/notifications/read-all', proxy(process.env.USER_SERVICE_URL || 'http://localhost:3001', {
+    proxyReqPathResolver: () => '/notifications/read-all'
+}));
+app.post('/api/notifications/:id/read', proxy(process.env.USER_SERVICE_URL || 'http://localhost:3001', {
+    proxyReqPathResolver: (req) => `/notifications/${req.params.id}/read`
+}));
+
+
 // Базовый роут для проверки работоспособности
 app.get('/health', (req, res) => {
     res.status(200).json({ status: 'API Gateway is running' });
