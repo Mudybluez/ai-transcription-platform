@@ -105,11 +105,29 @@ const checkRateLimit = async (req, res, next) => {
                     message_ru: 'Вы исчерпали доступный лимит анализов (осталось 0 запросов). Перейдите на PRO для безлимитного доступа!',
                     message_kk: 'Талдаудың қолжетімді лимиті таусылды (0 сұраныс қалды). Шектеусіз кіру үшін PRO-ға өтіңіз!'
                 };
-                await db.query(
-                    'INSERT INTO notifications (user_id, type, data) VALUES ($1, $2, $3)',
+                const notifResult = await db.query(
+                    'INSERT INTO notifications (user_id, type, data) VALUES ($1, $2, $3) RETURNING *',
                     [uid, 'LIMITS_EXCEEDED', JSON.stringify(notifData)]
                 );
                 console.log(`🔔 Создано уведомление LIMITS_EXCEEDED для пользователя ${uid}`);
+
+                // Отправляем в Gateway
+                const gatewayUrl = process.env.API_GATEWAY_INTERNAL_URL || 'http://api-gateway:3000';
+                try {
+                    await fetch(`${gatewayUrl}/internal/notify`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ userId: uid, notification: notifResult.rows[0] })
+                    });
+                } catch (e) {
+                    try {
+                        await fetch(`http://localhost:3000/internal/notify`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ userId: uid, notification: notifResult.rows[0] })
+                        });
+                    } catch (err) {}
+                }
             }
         } catch (error) {
             console.error('Ошибка создания уведомления о лимитах:', error);
