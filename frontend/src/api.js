@@ -10,12 +10,14 @@ const api = axios.create({
     }
 });
 
-// Автоматически добавляем токен ко всем запросам
+// Автоматически добавляем токен и заголовок языка ко всем запросам
 api.interceptors.request.use((config) => {
     const token = localStorage.getItem('token');
     if (token) {
         config.headers.Authorization = `Bearer ${token}`;
     }
+    const lang = localStorage.getItem('i18nextLng') || 'ru';
+    config.headers['Accept-Language'] = lang.split('-')[0]; // берем базовый язык (ru, en, kk)
     return config;
 });
 
