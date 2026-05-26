@@ -43,8 +43,35 @@ const authenticateToken = (req, res, next) => {
     });
 };
 
+// Мидлвар для проверки CSRF токена (защита от спама/DDoS)
+const verifyCsrfToken = (req, res, next) => {
+    const csrfToken = req.headers['x-csrf-token'];
+    if (!csrfToken) {
+        return res.status(403).json({ message: 'CSRF токен отсутствует.' });
+    }
+    try {
+        const decoded = jwt.verify(csrfToken, JWT_SECRET);
+        if (decoded.purpose !== 'csrf' || decoded.userId !== req.user.userId) {
+            return res.status(403).json({ message: 'Недействительный CSRF токен.' });
+        }
+        next();
+    } catch (err) {
+        return res.status(403).json({ message: 'Недействительный или истекший CSRF токен.' });
+    }
+};
+
 // Применяем проверку токена ко всем запросам
 app.use(authenticateToken);
+
+// Эндпоинт для получения CSRF токена перед отправкой отзыва
+app.get('/api/csrf-token', (req, res) => {
+    const csrfToken = jwt.sign(
+        { userId: req.user.userId, purpose: 'csrf' },
+        JWT_SECRET,
+        { expiresIn: '5m' } // Токен действителен в течение 5 минут
+    );
+    res.json({ csrfToken });
+});
 
 // --- МАРШРУТИЗАЦИЯ (ПРОКСИ) ---
 
@@ -98,7 +125,7 @@ app.get('/api/user/stats/:id', proxy(process.env.SEARCH_SERVICE_URL || 'http://l
 app.use('/api/mindmap', proxy(process.env.MINDMAP_SERVICE_URL || 'http://mindmap-service:3005'));
 
 // Прокси для Feedbacks (user-service)
-app.post('/api/feedbacks', proxy(process.env.USER_SERVICE_URL || 'http://localhost:3001', {
+app.post('/api/feedbacks', verifyCsrfToken, proxy(process.env.USER_SERVICE_URL || 'http://localhost:3001', {
     proxyReqPathResolver: () => '/feedbacks'
 }));
 app.get('/api/feedbacks', proxy(process.env.USER_SERVICE_URL || 'http://localhost:3001', {
