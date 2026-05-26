@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import api from '../api';
+import { addSocketListener } from '../utils/sharedSocket';
 
 export default function NotificationsBell() {
     const { t, i18n } = useTranslation();
@@ -23,33 +24,13 @@ export default function NotificationsBell() {
     useEffect(() => {
         fetchNotifications();
 
-        // WebSocket подключение для получения в реальном времени
-        const token = localStorage.getItem('token');
-        if (!token) return;
-
-        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-        const wsUrl = `${protocol}//${window.location.host}/api/ws?token=${token}`;
-        let ws = new WebSocket(wsUrl);
-
-        ws.onmessage = (event) => {
-            try {
-                const message = JSON.parse(event.data);
-                if (message.type === 'notification') {
-                    console.log('🔔 Получено живое уведомление:', message.notification);
-                    setNotifications(prev => [message.notification, ...prev]);
-                }
-            } catch (err) {
-                console.error('Ошибка парсинга WebSocket сообщения:', err);
+        // Подписка на общий WebSocket для получения живых уведомлений
+        const unsubscribe = addSocketListener((message) => {
+            if (message.type === 'notification') {
+                console.log('🔔 Получено живое уведомление:', message.notification);
+                setNotifications(prev => [message.notification, ...prev]);
             }
-        };
-
-        ws.onerror = (err) => {
-            console.error('Ошибка WebSocket уведомлений:', err);
-        };
-
-        ws.onclose = () => {
-            console.log('🔌 Соединение WebSocket уведомлений закрыто.');
-        };
+        });
 
         // Клик снаружи для закрытия дропдауна
         const handleClickOutside = (event) => {
@@ -60,7 +41,7 @@ export default function NotificationsBell() {
         document.addEventListener('mousedown', handleClickOutside);
 
         return () => {
-            ws.close();
+            unsubscribe();
             document.removeEventListener('mousedown', handleClickOutside);
         };
     }, []);
