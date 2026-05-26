@@ -11,6 +11,51 @@ import HeroParticles from './HeroParticles';
 import { downloadYoutubeClientSide } from '../utils/youtubeDownloader';
 import NotificationsBell from '../components/NotificationsBell';
 
+const NavItems = ({
+    userRole,
+    changeLanguage,
+    i18n,
+    setIsMobileMenuOpen,
+    setIsFeedbackModalOpen,
+    t
+}) => {
+    const displayRole = userRole === 'admin' ? 'Admin' : userRole;
+    return (
+        <>
+            <span className={`role-badge-nav role-badge-${userRole.toLowerCase()}`}>
+                {displayRole}
+            </span>
+
+            <NotificationsBell />
+
+            <select 
+                className="lang-switcher" 
+                onChange={(e) => changeLanguage(e.target.value)} 
+                value={i18n.language}
+            >
+                <option value="en">EN</option>
+                <option value="ru">RU</option>
+                <option value="kk">KK</option>
+            </select>
+
+            {localStorage.getItem('role') === 'admin' && (
+                <Link to="/admin" className="nav-link" onClick={() => setIsMobileMenuOpen(false)}>{t('admin_panel')}</Link>
+            )}
+            <Link to="/mindmap" className="nav-link" onClick={() => setIsMobileMenuOpen(false)}>{t('tab_mindmap', 'Карта знаний')}</Link>
+            
+            <span className="nav-link" onClick={() => { setIsFeedbackModalOpen(true); setIsMobileMenuOpen(false); }} style={{ cursor: 'pointer' }}>
+                💬 {t('feedback_nav')}
+            </span>
+
+            <Link to="/profile" className="nav-link" onClick={() => setIsMobileMenuOpen(false)}>{t('profile')}</Link>
+            <span className="nav-link logout" onClick={() => {
+                localStorage.clear();
+                window.location.href = '/login';
+            }}>{t('logout')}</span>
+        </>
+    );
+};
+
 const Dashboard = () => {
     // 1. Hooks (States & Refs)
     const { t, i18n } = useTranslation();
@@ -200,43 +245,7 @@ const Dashboard = () => {
         setIsMobileMenuOpen(false);
     };
 
-    const NavItems = () => {
-        const displayRole = userRole === 'admin' ? 'Admin' : userRole;
-        return (
-            <>
-                <span className={`role-badge-nav role-badge-${userRole.toLowerCase()}`}>
-                    {displayRole}
-                </span>
 
-                <NotificationsBell />
-
-                <select 
-                    className="lang-switcher" 
-                    onChange={(e) => changeLanguage(e.target.value)} 
-                    value={i18n.language}
-                >
-                    <option value="en">EN</option>
-                    <option value="ru">RU</option>
-                    <option value="kk">KK</option>
-                </select>
-
-                {localStorage.getItem('role') === 'admin' && (
-                    <Link to="/admin" className="nav-link" onClick={() => setIsMobileMenuOpen(false)}>{t('admin_panel')}</Link>
-                )}
-                <Link to="/mindmap" className="nav-link" onClick={() => setIsMobileMenuOpen(false)}>{t('tab_mindmap', 'Карта знаний')}</Link>
-                
-                <span className="nav-link" onClick={() => { setIsFeedbackModalOpen(true); setIsMobileMenuOpen(false); }} style={{ cursor: 'pointer' }}>
-                    💬 {t('feedback_nav')}
-                </span>
-
-                <Link to="/profile" className="nav-link" onClick={() => setIsMobileMenuOpen(false)}>{t('profile')}</Link>
-                <span className="nav-link logout" onClick={() => {
-                    localStorage.clear();
-                    window.location.href = '/login';
-                }}>{t('logout')}</span>
-            </>
-        );
-    };
 
     useEffect(() => {
         return () => {
@@ -848,14 +857,28 @@ ${detailed}`;
                 <button className="hamburger" onClick={() => setIsMobileMenuOpen(true)}>☰</button>
                 <div className="logo">{t('app_name')}</div>
                 <div className="nav-links-desktop">
-                    <NavItems />
+                    <NavItems 
+                        userRole={userRole} 
+                        changeLanguage={changeLanguage} 
+                        i18n={i18n} 
+                        setIsMobileMenuOpen={setIsMobileMenuOpen} 
+                        setIsFeedbackModalOpen={setIsFeedbackModalOpen} 
+                        t={t} 
+                    />
                 </div>
             </header>
 
             <div className={`mobile-overlay ${isMobileMenuOpen ? 'open' : ''}`} onClick={() => setIsMobileMenuOpen(false)} />
             <div className={`mobile-menu-drawer ${isMobileMenuOpen ? 'open' : ''}`}>
                 <button style={{background:'none', border:'none', color:'white', fontSize:'24px', alignSelf:'flex-end', marginBottom:'20px', cursor:'pointer'}} onClick={() => setIsMobileMenuOpen(false)}>×</button>
-                <NavItems />
+                <NavItems 
+                    userRole={userRole} 
+                    changeLanguage={changeLanguage} 
+                    i18n={i18n} 
+                    setIsMobileMenuOpen={setIsMobileMenuOpen} 
+                    setIsFeedbackModalOpen={setIsFeedbackModalOpen} 
+                    t={t} 
+                />
             </div>
 
             {!activeItem ? (
