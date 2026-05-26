@@ -6,6 +6,41 @@ import { useTranslation } from 'react-i18next';
 import MindMap from './MindMap';
 import NotificationsBell from '../components/NotificationsBell';
 
+const NavItems = ({
+    userRole,
+    changeLanguage,
+    i18n,
+    setIsMobileMenuOpen,
+    t
+}) => {
+    const displayRole = userRole === 'admin' ? 'Admin' : userRole;
+    return (
+        <>
+            <span className={`role-badge-nav role-badge-${userRole.toLowerCase()}`}>
+                {displayRole}
+            </span>
+
+            <NotificationsBell />
+
+            <select 
+                className="lang-switcher" 
+                onChange={(e) => changeLanguage(e.target.value)} 
+                value={i18n.language}
+            >
+                <option value="en">EN</option>
+                <option value="ru">RU</option>
+                <option value="kk">KK</option>
+            </select>
+            <Link to="/" className="nav-link" onClick={() => setIsMobileMenuOpen(false)}>{t('back_btn')}</Link>
+            <Link to="/profile" className="nav-link" onClick={() => setIsMobileMenuOpen(false)}>{t('profile')}</Link>
+            <span className="nav-link logout" onClick={() => {
+                localStorage.clear();
+                window.location.href = '/login';
+            }}>{t('logout')}</span>
+        </>
+    );
+};
+
 const GlobalMindMap = () => {
     const navigate = useNavigate();
     const { t, i18n } = useTranslation();
@@ -172,34 +207,7 @@ const GlobalMindMap = () => {
         setIsMobileMenuOpen(false);
     };
 
-    const NavItems = () => {
-        const displayRole = userRole === 'admin' ? 'Admin' : userRole;
-        return (
-            <>
-                <span className={`role-badge-nav role-badge-${userRole.toLowerCase()}`}>
-                    {displayRole}
-                </span>
 
-                <NotificationsBell />
-
-                <select 
-                    className="lang-switcher" 
-                    onChange={(e) => changeLanguage(e.target.value)} 
-                    value={i18n.language}
-                >
-                    <option value="en">EN</option>
-                    <option value="ru">RU</option>
-                    <option value="kk">KK</option>
-                </select>
-                <Link to="/" className="nav-link" onClick={() => setIsMobileMenuOpen(false)}>{t('back_btn')}</Link>
-                <Link to="/profile" className="nav-link" onClick={() => setIsMobileMenuOpen(false)}>{t('profile')}</Link>
-                <span className="nav-link logout" onClick={() => {
-                    localStorage.clear();
-                    window.location.href = '/login';
-                }}>{t('logout')}</span>
-            </>
-        );
-    };
 
     return (
         <div className="dashboard-container fade-in">
@@ -207,14 +215,26 @@ const GlobalMindMap = () => {
                 <button className="hamburger" onClick={() => setIsMobileMenuOpen(true)}>☰</button>
                 <div className="logo">{t('app_name')}</div>
                 <div className="nav-links-desktop">
-                    <NavItems />
+                    <NavItems 
+                        userRole={userRole} 
+                        changeLanguage={changeLanguage} 
+                        i18n={i18n} 
+                        setIsMobileMenuOpen={setIsMobileMenuOpen} 
+                        t={t} 
+                    />
                 </div>
             </header>
 
             <div className={`mobile-overlay ${isMobileMenuOpen ? 'open' : ''}`} onClick={() => setIsMobileMenuOpen(false)} />
             <div className={`mobile-menu-drawer ${isMobileMenuOpen ? 'open' : ''}`}>
                 <button style={{background:'none', border:'none', color:'white', fontSize:'24px', alignSelf:'flex-end', marginBottom:'20px', cursor:'pointer'}} onClick={() => setIsMobileMenuOpen(false)}>×</button>
-                <NavItems />
+                <NavItems 
+                    userRole={userRole} 
+                    changeLanguage={changeLanguage} 
+                    i18n={i18n} 
+                    setIsMobileMenuOpen={setIsMobileMenuOpen} 
+                    t={t} 
+                />
             </div>
 
             <h2 className="section-title">{t('tab_mindmap')}</h2>
