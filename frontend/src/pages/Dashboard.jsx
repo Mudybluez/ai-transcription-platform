@@ -113,9 +113,18 @@ const Dashboard = () => {
 
         setIsSubmittingFeedback(true);
         try {
+            // Получаем временный CSRF токен для защиты от спама/DDoS
+            const csrfRes = await api.get('/csrf-token');
+            const csrfToken = csrfRes.data.csrfToken;
+
+            // Отправляем отзыв с CSRF токеном в заголовке X-CSRF-Token
             await api.post('/feedbacks', {
                 rating: feedbackRating,
                 message: feedbackMessage
+            }, {
+                headers: {
+                    'X-CSRF-Token': csrfToken
+                }
             });
             alert(t('feedback_success_alert', 'Спасибо за ваш отзыв!'));
             setFeedbackMessage('');
