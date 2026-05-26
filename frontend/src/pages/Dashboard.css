@@ -56,6 +56,8 @@ html, body {
     padding-bottom: 20px;
     border-bottom: 1px solid rgba(255,255,255,0.05);
     margin-bottom: 40px;
+    position: relative;
+    z-index: 990; /* Обеспечивает нахождение шапки и выпадающего списка уведомлений на верхнем слое */
 }
 .logo {
     font-size: 28px;
