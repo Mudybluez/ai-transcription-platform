@@ -10,6 +10,7 @@ import SolarSystemBackground from './SolarSystemBackground';
 import HeroParticles from './HeroParticles';
 import { downloadYoutubeClientSide } from '../utils/youtubeDownloader';
 import NotificationsBell from '../components/NotificationsBell';
+import { addSocketListener, sendSocketMessage } from '../utils/sharedSocket';
 
 const NavItems = ({
     userRole,
@@ -358,8 +359,13 @@ const Dashboard = () => {
     useEffect(() => {
         loadHistory();
         fetchUserProfile();
-        fetchUserFeedbacks();
     }, []);
+
+    useEffect(() => {
+        if (isFeedbackModalOpen) {
+            fetchUserFeedbacks();
+        }
+    }, [isFeedbackModalOpen]);
 
     // Эффект для обработки перехода с глобальной карты связей (state из react-router)
     useEffect(() => {
@@ -516,7 +522,6 @@ const Dashboard = () => {
     useEffect(() => {
         if (!pollingJobId) return;
 
-        let socket = null;
         let pollInterval = null;
         let isFallbackActive = false;
 
@@ -545,95 +550,66 @@ const Dashboard = () => {
             }, 3000);
         };
 
-        try {
-            const token = localStorage.getItem('token');
-            const wsProtocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
-            const wsUrl = `${wsProtocol}://${window.location.host}/api/ws?token=${encodeURIComponent(token || '')}`;
+        // Подписываемся на события общего WebSocket
+        const unsubscribe = addSocketListener(async (data) => {
+            try {
+                console.log("📥 WebSocket message received (via shared socket):", data);
+                if (data.type === 'status' && data.jobId === pollingJobId) {
+                    if (data.status === 'COMPLETED') {
+                        console.log("🎉 Analysis completed! Fetching results...");
+                        try {
+                            const res = await api.get('/history');
+                            const historyData = res.data.items || [];
+                            setHistory(historyData);
+                            
+                            const finishedJob = historyData.find(j => j.job_id === pollingJobId);
+                            if (finishedJob) {
+                                setPollingJobId(null);
+                                setStatus('');
+                                openItem(finishedJob);
+                                loadHistory();
 
-            console.log(`🔌 Connecting to WebSocket: ${wsUrl}`);
-            socket = new WebSocket(wsUrl);
-
-            socket.onopen = () => {
-                console.log("✅ WebSocket connection opened");
-                socket.send(JSON.stringify({
-                    type: 'subscribe',
-                    jobId: pollingJobId
-                }));
-            };
-
-            socket.onmessage = async (event) => {
-                try {
-                    const data = JSON.parse(event.data);
-                    console.log("📥 WebSocket message received:", data);
-                    if (data.type === 'status' && data.jobId === pollingJobId) {
-                        if (data.status === 'COMPLETED') {
-                            console.log("🎉 Analysis completed! Fetching results...");
-                            try {
-                                const res = await api.get('/history');
-                                const historyData = res.data.items || [];
-                                setHistory(historyData);
-                                
-                                const finishedJob = historyData.find(j => j.job_id === pollingJobId);
-                                if (finishedJob) {
-                                    setPollingJobId(null);
-                                    setStatus('');
-                                    openItem(finishedJob);
-                                    loadHistory();
-                                    socket.close();
-
-                                    // Show feedback prompt every 2nd completed analysis
-                                    const prevCount = parseInt(localStorage.getItem('analysisCompletedCount') || '0', 10);
-                                    const nextCount = prevCount + 1;
-                                    localStorage.setItem('analysisCompletedCount', String(nextCount));
-                                    if (nextCount % 2 === 0) {
-                                        // Small delay so the results panel has time to render first
-                                        setTimeout(() => setIsFeedbackPromptOpen(true), 1500);
-                                    }
-                                } else {
-                                    startHttpFallback();
+                                // Show feedback prompt every 2nd completed analysis
+                                const prevCount = parseInt(localStorage.getItem('analysisCompletedCount') || '0', 10);
+                                const nextCount = prevCount + 1;
+                                localStorage.setItem('analysisCompletedCount', String(nextCount));
+                                if (nextCount % 2 === 0) {
+                                    // Small delay so the results panel has time to render first
+                                    setTimeout(() => setIsFeedbackPromptOpen(true), 1500);
                                 }
-                            } catch (err) {
-                                console.error("Error loading completed job:", err);
+                            } else {
                                 startHttpFallback();
                             }
-                        } else if (data.status.startsWith('FAILED')) {
-                            console.error("❌ Analysis failed:", data.status);
-                            setPollingJobId(null);
-                            setStatus('Ошибка добавления задачи');
-                            alert(`Ошибка анализа: ${data.status.replace('FAILED:', '')}`);
-                            loadHistory();
-                            socket.close();
-                        } else {
-                            if (data.status === 'PROCESSING') {
-                                setStatus(t('btn_loading') || 'Обработка...');
-                            }
+                        } catch (err) {
+                            console.error("Error loading completed job:", err);
+                            startHttpFallback();
+                        }
+                    } else if (data.status.startsWith('FAILED')) {
+                        console.error("❌ Analysis failed:", data.status);
+                        setPollingJobId(null);
+                        setStatus('Ошибка добавления задачи');
+                        alert(`Ошибка анализа: ${data.status.replace('FAILED:', '')}`);
+                        loadHistory();
+                    } else {
+                        if (data.status === 'PROCESSING') {
+                            setStatus(t('btn_loading') || 'Обработка...');
                         }
                     }
-                } catch (err) {
-                    console.error("Error parsing WebSocket message:", err);
                 }
-            };
+            } catch (err) {
+                console.error("Error processing WebSocket message in Dashboard:", err);
+            }
+        });
 
-            socket.onerror = (err) => {
-                console.error("❌ WebSocket error:", err);
-                startHttpFallback();
-            };
-
-            socket.onclose = (event) => {
-                console.log(`🔌 WebSocket connection closed (code: ${event.code})`);
-                if (pollingJobId && !isFallbackActive && event.code !== 1000) {
-                    startHttpFallback();
-                }
-            };
-        } catch (err) {
-            console.error("Failed to initialize WebSocket:", err);
-            startHttpFallback();
-        }
+        // Отправляем подписку на задачу через общий вебсокет
+        console.log(`🔌 Subscribing to job updates via shared WebSocket: ${pollingJobId}`);
+        sendSocketMessage({
+            type: 'subscribe',
+            jobId: pollingJobId
+        });
 
         return () => {
-            if (socket) {
-                socket.close();
-            }
+            unsubscribe();
             if (pollInterval) {
                 clearInterval(pollInterval);
             }
