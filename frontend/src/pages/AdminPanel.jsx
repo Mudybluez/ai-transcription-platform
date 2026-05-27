@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link, Navigate } from 'react-router-dom';
 import api from '../api';
-import './Extras.css';
 import { useTranslation } from 'react-i18next';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -614,9 +613,9 @@ export default function AdminPanel() {
                                                 </td>
                                                 <td>
                                                     {isBanned ? (
-                                                        <span className="status-chip status-chip--wrong">Banned</span>
+                                                         <span className="chip chip--red">Banned</span>
                                                     ) : (
-                                                        <span className="status-chip status-chip--success">Active</span>
+                                                         <span className="chip chip--green">Active</span>
                                                     )}
                                                 </td>
                                                 <td style={{ textAlign: 'right' }}>
@@ -743,7 +742,7 @@ export default function AdminPanel() {
                                     {feedbacks.map(fb => (
                                         <tr key={fb.id} style={{ borderBottom: '1px solid var(--border-subtle)' }}>
                                             <td>
-                                                <span className={`status-chip ${fb.rating === 'Excellent' || fb.rating === 'Fine' ? 'status-chip--success' : fb.rating === 'Normal' ? 'status-chip--warning' : 'status-chip--wrong'}`}>
+                                                <span className={`chip ${fb.rating === 'Excellent' || fb.rating === 'Fine' ? 'chip--green' : fb.rating === 'Normal' ? 'chip--yellow' : 'chip--red'}`}>
                                                     {fb.rating}
                                                 </span>
                                             </td>
