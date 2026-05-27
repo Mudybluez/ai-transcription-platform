@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useLayoutEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import api from '../api';
 import './Dashboard.css';
@@ -8,9 +8,9 @@ import { useTranslation } from 'react-i18next';
 import MindMap from './MindMap';
 import SolarSystemBackground from './SolarSystemBackground';
 import HeroParticles from './HeroParticles';
-import { downloadYoutubeClientSide } from '../utils/youtubeDownloader';
 import NotificationsBell from '../components/NotificationsBell';
 import { addSocketListener, sendSocketMessage } from '../utils/sharedSocket';
+import Icon from '../components/Icon';
 
 const NavItems = ({
     userRole,
@@ -40,27 +40,41 @@ const NavItems = ({
             </select>
 
             {localStorage.getItem('role') === 'admin' && (
-                <Link to="/admin" className="nav-link" onClick={() => setIsMobileMenuOpen(false)}>{t('admin_panel')}</Link>
+                <Link to="/admin" className="nav-link" onClick={() => setIsMobileMenuOpen(false)}>
+                    <Icon name="shield" size={14} style={{ marginRight: 4 }} />
+                    {t('admin_panel', 'Админка')}
+                </Link>
             )}
-            <Link to="/mindmap" className="nav-link" onClick={() => setIsMobileMenuOpen(false)}>{t('tab_mindmap', 'Карта знаний')}</Link>
+            <Link to="/mindmap" className="nav-link" onClick={() => setIsMobileMenuOpen(false)}>
+                <Icon name="network" size={14} style={{ marginRight: 4 }} />
+                {t('tab_mindmap', 'Карта знаний')}
+            </Link>
             
-            <span className="nav-link" onClick={() => { setIsFeedbackModalOpen(true); setIsMobileMenuOpen(false); }} style={{ cursor: 'pointer' }}>
-                💬 {t('feedback_nav')}
+            <span className="nav-link" onClick={() => { setIsFeedbackModalOpen(true); setIsMobileMenuOpen(false); }} style={{ cursor: 'pointer', display: 'inline-flex', alignItems: 'center' }}>
+                <Icon name="message_circle" size={14} style={{ marginRight: 4 }} />
+                {t('feedback_nav', 'Отзывы')}
             </span>
 
-            <Link to="/profile" className="nav-link" onClick={() => setIsMobileMenuOpen(false)}>{t('profile')}</Link>
+            <Link to="/profile" className="nav-link" onClick={() => setIsMobileMenuOpen(false)}>
+                <Icon name="user" size={14} style={{ marginRight: 4 }} />
+                {t('profile', 'Профиль')}
+            </Link>
             <span className="nav-link logout" onClick={() => {
                 localStorage.clear();
                 window.location.href = '/login';
-            }}>{t('logout')}</span>
+            }}>
+                <Icon name="log_out" size={14} style={{ marginRight: 4 }} />
+                {t('logout', 'Выйти')}
+            </span>
         </>
     );
 };
 
-const Dashboard = () => {
-    // 1. Hooks (States & Refs)
+export default function Dashboard() {
     const { t, i18n } = useTranslation();
     const location = useLocation();
+
+    // Core States
     const [youtubeUrl, setYoutubeUrl] = useState('');
     const [status, setStatus] = useState('');
     const [history, setHistory] = useState([]);
@@ -72,6 +86,8 @@ const Dashboard = () => {
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
     const [recordingTime, setRecordingTime] = useState(0);
     const [pollingJobId, setPollingJobId] = useState(null);
+    
+    // Detail and tabs
     const [activeItem, setActiveItem] = useState(null);
     const [currentTab, setCurrentTab] = useState('summary');
     const [animationClass, setAnimationClass] = useState('');
@@ -81,6 +97,8 @@ const Dashboard = () => {
     const [revealedAnswers, setRevealedAnswers] = useState({}); 
     const [showScrollTop, setShowScrollTop] = useState(false);
     const [highlightText, setHighlightText] = useState(null);
+    
+    // Intro States
     const [introState, setIntroState] = useState(() => {
         return localStorage.getItem('skipIntro') === 'true' ? 'completed' : 'playing';
     });
@@ -90,7 +108,7 @@ const Dashboard = () => {
 
     const [userRole, setUserRole] = useState(localStorage.getItem('role') || 'Standard');
 
-    // Feedback states
+    // Feedback States
     const [isFeedbackModalOpen, setIsFeedbackModalOpen] = useState(false);
     const [isFeedbackPromptOpen, setIsFeedbackPromptOpen] = useState(false);
     const [feedbackModalTab, setFeedbackModalTab] = useState('write');
@@ -99,6 +117,179 @@ const Dashboard = () => {
     const [feedbackMessage, setFeedbackMessage] = useState('');
     const [isSubmittingFeedback, setIsSubmittingFeedback] = useState(false);
 
+    // Refs
+    const heroTriggerRef = useRef(null);
+    const modeListRef = useRef(null);
+    const detailTabsRef = useRef(null);
+
+    // UI Pill Indicators Coordinates
+    const [modePill, setModePill] = useState({ left: 0, width: 0 });
+    const [tabIndicator, setTabIndicator] = useState({ left: 0, width: 0 });
+
+    const MODES = [
+        { id: 'youtube', label: 'YouTube', icon: 'youtube' },
+        { id: 'file', label: t('type_upload', 'Файл'), icon: 'file' },
+        { id: 'record', label: t('type_record', 'Запись'), icon: 'mic' }
+    ];
+
+    const DETAIL_TABS = [
+        { id: 'summary', label: t('tab_summary', 'Анализ'), icon: 'file_text' },
+        { id: 'mindmap', label: t('tab_mindmap', 'Карта'), icon: 'network' },
+        { id: 'flashcards', label: t('tab_flashcards', 'Карточки'), icon: 'layers' },
+        { id: 'quiz', label: t('tab_quiz', 'Тест'), icon: 'help_circle' },
+        { id: 'transcript', label: t('tab_text', 'Текст'), icon: 'text_align' }
+    ];
+
+    // Measure mode selector pill
+    useLayoutEffect(() => {
+        const measure = () => {
+            if (!modeListRef.current || activeItem) return;
+            const idx = MODES.findIndex(m => m.id === inputMode);
+            const btn = modeListRef.current.querySelectorAll('.mode')[idx];
+            if (btn) setModePill({ left: btn.offsetLeft, width: btn.offsetWidth });
+        };
+        measure();
+        if (document.fonts?.ready) document.fonts.ready.then(measure);
+        const ro = new ResizeObserver(measure);
+        if (modeListRef.current) ro.observe(modeListRef.current);
+        return () => ro.disconnect();
+    }, [inputMode, activeItem]);
+
+    // Measure details tabs underline indicator
+    useLayoutEffect(() => {
+        const measure = () => {
+            if (!detailTabsRef.current || !activeItem) return;
+            const idx = DETAIL_TABS.findIndex(t => t.id === currentTab);
+            const btn = detailTabsRef.current.querySelectorAll('.tab')[idx];
+            if (btn) setTabIndicator({ left: btn.offsetLeft, width: btn.offsetWidth });
+        };
+        measure();
+        if (document.fonts?.ready) document.fonts.ready.then(measure);
+        const ro = new ResizeObserver(measure);
+        if (detailTabsRef.current) ro.observe(detailTabsRef.current);
+        return () => ro.disconnect();
+    }, [currentTab, activeItem]);
+
+    // Smooth Momentum Wheel Scroll Setup
+    useEffect(() => {
+        let targetScrollY = window.scrollY;
+        let currentScrollY = window.scrollY;
+        let isMoving = false;
+
+        const onWheel = (e) => {
+            if (e.ctrlKey || e.shiftKey) return;
+            
+            const path = e.composedPath() || [];
+            for (const element of path) {
+                if (element === document.body || element === document.documentElement) break;
+                if (element.scrollHeight > element.clientHeight) {
+                    if (element.tagName === 'TEXTAREA' || element.tagName === 'SELECT') return;
+                    const style = element.style || {};
+                    if (style.overflowY === 'auto' || style.overflowY === 'scroll' || style.overflow === 'auto' || style.overflow === 'scroll') return;
+                    const className = element.className || '';
+                    if (typeof className === 'string' && (className.includes('scroll') || className.includes('modal'))) return;
+                }
+            }
+
+            e.preventDefault();
+            targetScrollY = Math.max(0, Math.min(
+                document.documentElement.scrollHeight - window.innerHeight,
+                targetScrollY + e.deltaY * 0.85
+            ));
+
+            if (!isMoving) {
+                isMoving = true;
+                requestAnimationFrame(updateScroll);
+            }
+        };
+
+        const updateScroll = () => {
+            const diff = targetScrollY - currentScrollY;
+            if (Math.abs(diff) > 0.5) {
+                currentScrollY += diff * 0.14;
+                window.scrollTo(0, currentScrollY);
+                requestAnimationFrame(updateScroll);
+            } else {
+                currentScrollY = targetScrollY;
+                window.scrollTo(0, currentScrollY);
+                isMoving = false;
+            }
+        };
+
+        const syncScroll = () => {
+            if (!isMoving) {
+                targetScrollY = window.scrollY;
+                currentScrollY = window.scrollY;
+            }
+        };
+
+        window.addEventListener('wheel', onWheel, { passive: false });
+        window.addEventListener('scroll', syncScroll);
+        
+        return () => {
+            window.removeEventListener('wheel', onWheel);
+            window.removeEventListener('scroll', syncScroll);
+        };
+    }, []);
+
+    const audioContextRef = useRef(null);
+    const analyserRef = useRef(null);
+    const animationFrameRef = useRef(null);
+    const canvasRef = useRef(null);
+    const timerIntervalRef = useRef(null);
+    const touchStartX = useRef(0);
+
+    const currentLang = (i18n.language || 'ru').split('-')[0].toLowerCase();
+
+    const changeLanguage = (lng) => {
+        i18n.changeLanguage(lng);
+        setIsMobileMenuOpen(false);
+    };
+
+    const formatTime = (seconds) => {
+        const mins = Math.floor(seconds / 60);
+        const secs = seconds % 60;
+        return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+    };
+
+    // Recording live frequencies canvas visualizer
+    const drawVisualizer = () => {
+        if (!analyserRef.current || !canvasRef.current) return;
+        
+        const canvas = canvasRef.current;
+        const ctx = canvas.getContext('2d');
+        const analyser = analyserRef.current;
+        const bufferLength = analyser.frequencyBinCount;
+        const dataArray = new Uint8Array(bufferLength);
+        
+        const draw = () => {
+            animationFrameRef.current = requestAnimationFrame(draw);
+            analyser.getByteFrequencyData(dataArray);
+            
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            const barWidth = 1.5;
+            let barHeight;
+            let x = 0;
+            
+            const countToDraw = Math.min(bufferLength, 100); 
+            
+            for (let i = 0; i < countToDraw; i++) {
+                barHeight = dataArray[i] / 1.5;
+                
+                const gradient = ctx.createLinearGradient(0, canvas.height, 0, 0);
+                gradient.addColorStop(0, '#8AB4F8');
+                gradient.addColorStop(1, '#C4C6FF');
+                
+                ctx.fillStyle = gradient;
+                ctx.fillRect(x, canvas.height - barHeight, barWidth, barHeight);
+                x += barWidth + 1.5;
+            }
+        };
+        draw();
+    };
+
+    // Feedback Actions
     const fetchUserFeedbacks = async () => {
         try {
             const response = await api.get('/feedbacks');
@@ -114,11 +305,9 @@ const Dashboard = () => {
 
         setIsSubmittingFeedback(true);
         try {
-            // Получаем временный CSRF токен для защиты от спама/DDoS
             const csrfRes = await api.get('/csrf-token');
             const csrfToken = csrfRes.data.csrfToken;
 
-            // Отправляем отзыв с CSRF токеном в заголовке X-CSRF-Token
             await api.post('/feedbacks', {
                 rating: feedbackRating,
                 message: feedbackMessage
@@ -169,146 +358,7 @@ const Dashboard = () => {
         }, 1200);
     };
 
-    // Плавный скролл мыши с использованием инерции и requestAnimationFrame (60 FPS без зависимостей)
-    useEffect(() => {
-        let targetScrollY = window.scrollY;
-        let currentScrollY = window.scrollY;
-        let isMoving = false;
-
-        const onWheel = (e) => {
-            if (e.ctrlKey || e.shiftKey) return;
-            
-            // Предотвращаем конфликт с локальными скроллбарами модальных окон, MindMap или текстовых полей
-            const path = e.composedPath() || [];
-            for (const element of path) {
-                if (element === document.body || element === document.documentElement) break;
-                if (element.scrollHeight > element.clientHeight) {
-                    // Используем сверхбыстрые проверки без вызова getComputedStyle (Reflow-free)
-                    if (element.tagName === 'TEXTAREA' || element.tagName === 'SELECT') {
-                        return;
-                    }
-                    const style = element.style || {};
-                    if (style.overflowY === 'auto' || style.overflowY === 'scroll' || style.overflow === 'auto' || style.overflow === 'scroll') {
-                        return;
-                    }
-                    const className = element.className || '';
-                    if (typeof className === 'string' && (className.includes('scroll') || className.includes('modal'))) {
-                        return;
-                    }
-                }
-            }
-
-            e.preventDefault();
-            targetScrollY = Math.max(0, Math.min(
-                document.documentElement.scrollHeight - window.innerHeight,
-                targetScrollY + e.deltaY * 0.85 // Депфирование шага
-            ));
-
-            if (!isMoving) {
-                isMoving = true;
-                requestAnimationFrame(updateScroll);
-            }
-        };
-
-        const updateScroll = () => {
-            const diff = targetScrollY - currentScrollY;
-            if (Math.abs(diff) > 0.5) {
-                currentScrollY += diff * 0.14; // Коэффициент сглаживания t (увеличен с 0.085 для большей упругости/отзывчивости)
-                window.scrollTo(0, currentScrollY);
-                requestAnimationFrame(updateScroll);
-            } else {
-                currentScrollY = targetScrollY;
-                window.scrollTo(0, currentScrollY);
-                isMoving = false;
-            }
-        };
-
-        // Синхронизируем координаты скролла при кликах, переходах или ресайзе
-        const syncScroll = () => {
-            if (!isMoving) {
-                targetScrollY = window.scrollY;
-                currentScrollY = window.scrollY;
-            }
-        };
-
-        window.addEventListener('wheel', onWheel, { passive: false });
-        window.addEventListener('scroll', syncScroll);
-        
-        return () => {
-            window.removeEventListener('wheel', onWheel);
-            window.removeEventListener('scroll', syncScroll);
-        };
-    }, []);
-
-    const audioContextRef = useRef(null);
-    const analyserRef = useRef(null);
-    const animationFrameRef = useRef(null);
-    const canvasRef = useRef(null);
-    const timerIntervalRef = useRef(null);
-    const touchStartX = useRef(0);
-
-    const currentLang = (i18n.language || 'ru').split('-')[0].toLowerCase();
-
-    // 2. Functions
-    const changeLanguage = (lng) => {
-        i18n.changeLanguage(lng);
-        setIsMobileMenuOpen(false);
-    };
-
-
-
-    useEffect(() => {
-        return () => {
-            if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
-            if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current);
-            if (audioContextRef.current) audioContextRef.current.close();
-        };
-    }, []);
-
-    const formatTime = (seconds) => {
-        const mins = Math.floor(seconds / 60);
-        const secs = seconds % 60;
-        return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-    };
-
-    const drawVisualizer = () => {
-        if (!analyserRef.current || !canvasRef.current) return;
-        
-        const canvas = canvasRef.current;
-        const ctx = canvas.getContext('2d');
-        const analyser = analyserRef.current;
-        const bufferLength = analyser.frequencyBinCount;
-        const dataArray = new Uint8Array(bufferLength);
-        
-        const draw = () => {
-            animationFrameRef.current = requestAnimationFrame(draw);
-            analyser.getByteFrequencyData(dataArray);
-            
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            
-            const barWidth = 1.5; // Сделали намного уже
-            let barHeight;
-            let x = 0;
-            
-            // Рисуем только значимые частоты (первые 80%)
-            const countToDraw = Math.min(bufferLength, 100); 
-            
-            for (let i = 0; i < countToDraw; i++) {
-                barHeight = dataArray[i] / 1.5;
-                
-                const gradient = ctx.createLinearGradient(0, canvas.height, 0, 0);
-                gradient.addColorStop(0, '#a855f7');
-                gradient.addColorStop(1, '#6366f1');
-                
-                ctx.fillStyle = gradient;
-                ctx.fillRect(x, canvas.height - barHeight, barWidth, barHeight);
-                x += barWidth + 1.5; // Увеличили плотность
-            }
-        };
-        draw();
-    };
-
-    // Обработчик свайпа для карточек
+    // Flashcards swipe events
     const handleTouchStart = (e) => {
         touchStartX.current = e.touches[0].clientX;
     };
@@ -317,28 +367,36 @@ const Dashboard = () => {
         const diff = touchStartX.current - touchEndX;
 
         if (Math.abs(diff) > 30) { 
-            if (diff > 0) { // Свайп влево = следующая
+            if (diff > 0) {
                 if (currentCardIndex < (activeItem?.analysis?.flashcards?.length - 1)) {
-                    setAnimationClass('sliding-next');
-                    setTimeout(() => {
-                        setIsFlipped(false);
-                        setCurrentCardIndex(p => p + 1);
-                        setAnimationClass('');
-                    }, 500);
+                    nextCard();
                 }
-            } else { // Свайп вправо = предыдущая
+            } else {
                 if (currentCardIndex > 0) {
-                    setAnimationClass('sliding-prev');
-                    setTimeout(() => {
-                        setIsFlipped(false);
-                        setCurrentCardIndex(p => p - 1);
-                        setAnimationClass('');
-                    }, 500);
+                    prevCard();
                 }
             }
         }
     };
 
+    const nextCard = () => {
+        setAnimationClass('sliding-next');
+        setTimeout(() => {
+            setIsFlipped(false);
+            setCurrentCardIndex(p => p + 1);
+            setAnimationClass('');
+        }, 300);
+    };
+    const prevCard = () => {
+        setAnimationClass('sliding-prev');
+        setTimeout(() => {
+            setIsFlipped(false);
+            setCurrentCardIndex(p => p - 1);
+            setAnimationClass('');
+        }, 300);
+    };
+
+    // Scroll to Top
     useEffect(() => {
         let lastShowScrollTop = false;
         const handleScroll = () => {
@@ -367,7 +425,7 @@ const Dashboard = () => {
         }
     }, [isFeedbackModalOpen]);
 
-    // Эффект для обработки перехода с глобальной карты связей (state из react-router)
+    // Handle transition back from GlobalMindMap
     useEffect(() => {
         if (location.state && history.length > 0) {
             const { openItemId, highlightText: stateHighlightText } = location.state;
@@ -375,7 +433,6 @@ const Dashboard = () => {
                 const itemToOpen = history.find(item => String(item.id) === String(openItemId));
                 if (itemToOpen) {
                     openItem(itemToOpen, stateHighlightText);
-                    // Очищаем state, чтобы при перезагрузке страницы не открывалось заново
                     window.history.replaceState({}, document.title);
                 }
             } else if (stateHighlightText) {
@@ -385,7 +442,7 @@ const Dashboard = () => {
         }
     }, [location.state, history]);
 
-    // Эффект для подсветки предложений и прокрутки при клике на ноду карты связей
+    // Highlight text on map node click
     useEffect(() => {
         if (!highlightText || !activeItem) return;
 
@@ -393,7 +450,6 @@ const Dashboard = () => {
         const maxAttempts = 10;
 
         const tryHighlight = () => {
-            // Очищаем предыдущую подсветку
             const prevMarks = document.querySelectorAll('mark.highlight-mark');
             prevMarks.forEach(mark => {
                 const parent = mark.parentNode;
@@ -406,8 +462,7 @@ const Dashboard = () => {
             const query = highlightText.trim();
             if (!query) return;
 
-            // Контейнеры с текстом анализа
-            const containers = document.querySelectorAll('.analysis-summary, .markdown-body, .insight-card, .takeaways-box, .topic-card');
+            const containers = document.querySelectorAll('.analysis-summary, .prose, .insight, .takeaways-box');
             
             if (containers.length === 0) {
                 attempts++;
@@ -418,11 +473,8 @@ const Dashboard = () => {
             }
 
             let foundElement = null;
-
-            // Функция очистки строки от пунктуации и пробелов
             const cleanStr = (s) => s.toLowerCase().replace(/[\s.,\/#!$%\^&\*;:{}=\-_`~()?"'–—]/g, "");
 
-            // Функция поиска индекса совпадения (с поддержкой очистки от пунктуации)
             const findMatchIndex = (text, q) => {
                 let idx = text.toLowerCase().indexOf(q.toLowerCase());
                 if (idx >= 0) return { index: idx, length: q.length };
@@ -454,14 +506,12 @@ const Dashboard = () => {
                     let matchResult = findMatchIndex(text, query);
                     let matchedLength = query.length;
 
-                    // Fallback 1: первые 25 символов
                     if (!matchResult && query.length > 25) {
                         const sub = query.substring(0, 25);
                         matchResult = findMatchIndex(text, sub);
                         if (matchResult) matchedLength = sub.length;
                     }
 
-                    // Fallback 2: первые 15 символов
                     if (!matchResult && query.length > 15) {
                         const sub = query.substring(0, 15);
                         matchResult = findMatchIndex(text, sub);
@@ -505,8 +555,6 @@ const Dashboard = () => {
                     foundElement.classList.remove('pulse-highlight');
                 }, 3000);
             } else {
-                // Если не нашли на этой итерации, но контейнеры уже есть,
-                // возможно данные еще рендерятся внутри них. Попробуем еще раз чуть позже.
                 attempts++;
                 if (attempts < 5) {
                     setTimeout(tryHighlight, 200);
@@ -518,7 +566,7 @@ const Dashboard = () => {
         return () => clearTimeout(timer);
     }, [highlightText, activeItem, currentTab]);
 
-    // авто-перенаправления через WebSockets с резервным HTTP-пуллингом
+    // WebSocket auto-polling with fallback HTTP checks
     useEffect(() => {
         if (!pollingJobId) return;
 
@@ -550,13 +598,11 @@ const Dashboard = () => {
             }, 3000);
         };
 
-        // Подписываемся на события общего WebSocket
         const unsubscribe = addSocketListener(async (data) => {
             try {
-                console.log("📥 WebSocket message received (via shared socket):", data);
+                console.log("📥 WebSocket message received:", data);
                 if (data.type === 'status' && data.jobId === pollingJobId) {
                     if (data.status === 'COMPLETED') {
-                        console.log("🎉 Analysis completed! Fetching results...");
                         try {
                             const res = await api.get('/history');
                             const historyData = res.data.items || [];
@@ -569,12 +615,11 @@ const Dashboard = () => {
                                 openItem(finishedJob);
                                 loadHistory();
 
-                                // Show feedback prompt every 2nd completed analysis
+                                // Feedback prompt on 2nd completed analysis
                                 const prevCount = parseInt(localStorage.getItem('analysisCompletedCount') || '0', 10);
                                 const nextCount = prevCount + 1;
                                 localStorage.setItem('analysisCompletedCount', String(nextCount));
                                 if (nextCount % 2 === 0) {
-                                    // Small delay so the results panel has time to render first
                                     setTimeout(() => setIsFeedbackPromptOpen(true), 1500);
                                 }
                             } else {
@@ -585,7 +630,6 @@ const Dashboard = () => {
                             startHttpFallback();
                         }
                     } else if (data.status.startsWith('FAILED')) {
-                        console.error("❌ Analysis failed:", data.status);
                         setPollingJobId(null);
                         setStatus('Ошибка добавления задачи');
                         alert(`Ошибка анализа: ${data.status.replace('FAILED:', '')}`);
@@ -597,12 +641,10 @@ const Dashboard = () => {
                     }
                 }
             } catch (err) {
-                console.error("Error processing WebSocket message in Dashboard:", err);
+                console.error("Error processing WebSocket message:", err);
             }
         });
 
-        // Отправляем подписку на задачу через общий вебсокет
-        console.log(`🔌 Subscribing to job updates via shared WebSocket: ${pollingJobId}`);
         sendSocketMessage({
             type: 'subscribe',
             jobId: pollingJobId
@@ -610,9 +652,7 @@ const Dashboard = () => {
 
         return () => {
             unsubscribe();
-            if (pollInterval) {
-                clearInterval(pollInterval);
-            }
+            if (pollInterval) clearInterval(pollInterval);
         };
     }, [pollingJobId]);
 
@@ -663,7 +703,6 @@ const Dashboard = () => {
                     alert("Пожалуйста, введите ссылку на YouTube");
                     return;
                 }
-                // Больше не передаем language, так как анализ теперь мультиязычный
                 response = await api.post('/upload/youtube', { url: youtubeUrl });
                 setYoutubeUrl('');
             } else if (inputMode === 'file' || inputMode === 'record') {
@@ -691,12 +730,11 @@ const Dashboard = () => {
         }
     };
 
-    // Логика записи
+    // Live Audio Recording Controls
     const startRecording = async () => {
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
             
-            // Настройка визуализатора
             const audioContext = new (window.AudioContext || window.webkitAudioContext)();
             const source = audioContext.createMediaStreamSource(stream);
             const analyser = audioContext.createAnalyser();
@@ -722,12 +760,10 @@ const Dashboard = () => {
             setIsRecording(true);
             setRecordingTime(0);
 
-            // Таймер
             timerIntervalRef.current = setInterval(() => {
                 setRecordingTime(prev => prev + 1);
             }, 1000);
 
-            // Визуал (ждем пока отрисуется канвас)
             setTimeout(drawVisualizer, 100);
 
         } catch (err) {
@@ -743,12 +779,12 @@ const Dashboard = () => {
             mediaRecorder.stream.getTracks().forEach(track => track.stop());
 
             if (timerIntervalRef.current) {
-            clearInterval(timerIntervalRef.current);
+                clearInterval(timerIntervalRef.current);
                 timerIntervalRef.current = null;
             }
 
             if (animationFrameRef.current) {
-            cancelAnimationFrame(animationFrameRef.current);
+                cancelAnimationFrame(animationFrameRef.current);
             }
 
             if (audioContextRef.current) {
@@ -758,8 +794,8 @@ const Dashboard = () => {
     };
 
     const deleteHistoryItem = async (e, id) => {
-        e.stopPropagation(); // Чтобы не открывалась карточка
-        if (!window.confirm(t('confirm_delete'))) return;
+        e.stopPropagation();
+        if (!window.confirm(t('confirm_delete', 'Вы уверены, что хотите удалить эту запись?'))) return;
 
         try {
             await api.delete(`/history/${id}`);
@@ -791,25 +827,6 @@ ${detailed}`;
         });
     };
 
-    // Навигация по карточкам
-
-    const nextCard = () => {
-        setAnimationClass('sliding-next');
-        setTimeout(() => {
-            setIsFlipped(false);
-            setCurrentCardIndex(p => p + 1);
-            setAnimationClass('');
-        }, 500);
-    };
-    const prevCard = () => {
-        setAnimationClass('sliding-prev');
-        setTimeout(() => {
-            setIsFlipped(false);
-            setCurrentCardIndex(p => p - 1);
-            setAnimationClass('');
-        }, 500);
-    };
-
     const getMarkdownText = (data) => {
         if (!data) return '';
         if (typeof data === 'string') return data;
@@ -817,7 +834,6 @@ ${detailed}`;
         return JSON.stringify(data, null, 2); 
     };
 
-    // Хелпер для получения текста на нужном языке (с фолбеком на строку)
     const getLangText = (obj) => {
         if (!obj) return '';
         if (typeof obj === 'string') return obj;
@@ -826,22 +842,44 @@ ${detailed}`;
 
     return (
         <>
+            {/* Cosmic Solar System Intro Background (rendered when not completed) */}
             <SolarSystemBackground 
                 history={history} 
                 introState={introState} 
                 onIntroComplete={handleIntroComplete}
                 isPaused={isFeedbackModalOpen || isFeedbackPromptOpen}
             />
+
             {introState === 'playing' && (
                 <button className="skip-intro-btn" onClick={skipIntro}>
                     {t('skip_intro', 'Пропустить')}
                 </button>
             )}
+
             <div className={`dashboard-container ${introState === 'completed' ? 'intro-fade-in' : 'intro-active'} ${isInitiallySkipped ? 'intro-fast' : ''}`}>
-            <header className="top-nav">
-                <button className="hamburger" onClick={() => setIsMobileMenuOpen(true)}>☰</button>
-                <div className="logo">{t('app_name')}</div>
-                <div className="nav-links-desktop">
+                {/* Redesigned Premium Top Navigation */}
+                <header className="top-nav">
+                    <button className="hamburger" onClick={() => setIsMobileMenuOpen(true)}>☰</button>
+                    <div className="logo" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <Icon name="sparkles" size={17} style={{ color: 'var(--accent-primary)' }} />
+                        <span>AI Transcription</span>
+                    </div>
+                    <div className="nav-links-desktop">
+                        <NavItems 
+                            userRole={userRole} 
+                            changeLanguage={changeLanguage} 
+                            i18n={i18n} 
+                            setIsMobileMenuOpen={setIsMobileMenuOpen} 
+                            setIsFeedbackModalOpen={setIsFeedbackModalOpen} 
+                            t={t} 
+                        />
+                    </div>
+                </header>
+
+                {/* Mobile Drawer Overlay */}
+                <div className={`mobile-overlay ${isMobileMenuOpen ? 'open' : ''}`} onClick={() => setIsMobileMenuOpen(false)} />
+                <div className={`mobile-menu-drawer ${isMobileMenuOpen ? 'open' : ''}`}>
+                    <button style={{background:'none', border:'none', color:'white', fontSize:'24px', alignSelf:'flex-end', marginBottom:'20px', cursor:'pointer'}} onClick={() => setIsMobileMenuOpen(false)}>×</button>
                     <NavItems 
                         userRole={userRole} 
                         changeLanguage={changeLanguage} 
@@ -851,238 +889,388 @@ ${detailed}`;
                         t={t} 
                     />
                 </div>
-            </header>
 
-            <div className={`mobile-overlay ${isMobileMenuOpen ? 'open' : ''}`} onClick={() => setIsMobileMenuOpen(false)} />
-            <div className={`mobile-menu-drawer ${isMobileMenuOpen ? 'open' : ''}`}>
-                <button style={{background:'none', border:'none', color:'white', fontSize:'24px', alignSelf:'flex-end', marginBottom:'20px', cursor:'pointer'}} onClick={() => setIsMobileMenuOpen(false)}>×</button>
-                <NavItems 
-                    userRole={userRole} 
-                    changeLanguage={changeLanguage} 
-                    i18n={i18n} 
-                    setIsMobileMenuOpen={setIsMobileMenuOpen} 
-                    setIsFeedbackModalOpen={setIsFeedbackModalOpen} 
-                    t={t} 
-                />
-            </div>
+                {!activeItem ? (
+                    <div className="fade-in">
+                        {/* Redesigned Hero with snapping star field */}
+                        <section className="hero">
+                            <div className="hero__canvas">
+                                {introState === 'completed' && (
+                                    <HeroParticles triggerRef={heroTriggerRef} density={130} accent="#8AB4F8" />
+                                )}
+                            </div>
+                            <div className="hero__wrap">
+                                <span className="hero__eyebrow">
+                                    <span className="dot" />
+                                    {t('hero_eyebrow', 'ИИ-генератор · 3 кредита сегодня')}
+                                </span>
+                                <div ref={heroTriggerRef} className="hero__trigger">
+                                    <h1 className="hero__title">{t('hero_title', 'Преврати видео в знания')}</h1>
+                                    <p className="hero__sub">{t('hero_subtitle', 'ИИ соберёт конспект, 10 вопросов теста и колоду карточек за минуту.')}</p>
 
-            {!activeItem ? (
-                <div className="fade-in-up">
-                    <section className="hero-section" style={{ position: 'relative' }}>
-                        {introState === 'completed' && <HeroParticles />}
-                        <h1 style={{ position: 'relative', zIndex: 2 }}>{t('hero_title')}</h1>
-                        <p style={{ position: 'relative', zIndex: 2 }}>{t('hero_subtitle')}</p>
-                        
-                        <div className="mode-selector">
-                            <button className={inputMode === 'youtube' ? 'active' : ''} onClick={() => setInputMode('youtube')}>{t('type_youtube')}</button>
-                            <button className={inputMode === 'file' ? 'active' : ''} onClick={() => setInputMode('file')}>{t('type_upload')}</button>
-                            <button className={inputMode === 'record' ? 'active' : ''} onClick={() => setInputMode('record')}>{t('type_record')}</button>
-                        </div>
-
-                        <form className="input-group" onSubmit={handleSubmit}>
-                            {inputMode === 'youtube' && (
-                                <input 
-                                    type="url" 
-                                    className="yt-input" 
-                                    placeholder={t('input_placeholder')} 
-                                    value={youtubeUrl}
-                                    onChange={(e) => setYoutubeUrl(e.target.value)}
-                                    disabled={!!pollingJobId}
-                                    required
-                                />
-                            )}
-
-                            {inputMode === 'file' && (
-                                <div className="file-input-wrapper">
-                                    <input 
-                                        type="file" 
-                                        accept="audio/*,video/*"
-                                        onChange={(e) => setSelectedFile(e.target.files[0])}
-                                        disabled={!!pollingJobId}
-                                        className="file-input-hidden"
-                                        id="file-upload"
-                                    />
-                                    <label htmlFor="file-upload" className="yt-input file-label">
-                                        {selectedFile ? selectedFile.name : t('upload_placeholder')}
-                                    </label>
-                                </div>
-                            )}
-
-                            {inputMode === 'record' && (
-                                <div className="record-controls">
-                                    <div className="record-status-container">
-                                        {!isRecording ? (
-                                            <button type="button" className="btn-record" onClick={startRecording} disabled={!!pollingJobId}>
-                                                {t('record_start')}
+                                    <div className="modes" ref={modeListRef}>
+                                        <span className="modes__pill" style={{ left: modePill.left, width: modePill.width }} />
+                                        {MODES.map(m => (
+                                            <button
+                                                key={m.id}
+                                                className={`mode ${inputMode === m.id ? 'is-active' : ''}`}
+                                                onClick={() => {
+                                                    setInputMode(m.id);
+                                                    setSelectedFile(null);
+                                                    stopRecording();
+                                                }}
+                                            >
+                                                <Icon name={m.icon} size={14} />
+                                                {m.label}
                                             </button>
-                                        ) : (
-                                            <div className="recording-active-ui">
-                                                <button type="button" className="btn-record recording" onClick={stopRecording}>
-                                                    {t('record_stop')}
-                                                </button>
-                                                <span className="recording-timer">{formatTime(recordingTime)}</span>
-                                                <canvas ref={canvasRef} className="visualizer-canvas" width="300" height="40"></canvas>
+                                        ))}
+                                    </div>
+
+                                    <div className="input-row">
+                                        {inputMode === 'youtube' && (
+                                            <div style={{ flex: 1, position: 'relative' }}>
+                                                <span className="field-icon">
+                                                    <Icon name="link" size={17} />
+                                                </span>
+                                                <input 
+                                                    className="field" 
+                                                    placeholder="Вставь ссылку на YouTube..."
+                                                    value={youtubeUrl}
+                                                    onChange={e => setYoutubeUrl(e.target.value)}
+                                                    onKeyDown={e => { if (e.key === 'Enter') handleSubmit(e); }}
+                                                    disabled={!!pollingJobId}
+                                                />
                                             </div>
                                         )}
-                                        {selectedFile && !isRecording && (
-                                            <span className="file-ready-badge">{t('record_ready')}</span>
-                                        )}
-                                    </div>
-                                </div>
-                            )}
 
-                            <button type="submit" className="btn-primary" disabled={!!pollingJobId || (inputMode !== 'youtube' && !selectedFile)}>
-                                {pollingJobId ? t('btn_loading') : t('btn_process')}
-                            </button>
-                        </form>
-                        {status && <div className="status-pulse">{status}</div>}
-                    </section>
-
-                    <section>
-                        <h2 className="section-title">{t('library')}</h2>
-                        <div className="history-grid">
-                            {history.map((item) => {
-                                const analysis = typeof item.structured_analysis === 'string' 
-                                    ? JSON.parse(item.structured_analysis) 
-                                    : item.structured_analysis;
-                                const isReady = !!analysis;
-
-                                return (
-                                    <div key={item.id} className={`history-card ${!isReady ? 'processing' : ''}`} onClick={() => isReady && openItem(item)}>
-                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                                            <h3>{isReady ? getLangText(analysis.title) : `${t('history_item_title')} #${item.job_id}`}</h3>
-                                            <button 
-                                                className="delete-item-btn" 
-                                                onClick={(e) => deleteHistoryItem(e, item.id)}
-                                                title={t('delete_btn')}
+                                        {inputMode === 'file' && (
+                                            <div 
+                                                className="file-upload-drag-zone" 
+                                                onClick={() => !pollingJobId && document.getElementById('file-input').click()}
+                                                style={{
+                                                    border: '1px dashed var(--border-medium)',
+                                                    borderRadius: '12px',
+                                                    padding: '16px 24px',
+                                                    textAlign: 'center',
+                                                    cursor: 'pointer',
+                                                    background: 'var(--bg-surface)',
+                                                    width: '100%',
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    justifyContent: 'center',
+                                                    gap: 12,
+                                                    transition: 'all 0.2s'
+                                                }}
                                             >
-                                                {t('delete_btn')}
-                                            </button>
-                                        </div>
-                                        <p>
-                                            {!isReady 
-                                                ? t('status_processing', 'Видео в процессе обработки...') 
-                                                : (getLangText(analysis.summary).substring(0, 80) + '...')}
-                                        </p>
-                                        {isReady && <span className="card-link">{t('open_btn', 'Открыть')}</span>}
-                                    </div>
-                                )
-                            })}
-                        </div>
-                    </section>
-                </div>
-            ) : (
-                <div className="fade-in">
-                    <div className="analysis-header">
-                        <button className="back-btn" onClick={() => { setActiveItem(null); setHighlightText(null); }} style={{ marginBottom: 0 }}>
-                            {t('back_btn')}
-                        </button>
-                        <button className="btn-primary copy-btn" onClick={copyToClipboard}>
-                            {t('copy_btn')}
-                        </button>
-                    </div>
-                    
-                    <div className="tabs-container">
-                        {['summary', 'mindmap', 'flashcards', 'quiz', 'transcript'].map(tab => (
-                            <button 
-                                key={tab}
-                                className={`tab-btn ${currentTab === tab ? 'active' : ''}`} 
-                                onClick={() => setCurrentTab(tab)}
-                            >
-                                {tab === 'summary' && t('tab_summary', 'Анализ')}
-                                {tab === 'mindmap' && t('tab_mindmap', 'Карта')}
-                                {tab === 'flashcards' && t('tab_flashcards', 'Карточки')}
-                                {tab === 'quiz' && t('tab_quiz', 'Тест')}
-                                {tab === 'transcript' && t('tab_text', 'Текст')}
-                            </button>
-                        ))}
-                    </div>
+                                                <Icon name="upload" size={17} style={{ color: 'var(--accent-primary)' }} />
+                                                <p style={{ margin: 0, fontSize: 13, color: 'var(--text-secondary)' }}>
+                                                    {selectedFile ? `${t('file_selected', 'Выбран файл:')} ${selectedFile.name}` : t('drag_and_drop', 'Перетащи файл или нажми, чтобы загрузить')}
+                                                </p>
+                                                <input 
+                                                    id="file-input"
+                                                    type="file"
+                                                    accept="audio/*,video/*"
+                                                    style={{ display: 'none' }}
+                                                    onChange={e => {
+                                                        if (e.target.files && e.target.files[0]) {
+                                                            setSelectedFile(e.target.files[0]);
+                                                        }
+                                                    }}
+                                                />
+                                            </div>
+                                        )}
 
-                    <div className="content-box slide-up">
+                                        {inputMode === 'record' && (
+                                            <div style={{ flex: 1, display: 'flex', justifyContent: 'center' }}>
+                                                {isRecording ? (
+                                                    <div className="record-controls">
+                                                        <div className="recording-active-ui">
+                                                            <button type="button" className="btn-record recording" onClick={stopRecording}>■</button>
+                                                            <span className="recording-timer">{formatTime(recordingTime)}</span>
+                                                            <canvas ref={canvasRef} className="visualizer-canvas" />
+                                                        </div>
+                                                    </div>
+                                                ) : selectedFile ? (
+                                                    <div className="record-controls">
+                                                        <div className="record-status-container">
+                                                            <button type="button" className="btn btn--danger btn--sm" onClick={() => setSelectedFile(null)}>
+                                                                <Icon name="trash" size={12} />
+                                                                {t('delete_btn', 'Удалить')}
+                                                            </button>
+                                                            <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
+                                                                🎙️ {t('record_ready', 'Аудиофайл готов к отправке')} ({selectedFile ? (selectedFile.size / (1024 * 1024)).toFixed(2) + ' MB' : ''})
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                ) : (
+                                                    <button type="button" className="btn btn--ghost" onClick={startRecording} style={{ width: '100%' }}>
+                                                        <Icon name="mic" size={15} style={{ color: '#ef4444' }} />
+                                                        {t('start_recording', 'Начать запись голоса')}
+                                                    </button>
+                                                )}
+                                            </div>
+                                        )}
+
+                                        <button 
+                                            className="btn btn--primary" 
+                                            onClick={handleSubmit} 
+                                            disabled={!!pollingJobId || (inputMode === 'youtube' ? !youtubeUrl : !selectedFile)}
+                                            style={{ height: 44 }}
+                                        >
+                                            {pollingJobId ? t('btn_loading', 'В работе...') : t('btn_process', 'Создать разбор')}
+                                            <Icon name={pollingJobId ? 'loader' : 'arrow_up_right'} className={pollingJobId ? 'spin' : ''} size={15} />
+                                        </button>
+                                    </div>
+
+                                    {status && (
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 16, color: 'var(--text-secondary)', fontSize: 13 }}>
+                                            <span className="status-dot status-dot--pending spin" />
+                                            <span>{status}</span>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        </section>
+
+                        {/* Library Grid with premium redesigned cards */}
+                        <section className="page" style={{ padding: '0 24px', maxWidth: '1200px', margin: '0 auto' }}>
+                            <div className="library-head" style={{ marginBottom: 20 }}>
+                                <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 20, fontWeight: 600, margin: 0 }}>
+                                    {t('library', 'Твоя библиотека')}
+                                </h2>
+                                <span style={{ color: 'var(--text-tertiary)', fontSize: 13 }}>
+                                    {history.length} {t('items_count', 'разборов')}
+                                </span>
+                            </div>
+
+                            <div className="grid">
+                                {history.map((item) => {
+                                    const analysis = typeof item.structured_analysis === 'string' 
+                                        ? JSON.parse(item.structured_analysis) 
+                                        : item.structured_analysis;
+                                    const isReady = !!analysis;
+
+                                    return (
+                                        <article key={item.id} className="card fade-in" onClick={() => isReady && openItem(item)}>
+                                            <div className="card__head">
+                                                <h3 className="card__title">
+                                                    {isReady ? getLangText(analysis.title) : `${t('history_item_title', 'Разбор')} #${item.job_id}`}
+                                                </h3>
+                                                <button
+                                                    className="card__delete"
+                                                    aria-label="Удалить"
+                                                    onClick={(e) => deleteHistoryItem(e, item.id)}
+                                                >
+                                                    <Icon name="trash" size={15} />
+                                                </button>
+                                            </div>
+                                            <p className="card__sub">
+                                                {!isReady 
+                                                    ? t('status_processing', 'Видео в процессе обработки ИИ...') 
+                                                    : (getLangText(analysis.summary).substring(0, 110) + '...')}
+                                            </p>
+                                            <div className="card__foot">
+                                                <span className="card__date">
+                                                    <Icon name="clock" size={12} />
+                                                    {new Date(item.created_at || item.createdAt || Date.now()).toLocaleDateString()}
+                                                </span>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                                                    {isReady ? (
+                                                        <>
+                                                            <span className="card__lang" style={{ textTransform: 'uppercase' }}>
+                                                                {item.language || 'ru'}
+                                                            </span>
+                                                            <span style={{ color: 'var(--accent-primary)', fontSize: 13, fontWeight: 500, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                                                                {t('open_btn', 'Открыть')}
+                                                                <Icon name="arrow_right" size={13} />
+                                                            </span>
+                                                        </>
+                                                    ) : (
+                                                        <span className="status-dot status-dot--pending">В работе</span>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        </article>
+                                    );
+                                })}
+                            </div>
+                        </section>
+                    </div>
+                ) : (
+                    /* Redesigned detail screen views */
+                    <main className="page" data-screen-label="detail" style={{ maxWidth: 840, margin: '0 auto', padding: '0 24px 80px' }}>
+                        <a className="crumb" onClick={(e) => { e.preventDefault(); setActiveItem(null); setHighlightText(null); }} href="#">
+                            <Icon name="arrow_left" size={14} />
+                            {t('back_btn', 'Назад в библиотеку')}
+                        </a>
+
+                        <div className="detail-head">
+                            <div>
+                                <h1 className="detail-title">
+                                    {getLangText(activeItem.analysis?.title) || `Analysis #${activeItem.job_id}`}
+                                </h1>
+                                <div className="detail-meta">
+                                    <span className="detail-meta__item">
+                                        <Icon name="calendar" size={13} /> 
+                                        {new Date(activeItem.created_at || activeItem.createdAt || Date.now()).toLocaleDateString()}
+                                    </span>
+                                    <span className="detail-meta__item" style={{ textTransform: 'uppercase' }}>
+                                        <Icon name="globe" size={13} /> 
+                                        {activeItem.language || 'ru'}
+                                    </span>
+                                </div>
+                            </div>
+                            <div style={{ display: 'flex', gap: 8 }}>
+                                <button className="btn btn--ghost btn--sm" onClick={copyToClipboard}>
+                                    <Icon name="copy" size={14} />
+                                    {t('copy_btn', 'Копировать')}
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Sliding Tabs selection underline */}
+                        <div className="tabs" ref={detailTabsRef}>
+                            {DETAIL_TABS.map(tab => (
+                                <button 
+                                    key={tab.id}
+                                    className={`tab ${currentTab === tab.id ? 'is-active' : ''}`} 
+                                    onClick={() => setCurrentTab(tab.id)}
+                                >
+                                    <Icon name={tab.icon} size={14} />
+                                    {tab.label}
+                                </button>
+                            ))}
+                            <span className="tab__indicator" style={{ left: tabIndicator.left, width: tabIndicator.width }} />
+                        </div>
+
+                        {/* Analysis list Tab */}
                         {currentTab === 'summary' && (
-                            <div className="analysis-layout">
-                                <div className="markdown-body hero-summary">
+                            <div className="fade-in">
+                                <div className="prose hero-summary">
                                     <ReactMarkdown remarkPlugins={[remarkGfm]}>
                                         {getMarkdownText(getLangText(activeItem.analysis?.summary))}
                                     </ReactMarkdown>
                                 </div>
 
-                                <h2 className="section-title" style={{marginTop: '40px'}}>{t('key_insights')}</h2>
-                                <div className="insights-grid">
+                                <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 20, fontWeight: 600, margin: '48px 0 24px' }}>
+                                    {t('key_insights', 'Ключевые инсайты')}
+                                </h2>
+
+                                <div className="insights">
                                     {activeItem.analysis?.key_topics?.map((topic, i) => (
-                                    <div key={i} className="insight-card">
-                                            <div className="insight-icon">{t('insight_part')} {i + 1}</div>
-                                            <div>
-                                        <h4>{getLangText(topic.title)}</h4>
-                                                <ul className="insight-points">
+                                        <div key={i} className="insight">
+                                            <div className={`insight__bar insight__bar--${['primary', 'secondary', 'success', 'warning'][i % 4]}`} />
+                                            <div className="insight__body">
+                                                <span className="insight__chip">{t('insight_part', 'Часть')} {i + 1}</span>
+                                                <h3 className="insight__title">{getLangText(topic.title)}</h3>
+                                                <ul className="insight__list">
                                                     {(topic.key_points?.[currentLang] || topic.key_points?.['ru'] || topic.key_points)?.map((pt, j) => <li key={j}>{pt}</li>)}
                                                 </ul>
-                                                <div className="insight-relevance">
+                                                <p style={{ color: 'var(--text-tertiary)', fontSize: 13, marginTop: 12, fontStyle: 'italic' }}>
                                                     <strong>{t('why_important', 'Почему это важно:')}</strong> {getLangText(topic.relevance)}
-                                    </div>
+                                                </p>
                                             </div>
                                         </div>
                                     ))}
                                 </div>
 
-                                <h2 className="section-title" style={{marginTop: '50px'}}>{t('detailed_analysis')}</h2>
-                                <div className="markdown-body detailed-content">
+                                <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 20, fontWeight: 600, margin: '64px 0 24px' }}>
+                                    {t('detailed_analysis', 'Подробный разбор')}
+                                </h2>
+                                <div className="prose detailed-content" style={{ marginBottom: 48 }}>
                                     <ReactMarkdown remarkPlugins={[remarkGfm]}>
                                         {getMarkdownText(getLangText(activeItem.analysis?.detailed_analysis))}
                                     </ReactMarkdown>
                                 </div>
 
-                                <div className="takeaways-box">
-                                    <h3>{t('takeaways', 'Главные выводы')}</h3>
-                                    <ul>
-                                        {(activeItem.analysis?.takeaways?.[currentLang] || activeItem.analysis?.takeaways?.['ru'] || activeItem.analysis?.takeaways)?.map((item, i) => (
-                                            <li key={i}>{item}</li>
-                                        ))}
-                                    </ul>
+                                <div style={{ display: 'grid', gap: 0, background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', borderRadius: 12, padding: '8px 24px' }}>
+                                    <h3 style={{ fontFamily: 'var(--font-display)', fontSize: 15, fontWeight: 600, margin: '16px 0 8px' }}>
+                                        {t('takeaways', 'Главные выводы')}
+                                    </h3>
+                                    {(activeItem.analysis?.takeaways?.[currentLang] || activeItem.analysis?.takeaways?.['ru'] || activeItem.analysis?.takeaways)?.map((item, i) => (
+                                        <div key={i} style={{ display: 'flex', gap: 16, padding: '16px 0', borderBottom: i === ((activeItem.analysis?.takeaways?.length || 1) - 1) ? 'none' : '1px solid var(--border-subtle)' }}>
+                                            <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--accent-primary)', fontSize: 12, marginTop: 2, minWidth: 18 }}>
+                                                0{i + 1}
+                                            </span>
+                                            <p style={{ margin: 0, color: '#D9DBDE', fontSize: 14.5, lineHeight: 1.6 }}>{item}</p>
+                                        </div>
+                                    ))}
                                 </div>
                             </div>
                         )}
 
+                        {/* Interactive Mindmap node graph Tab */}
                         {currentTab === 'mindmap' && activeItem.mindmap && (
-                            <MindMap 
-                                data={activeItem.mindmap} 
-                                onNavigateToTopic={(topicName) => {
-                                    setCurrentTab('summary');
-                                    setHighlightText(topicName);
-                                }}
-                            />
-                        )}
-
-                        {currentTab === 'transcript' && (
-                            <div className="transcript-text">
-                                {activeItem.raw_text}
+                            <div className="fade-in">
+                                <MindMap 
+                                    data={activeItem.mindmap} 
+                                    onNavigateToTopic={(topicName) => {
+                                        setCurrentTab('summary');
+                                        setHighlightText(topicName);
+                                    }}
+                                />
                             </div>
                         )}
 
-                        {currentTab === 'flashcards' && (
-                            <div className="carousel-section">
-                                <button className="arrow-btn prev" onClick={prevCard} disabled={currentCardIndex === 0}>‹</button>
-
-                                <div className={`flashcard-scene ${animationClass}`} onClick={() => setIsFlipped(!isFlipped)} onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd}>
-                                    <div className={`flashcard-inner ${isFlipped ? 'is-flipped' : ''}`}>
-                                        <div className="flashcard-front">
-                                            <span className="card-counter">{currentCardIndex + 1} / {activeItem.analysis?.flashcards?.length}</span>
-                                            <h3>{getLangText(activeItem.analysis?.flashcards?.[currentCardIndex]?.question)}</h3>
-                                            <span className="flip-hint">{t('click_to_flip', 'Нажми, чтобы перевернуть')}</span>
+                        {/* Flip Flashcards Tab */}
+                        {currentTab === 'flashcards' && activeItem.analysis?.flashcards && (
+                            <div className="fade-in" style={{ padding: '24px 0' }}>
+                                <div className="flash-stage">
+                                    <button 
+                                        className="flash-arrow" 
+                                        onClick={prevCard} 
+                                        disabled={currentCardIndex === 0} 
+                                        aria-label="Назад"
+                                    >
+                                        <Icon name="chevron_left" size={18} />
+                                    </button>
+                                    <div
+                                        className={`flash-card ${isFlipped ? 'is-flipped' : ''} ${animationClass}`}
+                                        onClick={() => setIsFlipped(!isFlipped)}
+                                        onTouchStart={handleTouchStart}
+                                        onTouchEnd={handleTouchEnd}
+                                    >
+                                        <div className="flash-face">
+                                            <span className="flash-face__count">
+                                                {currentCardIndex + 1} / {activeItem.analysis.flashcards.length}
+                                            </span>
+                                            <p className="flash-face__q">
+                                                {getLangText(activeItem.analysis.flashcards[currentCardIndex]?.question)}
+                                            </p>
+                                            <span className="flash-face__hint">{t('click_to_flip', 'Нажми, чтобы перевернуть')}</span>
                                         </div>
-                                        <div className="flashcard-back">
-                                            <p>{getLangText(activeItem.analysis?.flashcards?.[currentCardIndex]?.answer)}</p>
+                                        <div className="flash-face flash-face--back">
+                                            <span className="flash-face__count">
+                                                {currentCardIndex + 1} / {activeItem.analysis.flashcards.length}
+                                            </span>
+                                            <p className="flash-face__a">
+                                                {getLangText(activeItem.analysis.flashcards[currentCardIndex]?.answer)}
+                                            </p>
+                                            <span className="flash-face__hint">{t('click_to_flip', 'Нажми, чтобы перевернуть')}</span>
                                         </div>
                                     </div>
+                                    <button 
+                                        className="flash-arrow" 
+                                        onClick={nextCard} 
+                                        disabled={currentCardIndex === (activeItem.analysis.flashcards.length - 1)} 
+                                        aria-label="Дальше"
+                                    >
+                                        <Icon name="chevron_right" size={18} />
+                                    </button>
                                 </div>
-
-                                <button className="arrow-btn next" onClick={nextCard} disabled={currentCardIndex === (activeItem.analysis?.flashcards?.length - 1)}>›</button>
+                                <div className="flash-progress">
+                                    <div className="flash-progress__bar" style={{ width: `${((currentCardIndex + 1) / activeItem.analysis.flashcards.length) * 100}%` }} />
+                                </div>
+                                <p style={{ textAlign: 'center', color: 'var(--text-tertiary)', fontSize: 12.5, marginTop: 16 }}>
+                                    {t('flashcard_tip', '←/→ для навигации, кликайте на карточку для переворота')}
+                                </p>
                             </div>
                         )}
 
-                        {currentTab === 'quiz' && (
-                            <div className="quiz-container">
-                                {activeItem.analysis?.quiz?.map((q, qIndex) => {
+                        {/* Interactive Quiz questions Tab */}
+                        {currentTab === 'quiz' && activeItem.analysis?.quiz && (
+                            <div className="fade-in">
+                                {activeItem.analysis.quiz.map((q, qIndex) => {
                                     const options = q.options?.[currentLang] || q.options?.['ru'] || q.options;
                                     const correctAnswer = getLangText(q.correct_answer);
                                     
@@ -1091,344 +1279,204 @@ ${detailed}`;
                                     const isRevealed = revealedAnswers[qIndex];
 
                                     return (
-                                <div key={qIndex} className="quiz-card">
-                                            <h3><span className="q-num">{qIndex + 1}</span> {getLangText(q.question)}</h3>
-                                            <div className="options-grid">
+                                        <div key={qIndex} className="quiz-q">
+                                            <div className="quiz-q__head">
+                                                <span className="quiz-q__num">{qIndex + 1}</span>
+                                                <h3 className="quiz-q__title">{getLangText(q.question)}</h3>
+                                            </div>
+                                            <div className="quiz-opts">
                                                 {options?.map((opt, optIndex) => {
-                                                    let btnClass = "quiz-option";
+                                                    let cls = "quiz-opt";
+                                                    const isOptChosen = quizAnswers[qIndex] === opt;
+                                                    
                                                     if (isAnswered || isRevealed) {
-                                                        if (opt === correctAnswer && (isCorrect || isRevealed)) btnClass += " correct";
-                                                        else if (quizAnswers[qIndex] === opt && !isCorrect) btnClass += " wrong";
-                                                        else btnClass += " disabled";
+                                                        if (opt === correctAnswer) {
+                                                            cls += " is-correct";
+                                                        } else if (isOptChosen) {
+                                                            cls += " is-wrong";
+                                                        }
                                                     }
 
                                                     return (
-                                                        <button 
-                                                            key={optIndex} 
-                                                            className={btnClass}
+                                                        <button
+                                                            key={optIndex}
+                                                            className={cls}
                                                             onClick={() => !isAnswered && setQuizAnswers({...quizAnswers, [qIndex]: opt})}
                                                             disabled={isAnswered || isRevealed}
                                                         >
-                                                            {opt}
+                                                            <span className="quiz-opt__mark">
+                                                                {((isAnswered || isRevealed) && opt === correctAnswer) && (
+                                                                    <Icon name="check" size={11} strokeWidth={3} />
+                                                                )}
+                                                                {((isAnswered || isRevealed) && isOptChosen && !isCorrect) && (
+                                                                    <Icon name="x" size={11} strokeWidth={3} />
+                                                                )}
+                                                            </span>
+                                                            <span>{opt}</span>
                                                         </button>
-                                                    )
+                                                    );
                                                 })}
-                                </div>
-                                            {isAnswered && !isCorrect && !isRevealed && (
-                                                <button className="reveal-btn fade-in" onClick={() => setRevealedAnswers({...revealedAnswers, [qIndex]: true})}>
+                                            </div>
+                                            {(isAnswered && !isCorrect && !isRevealed) && (
+                                                <button 
+                                                    className="btn btn--ghost btn--sm" 
+                                                    style={{ marginTop: 12 }} 
+                                                    onClick={() => setRevealedAnswers({...revealedAnswers, [qIndex]: true})}
+                                                >
                                                     {t('show_answer', 'Показать правильный ответ')}
                                                 </button>
                                             )}
                                         </div>
-                                    )
+                                    );
                                 })}
+                            </div>
+                        )}
+
+                        {/* Raw Transcript Text Tab */}
+                        {currentTab === 'transcript' && (
+                            <div className="prose fade-in" style={{ whiteSpace: 'pre-wrap', lineHeight: '1.7', color: 'var(--text-secondary)', fontSize: '14.5px' }}>
+                                {activeItem.raw_text}
+                            </div>
+                        )}
+                    </main>
+                )}
+            </div>
+
+            {/* Scroll to Top floating action button */}
+            {showScrollTop && (
+                <button 
+                    onClick={scrollToTop}
+                    style={{
+                        position: 'fixed',
+                        bottom: '30px',
+                        right: '30px',
+                        width: '44px',
+                        height: '44px',
+                        borderRadius: '50%',
+                        backgroundColor: 'var(--accent-primary)',
+                        color: 'var(--bg-base)',
+                        border: 'none',
+                        cursor: 'pointer',
+                        boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        zIndex: 999,
+                        transition: 'transform 0.2s'
+                    }}
+                    onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.05)'}
+                    onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}
+                >
+                    <Icon name="chevron_up" size={18} strokeWidth={2.5} />
+                </button>
+            )}
+
+            {/* Interactive Feedback Overlay Dialog */}
+            {isFeedbackModalOpen && (
+                <div style={{
+                    position: 'fixed', inset: 0, zIndex: 10000,
+                    background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(8px)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    padding: 16
+                }} onClick={() => setIsFeedbackModalOpen(false)}>
+                    <div style={{
+                        background: 'var(--bg-surface)', border: '1px solid var(--border-medium)',
+                        borderRadius: 14, width: '100%', maxWidth: 450, padding: 24,
+                        boxShadow: '0 20px 40px rgba(0,0,0,0.5)'
+                    }} onClick={e => e.stopPropagation()}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+                            <h2 style={{ fontSize: 18, fontWeight: 600, margin: 0 }}>{t('feedback_nav', 'Отзывы')}</h2>
+                            <button style={{ color: 'var(--text-secondary)', fontSize: 20 }} onClick={() => setIsFeedbackModalOpen(false)}>×</button>
+                        </div>
+                        
+                        <div style={{ display: 'flex', gap: 12, borderBottom: '1px solid var(--border-subtle)', marginBottom: 20 }}>
+                            <button className={`btn btn--sm ${feedbackModalTab === 'write' ? 'btn--ghost' : 'btn--quiet'}`} style={{ borderBottomLeftRadius: 0, borderBottomRightRadius: 0 }} onClick={() => setFeedbackModalTab('write')}>{t('write_feedback', 'Оставить отзыв')}</button>
+                            <button className={`btn btn--sm ${feedbackModalTab === 'history' ? 'btn--ghost' : 'btn--quiet'}`} style={{ borderBottomLeftRadius: 0, borderBottomRightRadius: 0 }} onClick={() => setFeedbackModalTab('history')}>{t('history_feedback', 'Мои отзывы')}</button>
+                        </div>
+
+                        {feedbackModalTab === 'write' ? (
+                            <form onSubmit={handleFeedbackSubmit}>
+                                <label className="label">{t('rating_label', 'Оценка')}</label>
+                                <div style={{ display: 'flex', gap: 6, marginBottom: 16, flexWrap: 'wrap' }}>
+                                    {[
+                                        { value: 'Excellent', label: 'Отлично' },
+                                        { value: 'Fine', label: 'Хорошо' },
+                                        { value: 'Normal', label: 'Нормально' },
+                                        { value: 'Bad', label: 'Плохо' },
+                                        { value: 'Terrible', label: 'Ужасно' }
+                                    ].map(rating => (
+                                        <button
+                                            type="button"
+                                            key={rating.value}
+                                            className={`btn btn--sm ${feedbackRating === rating.value ? 'btn--primary' : 'btn--ghost'}`}
+                                            onClick={() => setFeedbackRating(rating.value)}
+                                        >
+                                            {rating.label}
+                                        </button>
+                                    ))}
+                                </div>
+                                <label className="label">{t('message_label', 'Сообщение')}</label>
+                                <textarea
+                                    className="field"
+                                    rows={4}
+                                    style={{ height: 'auto', padding: 12, resize: 'vertical', fontFamily: 'var(--font-body)', marginBottom: 20 }}
+                                    placeholder="Что улучшить?"
+                                    value={feedbackMessage}
+                                    onChange={e => setFeedbackMessage(e.target.value)}
+                                    required
+                                />
+                                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+                                    <button type="button" className="btn btn--ghost btn--sm" onClick={() => setIsFeedbackModalOpen(false)}>{t('cancel', 'Отмена')}</button>
+                                    <button type="submit" className="btn btn--primary btn--sm" disabled={isSubmittingFeedback}>
+                                        {isSubmittingFeedback ? 'Отправка...' : 'Отправить'}
+                                    </button>
+                                </div>
+                            </form>
+                        ) : (
+                            <div style={{ maxHeight: 250, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 12 }}>
+                                {feedbacks.length === 0 ? (
+                                    <p style={{ color: 'var(--text-tertiary)', fontSize: 13, textAlign: 'center', margin: '20px 0' }}>Еще нет оставленных отзывов.</p>
+                                ) : feedbacks.map((fb, idx) => (
+                                    <div key={idx} style={{ padding: 12, background: 'var(--bg-base)', border: '1px solid var(--border-subtle)', borderRadius: 8 }}>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6, fontSize: 11 }}>
+                                            <span style={{ color: 'var(--accent-primary)', fontWeight: 600 }}>{fb.rating}</span>
+                                            <span style={{ color: 'var(--text-tertiary)' }}>{new Date(fb.created_at || fb.createdAt || Date.now()).toLocaleDateString()}</span>
+                                        </div>
+                                        <p style={{ margin: 0, fontSize: 13, color: 'var(--text-primary)', wordBreak: 'break-word' }}>{fb.message}</p>
+                                    </div>
+                                ))}
                             </div>
                         )}
                     </div>
                 </div>
             )}
-        </div>
 
-        {showScrollTop && (
-            <button 
-                className="scroll-top-btn" 
-                onClick={scrollToTop}
-                style={{
-                    position: 'fixed',
-                    bottom: '30px',
-                    right: '30px',
-                    width: '50px',
-                    height: '50px',
-                    borderRadius: '50%',
-                    backgroundColor: '#6366f1',
-                    color: 'white',
-                    border: 'none',
-                    cursor: 'pointer',
-                    boxShadow: '0 4px 12px rgba(0,0,0,0.2)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    fontSize: '24px',
-                    zIndex: 1000,
-                    transition: 'all 0.3s ease'
-                }}
-            >
-                ↑
-            </button>
-        )}
-
-        {/* Two-step feedback prompt: shown after every 2nd analysis */}
-        {isFeedbackPromptOpen && (
-            <div
-                className="modal-overlay fade-in"
-                style={{
-                    position: 'fixed',
-                    top: 0, left: 0, right: 0, bottom: 0,
-                    backgroundColor: 'rgba(15, 23, 42, 0.6)',
-                    backdropFilter: 'blur(8px)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    zIndex: 10001,
-                }}
-            >
-                <div
-                    className="fade-in-up"
-                    style={{
-                        background: 'rgba(22, 33, 55, 0.95)',
-                        backdropFilter: 'blur(24px)',
-                        border: '1px solid rgba(168, 85, 247, 0.25)',
-                        borderRadius: '24px',
-                        padding: '36px 32px',
-                        width: '90%',
-                        maxWidth: '420px',
-                        boxShadow: '0 30px 60px -12px rgba(0,0,0,0.6), 0 0 0 1px rgba(168,85,247,0.1)',
-                        textAlign: 'center',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        gap: '20px',
-                    }}
-                >
-                    <div style={{ fontSize: '48px', lineHeight: 1 }}>💬</div>
-                    <div>
-                        <h3 style={{ margin: 0, fontSize: '20px', fontWeight: '800', background: 'linear-gradient(135deg, #a855f7, #6366f1)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
-                            {t('feedback_prompt_title', 'Понравился анализ?')}
-                        </h3>
-                        <p style={{ margin: '10px 0 0', fontSize: '14px', color: '#94a3b8', lineHeight: 1.5 }}>
-                            {t('feedback_prompt_subtitle', 'Уделите минуту и оставьте отзыв — это помогает нам стать лучше.')}
-                        </p>
+            {/* Analysis completes feedback invitation prompt */}
+            {isFeedbackPromptOpen && (
+                <div style={{
+                    position: 'fixed', bottom: 24, left: 24, zIndex: 9999,
+                    background: 'var(--bg-surface)', border: '1px solid var(--border-medium)',
+                    borderRadius: 12, padding: 18, width: '100%', maxWidth: 350,
+                    boxShadow: '0 12px 30px rgba(0,0,0,0.3)', display: 'flex', flexDirection: 'column', gap: 10
+                }} className="fade-in">
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: 'var(--accent-primary)', fontWeight: 600, fontSize: 13 }}>
+                            <Icon name="message_circle" size={14} />
+                            Мы ценим ваше мнение!
+                        </span>
+                        <button style={{ color: 'var(--text-tertiary)', background: 'none', border: 'none', cursor: 'pointer' }} onClick={() => setIsFeedbackPromptOpen(false)}>×</button>
                     </div>
-                    <div style={{ display: 'flex', gap: '12px' }}>
-                        <button
-                            onClick={() => {
-                                setIsFeedbackPromptOpen(false);
-                                setFeedbackModalTab('write');
-                                setIsFeedbackModalOpen(true);
-                            }}
-                            style={{
-                                flex: 1, padding: '13px', borderRadius: '14px',
-                                background: 'linear-gradient(135deg, #a855f7, #6366f1)',
-                                color: 'white', fontWeight: '700', fontSize: '14px',
-                                border: 'none', cursor: 'pointer',
-                                boxShadow: '0 4px 15px rgba(168, 85, 247, 0.35)',
-                                transition: 'transform 0.15s, box-shadow 0.15s',
-                            }}
-                            onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-1px)'; e.currentTarget.style.boxShadow = '0 6px 20px rgba(168,85,247,0.45)'; }}
-                            onMouseLeave={e => { e.currentTarget.style.transform = ''; e.currentTarget.style.boxShadow = '0 4px 15px rgba(168,85,247,0.35)'; }}
-                        >
-                            ✍️ {t('feedback_prompt_submit', 'Оставить отзыв')}
+                    <p style={{ margin: 0, fontSize: 12.5, color: 'var(--text-secondary)', lineHeight: 1.4 }}>
+                        Понравилось ли вам качество структурированного анализа? Оставьте короткий отзыв, чтобы помочь нам сделать систему лучше.
+                    </p>
+                    <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 4 }}>
+                        <button className="btn btn--quiet btn--sm" onClick={() => setIsFeedbackPromptOpen(false)}>Позже</button>
+                        <button className="btn btn--primary btn--sm" onClick={() => { setIsFeedbackPromptOpen(false); setIsFeedbackModalOpen(true); setFeedbackModalTab('write'); }}>
+                            Да, конечно!
                         </button>
-                        <button
-                            onClick={() => setIsFeedbackPromptOpen(false)}
-                            style={{
-                                flex: 1, padding: '13px', borderRadius: '14px',
-                                background: 'rgba(30, 41, 59, 0.6)',
-                                color: '#94a3b8', fontWeight: '600', fontSize: '14px',
-                                border: '1px solid rgba(255,255,255,0.06)',
-                                cursor: 'pointer', transition: 'background 0.15s',
-                            }}
-                            onMouseEnter={e => { e.currentTarget.style.background = 'rgba(51,65,85,0.6)'; }}
-                            onMouseLeave={e => { e.currentTarget.style.background = 'rgba(30,41,59,0.6)'; }}
-                        >
-                            {t('feedback_prompt_skip', 'Пропустить')}
-                        </button>
-                    </div>
-                </div>
-            </div>
-        )}
-
-        {isFeedbackModalOpen && (
-            <div 
-                className="modal-overlay fade-in"
-                style={{
-                    position: 'fixed',
-                    top: 0, left: 0, right: 0, bottom: 0,
-                    backgroundColor: 'rgba(15, 23, 42, 0.75)',
-                    backdropFilter: 'blur(12px)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    zIndex: 10000,
-                }}
-                onClick={() => setIsFeedbackModalOpen(false)}
-            >
-                    <div 
-                        className="modal-content fade-in-up"
-                        style={{
-                            background: 'rgba(30, 41, 59, 0.85)',
-                            backdropFilter: 'blur(20px)',
-                            border: '1px solid rgba(255, 255, 255, 0.08)',
-                            borderRadius: '24px',
-                            width: '90%',
-                            maxWidth: '520px',
-                            maxHeight: '90vh',
-                            display: 'flex',
-                            flexDirection: 'column',
-                            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)',
-                            overflow: 'hidden',
-                        }}
-                        onClick={(e) => e.stopPropagation()}
-                    >
-                        {/* Шапка модалки */}
-                        <div style={{
-                            padding: '24px',
-                            borderBottom: '1px solid rgba(255, 255, 255, 0.06)',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'space-between',
-                            background: 'rgba(15, 23, 42, 0.2)'
-                        }}>
-                            <h2 style={{ margin: 0, fontSize: '20px', fontWeight: '800', background: 'linear-gradient(135deg, #a855f7, #6366f1)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
-                                {t('feedback_title')}
-                            </h2>
-                            <button 
-                                onClick={() => setIsFeedbackModalOpen(false)}
-                                style={{ background: 'none', border: 'none', color: '#94a3b8', fontSize: '24px', cursor: 'pointer', outline: 'none' }}
-                            >
-                                ×
-                            </button>
-                        </div>
-
-                        {/* Переключатель вкладок */}
-                        <div style={{ display: 'flex', borderBottom: '1px solid rgba(255, 255, 255, 0.04)' }}>
-                            <button 
-                                onClick={() => setFeedbackModalTab('write')}
-                                style={{
-                                    flex: 1, padding: '14px', border: 'none', background: 'none', color: feedbackModalTab === 'write' ? '#a855f7' : '#94a3b8',
-                                    fontWeight: '700', fontSize: '14px', cursor: 'pointer', borderBottom: feedbackModalTab === 'write' ? '2px solid #a855f7' : 'none', outline: 'none'
-                                }}
-                            >
-                                {t('feedback_modal_title')}
-                            </button>
-                            <button 
-                                onClick={() => setFeedbackModalTab('history')}
-                                style={{
-                                    flex: 1, padding: '14px', border: 'none', background: 'none', color: feedbackModalTab === 'history' ? '#a855f7' : '#94a3b8',
-                                    fontWeight: '700', fontSize: '14px', cursor: 'pointer', borderBottom: feedbackModalTab === 'history' ? '2px solid #a855f7' : 'none', outline: 'none'
-                                }}
-                            >
-                                {t('feedback_nav')} ({feedbacks.length})
-                            </button>
-                        </div>
-
-                        {/* Содержимое вкладок */}
-                        <div style={{ padding: '24px', overflowY: 'auto', flex: 1 }}>
-                            {feedbackModalTab === 'write' ? (
-                                <form onSubmit={handleFeedbackSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-                                    <div>
-                                        <label style={{ display: 'block', color: '#cbd5e1', fontSize: '14px', fontWeight: '600', marginBottom: '12px' }}>
-                                            {t('feedback_rating_label')}
-                                        </label>
-                                        <div style={{ display: 'flex', justifyContent: 'space-between', gap: '8px' }}>
-                                            {[
-                                                { key: 'Fine', emoji: '🤩', text: t('rating_fine') },
-                                                { key: 'Good', emoji: '😊', text: t('rating_good') },
-                                                { key: 'Okay', emoji: '😐', text: t('rating_okay') },
-                                                { key: 'Bad', emoji: '😞', text: t('rating_bad') },
-                                                { key: 'Very Bad', emoji: '🤬', text: t('rating_very_bad') }
-                                            ].map((r) => (
-                                                <button
-                                                    key={r.key}
-                                                    type="button"
-                                                    onClick={() => setFeedbackRating(r.key)}
-                                                    style={{
-                                                        flex: 1, padding: '10px 4px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px',
-                                                        borderRadius: '12px', background: feedbackRating === r.key ? 'rgba(168, 85, 247, 0.15)' : 'rgba(30, 41, 59, 0.4)',
-                                                        border: feedbackRating === r.key ? '1px solid #a855f7' : '1px solid rgba(255, 255, 255, 0.06)',
-                                                        cursor: 'pointer', color: 'white', transition: 'all 0.2s', outline: 'none'
-                                                    }}
-                                                >
-                                                    <span style={{ fontSize: '24px' }}>{r.emoji}</span>
-                                                    <span style={{ fontSize: '9px', fontWeight: '700', textTransform: 'uppercase', tracking: '0.5px' }}>{r.text}</span>
-                                                </button>
-                                            ))}
-                                        </div>
-                                    </div>
-
-                                    <div>
-                                        <textarea
-                                            placeholder={t('feedback_comment_placeholder')}
-                                            value={feedbackMessage}
-                                            onChange={(e) => setFeedbackMessage(e.target.value)}
-                                            required
-                                            style={{
-                                                width: '100%', minHeight: '110px', padding: '14px', borderRadius: '12px', background: 'rgba(15, 23, 42, 0.3)',
-                                                border: '1px solid rgba(255, 255, 255, 0.1)', color: 'white', fontSize: '13px', outline: 'none', resize: 'vertical'
-                                            }}
-                                        />
-                                    </div>
-
-                                    <button
-                                        type="submit"
-                                        disabled={isSubmittingFeedback}
-                                        style={{
-                                            padding: '12px', borderRadius: '12px', background: 'linear-gradient(135deg, #a855f7, #6366f1)',
-                                            color: 'white', fontWeight: '700', fontSize: '14px', border: 'none', cursor: 'pointer',
-                                            boxShadow: '0 4px 15px rgba(168, 85, 247, 0.3)', transition: 'all 0.2s', outline: 'none'
-                                        }}
-                                    >
-                                        {isSubmittingFeedback ? t('btn_loading') : t('feedback_submit_btn')}
-                                    </button>
-                                </form>
-                            ) : (
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                                    {feedbacks.length === 0 ? (
-                                        <div style={{ textAlign: 'center', padding: '40px 10px', color: '#94a3b8', fontSize: '13px' }}>
-                                            💬 Поделитесь своим мнением о нашей системе!
-                                        </div>
-                                    ) : (
-                                        feedbacks.map((f) => {
-                                            const ratingEmoji = {
-                                                'Fine': '🤩', 'Good': '😊', 'Okay': '😐', 'Bad': '😞', 'Very Bad': '🤬'
-                                            }[f.rating] || '💬';
-
-                                            return (
-                                                <div 
-                                                    key={f.id} 
-                                                    style={{
-                                                        padding: '16px', borderRadius: '16px', background: 'rgba(15, 23, 42, 0.25)',
-                                                        border: '1px solid rgba(255, 255, 255, 0.04)', display: 'flex', flexDirection: 'column', gap: '10px'
-                                                    }}
-                                                >
-                                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                                                        <span style={{ fontSize: '18px' }}>
-                                                            {ratingEmoji} <strong style={{ fontSize: '12px', color: '#cbd5e1' }}>{t(`rating_${f.rating.toLowerCase().replace(' ', '_')}`)}</strong>
-                                                        </span>
-                                                        <span style={{ fontSize: '10px', color: '#64748b' }}>
-                                                            {new Date(f.created_at).toLocaleDateString(i18n.language.startsWith('ru') ? 'ru-RU' : 'en-US')}
-                                                        </span>
-                                                    </div>
-                                                    <p style={{ margin: 0, fontSize: '13px', color: '#f8fafc', lineHeight: '1.4', wordBreak: 'break-word' }}>{f.message}</p>
-                                                    
-                                                    {/* Ответ админа (маскированный) */}
-                                                    {f.reply && (
-                                                        <div style={{
-                                                            marginTop: '8px', padding: '12px', borderRadius: '12px', background: 'rgba(99, 102, 241, 0.08)',
-                                                            borderLeft: '3px solid #6366f1', display: 'flex', flexDirection: 'column', gap: '6px'
-                                                        }}>
-                                                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                                                                <span style={{ fontSize: '11px', fontWeight: '800', color: '#818cf8', textTransform: 'uppercase' }}>
-                                                                    🛡️ {t('feedback_admin_role')}
-                                                                </span>
-                                                                <span style={{ fontSize: '9px', color: '#64748b' }}>
-                                                                    {new Date(f.reply.created_at).toLocaleDateString(i18n.language.startsWith('ru') ? 'ru-RU' : 'en-US')}
-                                                                </span>
-                                                            </div>
-                                                            <p style={{ margin: 0, fontSize: '12px', color: '#cbd5e1', lineHeight: '1.4', wordBreak: 'break-word' }}>{f.reply.text}</p>
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            )
-                                        })
-                                    )}
-                                </div>
-                            )}
-                        </div>
                     </div>
                 </div>
             )}
         </>
     );
-};
-
-export default Dashboard;
+}

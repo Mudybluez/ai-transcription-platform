@@ -32,8 +32,8 @@ const MindMap = ({ data, onNavigateToTopic }) => {
             id: node.id,
             name: getLangText(node.text),
             type: node.type,
-            val: node.type === 'root' ? 10 : node.type === 'topic' ? 6 : 3,
-            color: node.type === 'root' ? '#a855f7' : node.type === 'topic' ? '#6366f1' : '#4ade80'
+            val: node.type === 'root' ? 12 : node.type === 'topic' ? 8 : 4.5,
+            color: node.type === 'root' ? '#8AB4F8' : node.type === 'topic' ? '#C4C6FF' : '#6B6F76'
         }));
 
         setGraphData({
