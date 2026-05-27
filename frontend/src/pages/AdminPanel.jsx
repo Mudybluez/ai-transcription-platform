@@ -342,20 +342,20 @@ export default function AdminPanel() {
             <div className="page" style={{ maxWidth: 1200, margin: '0 auto', padding: '0 24px' }}>
                 <div className="tabs" style={{ margin: '32px 0 24px' }}>
                     <button className={`tab ${activeTab === 'dashboard' ? 'is-active' : ''}`} onClick={() => setActiveTab('dashboard')}>
-                        <Icon name="zap" size={14} />
-                        📊 {t('admin_tab_dashboard', 'Аналитика')}
+                        <Icon name="bar_chart" size={14} />
+                        {t('admin_tab_dashboard', 'Аналитика')}
                     </button>
                     <button className={`tab ${activeTab === 'users' ? 'is-active' : ''}`} onClick={() => setActiveTab('users')}>
                         <Icon name="users" size={14} />
-                        👥 {t('admin_tab_users', 'Пользователи')}
+                        {t('admin_tab_users', 'Пользователи')}
                     </button>
                     <button className={`tab ${activeTab === 'library' ? 'is-active' : ''}`} onClick={() => setActiveTab('library')}>
                         <Icon name="library" size={14} />
-                        📚 {t('admin_tab_library', 'Библиотека разборов')}
+                        {t('admin_tab_library', 'Библиотека разборов')}
                     </button>
                     <button className={`tab ${activeTab === 'feedback' ? 'is-active' : ''}`} onClick={() => setActiveTab('feedback')}>
                         <Icon name="message_square" size={14} />
-                        💬 {t('feedback_nav', 'Отзывы')}
+                        {t('feedback_nav', 'Отзывы')}
                     </button>
                 </div>
 
@@ -743,7 +743,13 @@ export default function AdminPanel() {
                                     {feedbacks.map(fb => (
                                         <tr key={fb.id} style={{ borderBottom: '1px solid var(--border-subtle)' }}>
                                             <td>
-                                                <span className={`chip ${fb.rating === 'Excellent' || fb.rating === 'Fine' ? 'chip--green' : fb.rating === 'Normal' ? 'chip--yellow' : 'chip--red'}`}>
+                                                <span className={`chip ${
+                                                    fb.rating === 'Good' || fb.rating === 'Fine'
+                                                        ? 'chip--green'
+                                                        : fb.rating === 'Okay'
+                                                            ? 'chip--yellow'
+                                                            : 'chip--red'
+                                                }`}>
                                                     {fb.rating}
                                                 </span>
                                             </td>
@@ -754,7 +760,7 @@ export default function AdminPanel() {
                                                     </p>
                                                     {fb.reply && (
                                                         <div style={{ padding: '6px 12px', background: 'var(--bg-surface-hover)', borderRadius: 6, fontSize: 11.5, color: 'var(--accent-primary)', marginTop: 4 }}>
-                                                            <strong>Ответ:</strong> {fb.reply}
+                                                            <strong>Ответ:</strong> {typeof fb.reply === 'object' && fb.reply !== null ? fb.reply.text : String(fb.reply)}
                                                         </div>
                                                     )}
                                                 </div>

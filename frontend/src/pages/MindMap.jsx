@@ -194,6 +194,9 @@ const MindMap = ({ data, onNavigateToTopic }) => {
                     linkColor={() => 'rgba(255,255,255,0.1)'}
                     linkWidth={0.8}
                     dpr={Math.min(1.2, window.devicePixelRatio || 1)}
+                    enableZoomInteraction={true}
+                    enablePanInteraction={true}
+                    enableNodeDrag={true}
                     nodeCanvasObject={(node, ctx, globalScale) => {
                         const label = node.name;
                         

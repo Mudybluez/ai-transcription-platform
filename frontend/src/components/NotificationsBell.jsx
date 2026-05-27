@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import api from '../api';
 import { addSocketListener } from '../utils/sharedSocket';
+import Icon from './Icon';
 
 export default function NotificationsBell() {
     const { t, i18n } = useTranslation();
@@ -83,13 +84,13 @@ export default function NotificationsBell() {
     const getNotificationIcon = (type) => {
         switch (type) {
             case 'ANALYSIS_READY':
-                return '📊';
+                return <Icon name="bar_chart" size={16} style={{ color: 'var(--accent-primary)' }} />;
             case 'LIMITS_EXCEEDED':
-                return '⚠️';
+                return <Icon name="alert_circle" size={16} style={{ color: 'var(--accent-warning)' }} />;
             case 'ADMIN_RESPONSE':
-                return '💬';
+                return <Icon name="message_circle" size={16} style={{ color: 'var(--accent-success)' }} />;
             default:
-                return '🔔';
+                return <Icon name="bell" size={16} style={{ color: 'var(--text-secondary)' }} />;
         }
     };
 
@@ -115,7 +116,7 @@ export default function NotificationsBell() {
                     outline: 'none'
                 }}
             >
-                🔔
+                <Icon name={unreadCount > 0 ? "bell_dot" : "bell"} size={18} style={{ color: 'white' }} />
                 {unreadCount > 0 && (
                     <span 
                         className="badge" 
@@ -216,7 +217,9 @@ export default function NotificationsBell() {
                                     fontSize: '13px'
                                 }}
                             >
-                                <div style={{ fontSize: '24px', marginBottom: '10px' }}>📭</div>
+                                <div style={{ marginBottom: '12px', display: 'flex', justifyContent: 'center' }}>
+                                    <Icon name="mail" size={24} style={{ color: 'var(--text-tertiary)' }} />
+                                </div>
                                 {t('notif_empty')}
                             </div>
                         ) : (
@@ -234,7 +237,7 @@ export default function NotificationsBell() {
                                         position: 'relative'
                                     }}
                                 >
-                                    <span style={{ fontSize: '20px', lineHeight: '1' }}>
+                                    <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '20px', height: '20px' }}>
                                         {getNotificationIcon(notif.type)}
                                     </span>
                                     <div style={{ flex: 1, minWidth: 0 }}>
