@@ -24,9 +24,16 @@ const MindMap = ({ data, onNavigateToTopic }) => {
         return obj[currentLang] || obj['ru'] || obj['en'] || '';
     };
 
+    const prevKeyRef = useRef('');
+
     // Трансформируем данные под формат ForceGraph
     useEffect(() => {
         if (!data || !data.nodes) return;
+
+        // Предотвращаем сброс симуляции при ложных изменениях ссылок
+        const key = `${currentLang}_${JSON.stringify(data)}`;
+        if (key === prevKeyRef.current) return;
+        prevKeyRef.current = key;
 
         const formattedNodes = data.nodes.map(node => ({
             id: node.id,
