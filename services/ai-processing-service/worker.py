@@ -4,7 +4,7 @@ import json
 import pika
 import requests
 from db import init_db, update_job_status, save_result
-from ai_core import transcribe_audio, analyze_content, download_youtube_audio, get_youtube_transcript
+from ai_core import transcribe_audio, analyze_content, download_youtube_audio, get_youtube_transcript, GeminiRateLimitError
 
 # Инициализируем БД при старте
 init_db()
@@ -123,6 +123,42 @@ def callback(ch, method, properties, body):
 
         print(f"Задача {job_id} успешно выполнена и сохранена!")
         ch.basic_ack(delivery_tag=method.delivery_tag)
+
+    except GeminiRateLimitError as e:
+        retry_count = job_data.get('retry_count', 0)
+        print(f"⚠️ [Rate Limit] Поймана ошибка лимита запросов ИИ на задаче {job_id} (Попытка {retry_count}/5): {e}")
+        if retry_count < 5:
+            # Рассчитываем экспоненциальную задержку: 30, 60, 120, 240, 480 секунд
+            wait_time = (2 ** retry_count) * 30
+            next_attempt = retry_count + 1
+            print(f"⏳ Ожидание {wait_time} секунд перед повторной отправкой в очередь (Попытка {next_attempt}/5)...")
+            
+            # Обновляем статус в БД на RETRYING
+            update_job_status(job_id, f"RETRYING (Attempt {next_attempt}/5)")
+            
+            # Спим в воркере
+            time.sleep(wait_time)
+            
+            # Переопубликовываем задачу обратно в RabbitMQ с увеличенным retry_count
+            job_data['retry_count'] = next_attempt
+            try:
+                ch.basic_publish(
+                    exchange='',
+                    routing_key='transcription_jobs',
+                    body=json.dumps(job_data, ensure_ascii=False),
+                    properties=pika.BasicProperties(
+                        delivery_mode=2, # make message persistent
+                    )
+                )
+                print(f"🔁 Задача {job_id} успешно переотправлена в очередь.")
+            except Exception as pe:
+                print(f"❌ Не удалось переопубликовать задачу {job_id} в RabbitMQ: {pe}")
+            
+            ch.basic_ack(delivery_tag=method.delivery_tag)
+        else:
+            print(f"❌ Превышено максимальное количество попыток ({retry_count}) для задачи {job_id}.")
+            update_job_status(job_id, "FAILED: Превышен лимит попыток ИИ (429)")
+            ch.basic_ack(delivery_tag=method.delivery_tag)
 
     except Exception as e:
         print(f"ОШИБКА ПРИ ОБРАБОТКЕ ЗАДАЧИ {job_id}: {str(e)}")
