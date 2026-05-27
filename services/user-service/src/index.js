@@ -111,7 +111,7 @@ app.post('/register', async (req, res) => {
 
         // 6. Генерация токена верификации почты
         const verificationToken = crypto.randomBytes(32).toString('hex');
-        const verificationTokenExpiresAt = new Date(Date.now() + 3 * 60 * 1000); // Срок действия 3 минуты
+        const verificationTokenExpiresAt = new Date(Date.now() + 15 * 60 * 1000); // Срок действия 15 минут
 
         // 7. Сохранение в БД (по умолчанию is_verified = FALSE)
         const newUser = await db.query(
@@ -261,9 +261,9 @@ app.post('/resend-verification', async (req, res) => {
             return res.status(400).json({ message: 'Ваш email уже подтвержден.' });
         }
 
-        // Генерация нового токена верификации на 3 минуты
+        // Генерация нового токена верификации на 15 минут
         const verificationToken = crypto.randomBytes(32).toString('hex');
-        const verificationTokenExpiresAt = new Date(Date.now() + 3 * 60 * 1000); // 3 минуты
+        const verificationTokenExpiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 минут
 
         await db.query(
             `UPDATE users 
