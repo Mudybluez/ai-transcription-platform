@@ -49,6 +49,7 @@ const NavItems = ({
 export default function AdminPanel() {
     const { t, i18n } = useTranslation();
     const role = localStorage.getItem('role');
+    const userRole = role || 'admin';
     const currentLang = (i18n.language || 'ru').split('-')[0].toLowerCase();
 
     // Active views

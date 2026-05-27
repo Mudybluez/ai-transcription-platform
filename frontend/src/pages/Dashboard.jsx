@@ -6,7 +6,6 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { useTranslation } from 'react-i18next';
 import MindMap from './MindMap';
-import SolarSystemBackground from './SolarSystemBackground';
 import HeroParticles from './HeroParticles';
 import NotificationsBell from '../components/NotificationsBell';
 import { addSocketListener, sendSocketMessage } from '../utils/sharedSocket';
@@ -98,14 +97,6 @@ export default function Dashboard() {
     const [showScrollTop, setShowScrollTop] = useState(false);
     const [highlightText, setHighlightText] = useState(null);
     
-    // Intro States
-    const [introState, setIntroState] = useState(() => {
-        return localStorage.getItem('skipIntro') === 'true' ? 'completed' : 'playing';
-    });
-    const [isInitiallySkipped] = useState(() => {
-        return localStorage.getItem('skipIntro') === 'true';
-    });
-
     const [userRole, setUserRole] = useState(localStorage.getItem('role') || 'Standard');
 
     // Feedback States
@@ -342,21 +333,7 @@ export default function Dashboard() {
         }
     };
 
-    const handleIntroComplete = () => {
-        setIntroState('blurring');
-        localStorage.setItem('skipIntro', 'true');
-        setTimeout(() => {
-            setIntroState('completed');
-        }, 1200);
-    };
 
-    const skipIntro = () => {
-        setIntroState('blurring');
-        localStorage.setItem('skipIntro', 'true');
-        setTimeout(() => {
-            setIntroState('completed');
-        }, 1200);
-    };
 
     // Flashcards swipe events
     const handleTouchStart = (e) => {
@@ -842,21 +819,7 @@ ${detailed}`;
 
     return (
         <>
-            {/* Cosmic Solar System Intro Background (rendered when not completed) */}
-            <SolarSystemBackground 
-                history={history} 
-                introState={introState} 
-                onIntroComplete={handleIntroComplete}
-                isPaused={isFeedbackModalOpen || isFeedbackPromptOpen}
-            />
-
-            {introState === 'playing' && (
-                <button className="skip-intro-btn" onClick={skipIntro}>
-                    {t('skip_intro', 'Пропустить')}
-                </button>
-            )}
-
-            <div className={`dashboard-container ${introState === 'completed' ? 'intro-fade-in' : 'intro-active'} ${isInitiallySkipped ? 'intro-fast' : ''}`}>
+            <div className="dashboard-container">
                 {/* Redesigned Premium Top Navigation */}
                 <header className="top-nav">
                     <button className="hamburger" onClick={() => setIsMobileMenuOpen(true)}>☰</button>
@@ -895,9 +858,7 @@ ${detailed}`;
                         {/* Redesigned Hero with snapping star field */}
                         <section className="hero">
                             <div className="hero__canvas">
-                                {introState === 'completed' && (
-                                    <HeroParticles triggerRef={heroTriggerRef} density={130} accent="#8AB4F8" />
-                                )}
+                                <HeroParticles triggerRef={heroTriggerRef} density={130} accent="#8AB4F8" />
                             </div>
                             <div className="hero__wrap">
                                 <span className="hero__eyebrow">
