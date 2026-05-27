@@ -303,7 +303,7 @@ app.get('/profile/:id', async (req, res) => {
         res.status(500).json({ message: 'Ошибка сервера' });
     }
 });
-app.get('/all', async (req, res) => {
+app.get('/all', requireAdmin, async (req, res) => {
     try {
         // Запрашиваем всех пользователей со статистикой запросов для админки
         const queryText = `
@@ -416,7 +416,7 @@ app.post('/update-username', async (req, res) => {
 });
 
 // Мидлвар для проверки прав администратора
-const requireAdmin = (req, res, next) => {
+function requireAdmin(req, res, next) {
     const authHeader = req.headers['authorization'];
     if (!authHeader) {
         return res.status(401).json({ message: 'Доступ запрещен. Токен не предоставлен.' });
@@ -433,7 +433,7 @@ const requireAdmin = (req, res, next) => {
     } catch (e) {
         return res.status(403).json({ message: 'Недействительный или просроченный токен.' });
     }
-};
+}
 
 // Обновление роли пользователя (только для администраторов)
 app.post('/update-role', requireAdmin, async (req, res) => {
