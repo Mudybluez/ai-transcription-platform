@@ -69,8 +69,131 @@ export default function GlobalMindMap() {
     const [isFullscreen, setIsFullscreen] = useState(false);
     const [selectedCategoryFilter, setSelectedCategoryFilter] = useState('all');
 
+    // Pan & Zoom & Node Drag States & Refs
+    const [transform, setTransform] = useState({ x: 0, y: 0, scale: 1 });
+    const [panStart, setPanStart] = useState(null);
+    const [customNodePositions, setCustomNodePositions] = useState({});
+
+    const draggingNodeIdRef = useRef(null);
+    const dragStartOffsetRef = useRef({ x: 0, y: 0 });
+    const hasDraggedRef = useRef(false);
+
     const graphWrapperRef = useRef(null);
     const stageRef = useRef(null);
+
+    // Zoom on wheel towards mouse cursor
+    const handleWheel = (e) => {
+        e.preventDefault();
+        const zoomFactor = 1.08;
+        const nextScale = e.deltaY < 0 ? transform.scale * zoomFactor : transform.scale / zoomFactor;
+        const clampedScale = Math.max(0.2, Math.min(5, nextScale));
+
+        const rect = e.currentTarget.getBoundingClientRect();
+        const mouseX = e.clientX - rect.left;
+        const mouseY = e.clientY - rect.top;
+
+        setTransform(prev => {
+            const dx = mouseX - prev.x;
+            const dy = mouseY - prev.y;
+            return {
+                scale: clampedScale,
+                x: mouseX - dx * (clampedScale / prev.scale),
+                y: mouseY - dy * (clampedScale / prev.scale)
+            };
+        });
+    };
+
+    // Stage Mouse Down: Pan Start
+    const handleStageMouseDown = (e) => {
+        if (e.button !== 0) return; // Only left click drag
+        if (e.target.closest('g') || draggingNodeIdRef.current) return;
+        
+        setPanStart({
+            x: e.clientX - transform.x,
+            y: e.clientY - transform.y
+        });
+    };
+
+    // Node Drag Start
+    const handleNodeDragStart = (e, node) => {
+        if (e.button !== 0) return;
+        e.stopPropagation();
+
+        draggingNodeIdRef.current = node.id;
+        hasDraggedRef.current = false;
+
+        const svgRect = graphWrapperRef.current.getBoundingClientRect();
+        const mouseX = e.clientX - svgRect.left;
+        const mouseY = e.clientY - svgRect.top;
+
+        // Transform mouse point back to untransformed coordinate space
+        const localX = (mouseX - transform.x) / transform.scale;
+        const localY = (mouseY - transform.y) / transform.scale;
+
+        dragStartOffsetRef.current = {
+            x: localX - node.x,
+            y: localY - node.y
+        };
+    };
+
+    // Stage Mouse Move (handles panning and node dragging)
+    const handleStageMouseMove = (e) => {
+        if (draggingNodeIdRef.current) {
+            hasDraggedRef.current = true;
+            const svgRect = graphWrapperRef.current.getBoundingClientRect();
+            const mouseX = e.clientX - svgRect.left;
+            const mouseY = e.clientY - svgRect.top;
+
+            const localX = (mouseX - transform.x) / transform.scale;
+            const localY = (mouseY - transform.y) / transform.scale;
+
+            const targetX = localX - dragStartOffsetRef.current.x;
+            const targetY = localY - dragStartOffsetRef.current.y;
+
+            setCustomNodePositions(prev => ({
+                ...prev,
+                [draggingNodeIdRef.current]: { x: targetX, y: targetY }
+            }));
+            return;
+        }
+
+        if (panStart) {
+            setTransform(prev => ({
+                ...prev,
+                x: e.clientX - panStart.x,
+                y: e.clientY - panStart.y
+            }));
+        }
+    };
+
+    // Stage Mouse Up
+    const handleStageMouseUp = () => {
+        setPanStart(null);
+        draggingNodeIdRef.current = null;
+    };
+
+    // Direct zoom controls
+    const handleButtonZoom = (factor) => {
+        setTransform(prev => {
+            const nextScale = prev.scale * factor;
+            const clampedScale = Math.max(0.2, Math.min(5, nextScale));
+            const mouseX = graphSize.w / 2;
+            const mouseY = graphSize.h / 2;
+
+            const dx = mouseX - prev.x;
+            const dy = mouseY - prev.y;
+            return {
+                scale: clampedScale,
+                x: mouseX - dx * (clampedScale / prev.scale),
+                y: mouseY - dy * (clampedScale / prev.scale)
+            };
+        });
+    };
+
+    const handleResetZoom = () => {
+        setTransform({ x: 0, y: 0, scale: 1 });
+        setCustomNodePositions({});
+    };
 
     const fetchUserProfile = async () => {
         const userId = localStorage.getItem('userId');
@@ -146,7 +269,7 @@ export default function GlobalMindMap() {
         return () => ro.disconnect();
     }, [loading]);
 
-    // Radial graph builder from actual history items
+    // Radial graph builder from actual history items with custom draggable override support
     const { nodes, links } = React.useMemo(() => {
         const resultNodes = [];
         const resultLinks = [];
@@ -161,8 +284,8 @@ export default function GlobalMindMap() {
         resultNodes.push({
             id: 'root',
             label: userName,
-            x: cx,
-            y: cy,
+            x: customNodePositions['root']?.x ?? cx,
+            y: customNodePositions['root']?.y ?? cy,
             type: 'root',
             meta: `${history.length} разборов`
         });
@@ -176,8 +299,6 @@ export default function GlobalMindMap() {
 
         if (activeAnalyses.length === 0) return { nodes: resultNodes, links: resultLinks };
 
-        // 2. Classify items into dynamic clusters based on category or lang (Gaming, Tech, Culture, Science)
-        // For dynamic implementation: we will cluster them by language/tag or just radial distribution!
         const itemsCount = activeAnalyses.length;
         const clusterRadius = Math.min(graphSize.w, graphSize.h) * 0.22;
         const subRadius = Math.min(graphSize.w, graphSize.h) * 0.14;
@@ -193,8 +314,11 @@ export default function GlobalMindMap() {
 
             // Compute radial position around root
             const angle = (index / itemsCount) * Math.PI * 2 - Math.PI / 2;
-            const ix = cx + Math.cos(angle) * clusterRadius;
-            const iy = cy + Math.sin(angle) * clusterRadius;
+            const computedIx = cx + Math.cos(angle) * clusterRadius;
+            const computedIy = cy + Math.sin(angle) * clusterRadius;
+
+            const ix = customNodePositions[analysisId]?.x ?? computedIx;
+            const iy = customNodePositions[analysisId]?.y ?? computedIy;
 
             // Language category mapping
             const lang = (item.language || 'ru').toLowerCase();
@@ -225,8 +349,11 @@ export default function GlobalMindMap() {
 
                 const spreadAngle = topicsCount === 1 ? 0 : ((j / (topicsCount - 1 || 1)) - 0.5) * 1.2;
                 const ta = angle + spreadAngle;
-                const tx = ix + Math.cos(ta) * subRadius;
-                const ty = iy + Math.sin(ta) * subRadius;
+                const computedTx = ix + Math.cos(ta) * subRadius;
+                const computedTy = iy + Math.sin(ta) * subRadius;
+
+                const tx = customNodePositions[topicId]?.x ?? computedTx;
+                const ty = customNodePositions[topicId]?.y ?? computedTy;
 
                 resultNodes.push({
                     id: topicId,
@@ -243,7 +370,7 @@ export default function GlobalMindMap() {
         });
 
         return { nodes: resultNodes, links: resultLinks };
-    }, [history, graphSize]);
+    }, [history, graphSize, customNodePositions]);
 
     const idMap = React.useMemo(() => Object.fromEntries(nodes.map(n => [n.id, n])), [nodes]);
 
@@ -438,7 +565,17 @@ export default function GlobalMindMap() {
                                 No analyses found. Create analyses on your library to map your knowledge graph.
                             </div>
                         ) : (
-                            <svg viewBox={`0 0 ${graphSize.w} ${graphSize.h}`} width="100%" height="100%" style={{ display: 'block' }}>
+                            <svg 
+                                viewBox={`0 0 ${graphSize.w} ${graphSize.h}`} 
+                                width="100%" 
+                                height="100%" 
+                                style={{ display: 'block', cursor: panStart ? 'grabbing' : 'grab', userSelect: 'none' }}
+                                onWheel={handleWheel}
+                                onMouseDown={handleStageMouseDown}
+                                onMouseMove={handleStageMouseMove}
+                                onMouseUp={handleStageMouseUp}
+                                onMouseLeave={handleStageMouseUp}
+                            >
                                 <defs>
                                     <radialGradient id="mapRootGlow" cx="50%" cy="50%" r="50%">
                                         <stop offset="0%" stopColor="var(--accent-primary)" stopOpacity="0.3" />
@@ -446,80 +583,95 @@ export default function GlobalMindMap() {
                                     </radialGradient>
                                 </defs>
 
-                                {/* Link paths */}
-                                {links.map((l, i) => {
-                                    const A = idMap[l.s], B = idMap[l.e];
-                                    if (!A || !B) return null;
-                                    const dim = isLinkDim(l);
-                                    return (
-                                        <line 
-                                            key={i}
-                                            x1={A.x} y1={A.y}
-                                            x2={B.x} y2={B.y}
-                                            stroke="rgba(255,255,255,0.08)"
-                                            strokeWidth={0.7}
-                                            opacity={dim ? 0.12 : 1}
-                                            style={{ transition: 'opacity .25s' }}
-                                        />
-                                    );
-                                })}
-
-                                {/* Nodes groups */}
-                                {nodes.map(n => {
-                                    const dim = isDim(n);
-                                    const isRoot = n.id === 'root';
-                                    const isItem = n.type === 'item';
-                                    const isTopic = n.type === 'topic';
-                                    
-                                    const radius = isRoot ? 24 : isItem ? 6 : 3.5;
-                                    const isFocus = activeFocusedId === n.id;
-                                    const color = colorFor(n);
-
-                                    return (
-                                        <g
-                                            key={n.id}
-                                            opacity={dim ? 0.16 : 1}
-                                            style={{ transition: 'opacity .25s', cursor: isItem || isTopic ? 'pointer' : 'default' }}
-                                            onMouseEnter={() => !pinnedNodeId && setHoverNodeId(n.id)}
-                                            onMouseLeave={() => !pinnedNodeId && setHoverNodeId(null)}
-                                            onClick={() => {
-                                                if (isItem) {
-                                                    // Jump directly to the detailed view in dashboard with transition state
-                                                    navigate('/', { state: { openItemId: n.libId } });
-                                                } else {
-                                                    setPinnedNodeId(p => p === n.id ? null : n.id);
-                                                }
-                                            }}
-                                        >
-                                            {isRoot && (
-                                                <circle cx={n.x} cy={n.y} r={65} fill="url(#mapRootGlow)" />
-                                            )}
-                                            <circle 
-                                                cx={n.x} cy={n.y} r={radius}
-                                                fill={color}
-                                                stroke={isFocus ? 'var(--accent-primary)' : 'transparent'}
-                                                strokeWidth={1.5}
+                                <g transform={`translate(${transform.x}, ${transform.y}) scale(${transform.scale})`}>
+                                    {/* Link paths */}
+                                    {links.map((l, i) => {
+                                        const A = idMap[l.s], B = idMap[l.e];
+                                        if (!A || !B) return null;
+                                        const dim = isLinkDim(l);
+                                        return (
+                                            <line 
+                                                key={i}
+                                                x1={A.x} y1={A.y}
+                                                x2={B.x} y2={B.y}
+                                                stroke="rgba(255,255,255,0.08)"
+                                                strokeWidth={0.7}
+                                                opacity={dim ? 0.12 : 1}
+                                                style={{ transition: 'opacity .25s' }}
                                             />
-                                            {isRoot && (
-                                                <text x={n.x} y={n.y + 40} fill="var(--text-primary)" fontSize={13} fontWeight={600} textAnchor="middle" style={{ pointerEvents: 'none' }}>
-                                                    {n.label}
-                                                </text>
-                                            )}
-                                            {isItem && (
-                                                <text x={n.x} y={n.y - 12} fill="var(--text-secondary)" fontSize={10.5} fontWeight={500} textAnchor="middle" style={{ pointerEvents: 'none' }}>
-                                                    {n.short}
-                                                </text>
-                                            )}
-                                            {isTopic && isFocus && (
-                                                <text x={n.x} y={n.y - 8} fill="var(--text-secondary)" fontSize={10} textAnchor="middle" style={{ pointerEvents: 'none' }}>
-                                                    {n.label}
-                                                </text>
-                                            )}
-                                        </g>
-                                    );
-                                })}
+                                        );
+                                    })}
+
+                                    {/* Nodes groups */}
+                                    {nodes.map(n => {
+                                        const dim = isDim(n);
+                                        const isRoot = n.id === 'root';
+                                        const isItem = n.type === 'item';
+                                        const isTopic = n.type === 'topic';
+                                        
+                                        const radius = isRoot ? 24 : isItem ? 6 : 3.5;
+                                        const isFocus = activeFocusedId === n.id;
+                                        const color = colorFor(n);
+
+                                        return (
+                                            <g
+                                                key={n.id}
+                                                opacity={dim ? 0.16 : 1}
+                                                style={{ transition: 'opacity .25s', cursor: 'pointer' }}
+                                                onMouseEnter={() => !pinnedNodeId && setHoverNodeId(n.id)}
+                                                onMouseLeave={() => !pinnedNodeId && setHoverNodeId(null)}
+                                                onMouseDown={(e) => handleNodeDragStart(e, n)}
+                                                onClick={(e) => {
+                                                    if (hasDraggedRef.current) {
+                                                        e.preventDefault();
+                                                        e.stopPropagation();
+                                                        return;
+                                                    }
+                                                    if (isItem) {
+                                                        // Jump directly to the detailed view in dashboard with transition state
+                                                        navigate('/', { state: { openItemId: n.libId } });
+                                                    } else {
+                                                        setPinnedNodeId(p => p === n.id ? null : n.id);
+                                                    }
+                                                }}
+                                            >
+                                                {isRoot && (
+                                                    <circle cx={n.x} cy={n.y} r={65} fill="url(#mapRootGlow)" />
+                                                )}
+                                                <circle 
+                                                    cx={n.x} cy={n.y} r={radius}
+                                                    fill={color}
+                                                    stroke={isFocus ? 'var(--accent-primary)' : 'transparent'}
+                                                    strokeWidth={1.5}
+                                                />
+                                                {isRoot && (
+                                                    <text x={n.x} y={n.y + 40} fill="var(--text-primary)" fontSize={13} fontWeight={600} textAnchor="middle" style={{ pointerEvents: 'none' }}>
+                                                        {n.label}
+                                                    </text>
+                                                )}
+                                                {isItem && (
+                                                    <text x={n.x} y={n.y - 12} fill="var(--text-secondary)" fontSize={10.5} fontWeight={500} textAnchor="middle" style={{ pointerEvents: 'none' }}>
+                                                        {n.short}
+                                                    </text>
+                                                )}
+                                                {isTopic && isFocus && (
+                                                    <text x={n.x} y={n.y - 8} fill="var(--text-secondary)" fontSize={10} textAnchor="middle" style={{ pointerEvents: 'none' }}>
+                                                        {n.label}
+                                                    </text>
+                                                )}
+                                            </g>
+                                        );
+                                    })}
+                                </g>
                             </svg>
                         )}
+                    </div>
+
+                    {/* Direct Zoom Controls */}
+                    <div className="map-zoom-controls" style={{ position: 'absolute', bottom: '20px', right: '20px', display: 'flex', flexDirection: 'column', gap: 6, zIndex: 10 }}>
+                        <button className="btn btn--quiet btn--sm" style={{ padding: 0, width: 32, height: 32, display: 'grid', placeItems: 'center', background: 'rgba(11, 11, 15, 0.75)', border: '1px solid var(--border-subtle)', borderRadius: 6, color: 'var(--text-primary)', fontWeight: 600 }} onClick={() => handleButtonZoom(1.15)}>+</button>
+                        <button className="btn btn--quiet btn--sm" style={{ padding: 0, width: 32, height: 32, display: 'grid', placeItems: 'center', background: 'rgba(11, 11, 15, 0.75)', border: '1px solid var(--border-subtle)', borderRadius: 6, color: 'var(--text-primary)', fontWeight: 600 }} onClick={() => handleButtonZoom(0.85)}>-</button>
+                        <button className="btn btn--quiet btn--sm" style={{ padding: '0 8px', height: 32, display: 'grid', placeItems: 'center', background: 'rgba(11, 11, 15, 0.75)', border: '1px solid var(--border-subtle)', borderRadius: 6, color: 'var(--text-secondary)', fontSize: 11 }} onClick={handleResetZoom}>Reset</button>
                     </div>
 
                     {/* Inline Fullscreen Escape helper */}
