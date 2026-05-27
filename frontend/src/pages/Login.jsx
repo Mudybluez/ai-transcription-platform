@@ -2,20 +2,21 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../api';
 import { useTranslation } from 'react-i18next';
+import Icon from '../components/Icon';
 
-const Login = () => {
+export default function Login() {
     const { t, i18n } = useTranslation();
-    
-    // Состояния формы
+    const navigate = useNavigate();
+
+    // Form states
     const [isLoginMode, setIsLoginMode] = useState(true);
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [username, setUsername] = useState('');
     const [message, setMessage] = useState('');
     const [isError, setIsError] = useState(false);
-    
-    const [passwordScore, setPasswordScore] = useState(0);
 
+    const [passwordScore, setPasswordScore] = useState(0);
     const [unverifiedEmail, setUnverifiedEmail] = useState('');
     const [recaptchaSiteKey, setRecaptchaSiteKey] = useState(null);
     const [isResending, setIsResending] = useState(false);
@@ -27,7 +28,7 @@ const Login = () => {
             const res = await api.post('/users/resend-verification', { email: unverifiedEmail });
             setIsError(false);
             setMessage(res.data.message || 'Ссылка подтверждения успешно отправлена повторно!');
-            setUnverifiedEmail(''); // Очищаем после успешной отправки
+            setUnverifiedEmail(''); // Clear after successful send
         } catch (err) {
             setIsError(true);
             setMessage(err.response?.data?.message || 'Не удалось отправить ссылку повторно. Пожалуйста, попробуйте еще раз.');
@@ -37,14 +38,14 @@ const Login = () => {
     };
 
     useEffect(() => {
-        // Проверяем наличие параметра ?verified=true в URL
+        // Check for ?verified=true parameter in URL
         const queryParams = new URLSearchParams(window.location.search);
         if (queryParams.get('verified') === 'true') {
             setIsError(false);
             setMessage('Email успешно подтвержден! Теперь вы можете войти в свой аккаунт.');
         }
 
-        // Загружаем публичный ключ reCAPTCHA с бэкенда в рантайме
+        // Fetch reCAPTCHA public key in runtime
         const fetchRecaptchaKey = async () => {
             try {
                 const res = await api.get('/users/recaptcha-site-key');
@@ -71,26 +72,20 @@ const Login = () => {
         // Cleanup script on unmount
         return () => {
             const script = document.getElementById('recaptcha-v3-script');
-            if (script) {
-                script.remove();
-            }
+            if (script) script.remove();
             const badge = document.querySelector('.grecaptcha-badge');
-            if (badge) {
-                badge.remove();
-            }
+            if (badge) badge.remove();
         };
     }, []);
 
     const checkPasswordScore = (pass) => {
         if (!pass) return 0;
-        
         let score = 0;
         if (pass.length >= 8) score++;
         if (/[A-Z]/.test(pass)) score++;
         if (/[a-z]/.test(pass)) score++;
         if (/\d/.test(pass)) score++;
         if (/[!@#$%^&*(),.?":{}|<>]/.test(pass)) score++;
-
         return score;
     };
 
@@ -108,8 +103,6 @@ const Login = () => {
         }
     };
 
-    const navigate = useNavigate();
-
     const changeLanguage = (lng) => {
         i18n.changeLanguage(lng);
     };
@@ -121,24 +114,22 @@ const Login = () => {
 
         try {
             if (isLoginMode) {
-                // Логика входа
+                // Login logic
                 const response = await api.post('/users/login', { email, password });
                 
-                // Сохраняем данные пользователя в localStorage
                 localStorage.setItem('token', response.data.token);
                 localStorage.setItem('userId', response.data.user.id);
                 localStorage.setItem('role', response.data.user.role);
                 localStorage.setItem('username', response.data.user.username);
                 localStorage.setItem('email', response.data.user.email);
                 
-                // Направляем пользователя в зависимости от его роли
                 if (response.data.user.role === 'admin') {
                     navigate('/admin');
                 } else {
                     navigate('/');
                 }
             } else {
-                // Логика регистрации
+                // Register logic
                 let recaptchaToken = null;
                 const siteKey = recaptchaSiteKey;
                 
@@ -158,18 +149,16 @@ const Login = () => {
 
                 await api.post('/users/register', { username, email, password, recaptchaToken });
                 
-                setUnverifiedEmail(email); // Сохраняем почту для возможности повторной отправки
+                setUnverifiedEmail(email);
                 setIsLoginMode(true);
                 setIsError(false);
                 setMessage('Регистрация прошла успешно! На вашу почту отправлено письмо со ссылкой для верификации. Пожалуйста, подтвердите email перед входом.');
-                // Очищаем поля
                 setPassword(''); 
             }
         } catch (error) {
             setIsError(true);
             setMessage(error.response?.data?.message || t('server_error', 'Произошла ошибка соединения с сервером'));
             
-            // Если ошибка входа из-за неподтвержденной почты (HTTP 403)
             if (error.response?.status === 403 || error.response?.data?.emailUnverified) {
                 setUnverifiedEmail(error.response?.data?.email || email);
             } else {
@@ -179,8 +168,8 @@ const Login = () => {
     };
 
     return (
-        <div style={{ minHeight: '100vh', backgroundColor: '#050505', paddingTop: '50px' }}>
-            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '20px' }}>
+        <div className="auth-shell" data-screen-label="login">
+            <div style={{ position: 'absolute', top: 20, right: 20 }}>
                 <select 
                     className="lang-switcher" 
                     onChange={(e) => changeLanguage(e.target.value)} 
@@ -192,36 +181,38 @@ const Login = () => {
                 </select>
             </div>
 
-            <div style={{ 
-                maxWidth: '400px', 
-                margin: '0 auto', 
-                padding: '30px', 
-                backgroundColor: 'rgba(255,255,255,0.03)',
-                border: '1px solid rgba(255,255,255,0.1)', 
-                borderRadius: '16px', 
-                boxShadow: '0 20px 40px rgba(0,0,0,0.4)',
-                fontFamily: 'sans-serif',
-                color: 'white',
-                backdropFilter: 'blur(10px)'
-            }}>
-                <h2 style={{ textAlign: 'center', marginBottom: '20px' }}>
-                    {isLoginMode ? t('login_title') : t('register_title')}
-                </h2>
-                
+            <div className="auth-card fade-in">
+                <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 24 }}>
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, color: 'var(--accent-primary)' }}>
+                        <Icon name="sparkles" size={22} strokeWidth={1.8} />
+                        <span style={{ fontWeight: 600, color: 'var(--text-primary)', letterSpacing: '-0.01em', fontSize: 16 }}>
+                            AI Transcription
+                        </span>
+                    </span>
+                </div>
+
+                <h1 className="auth-title">
+                    {isLoginMode ? t('login_title', 'С возвращением') : t('register_title', 'Создать аккаунт')}
+                </h1>
+                <p className="auth-sub">
+                    {isLoginMode ? 'Войди в аккаунт, чтобы продолжить.' : 'Зарегистрируйся, чтобы начать работу.'}
+                </p>
+
                 {message && (
                     <div style={{ 
-                        padding: '12px', 
-                        marginBottom: '15px', 
+                        padding: '12px 16px', 
+                        marginBottom: '20px', 
                         borderRadius: '8px',
-                        backgroundColor: isError ? 'rgba(239, 68, 68, 0.15)' : 'rgba(34, 197, 94, 0.15)',
-                        color: isError ? '#fca5a5' : '#86efac',
-                        textAlign: 'center',
-                        fontSize: '14px',
-                        border: isError ? '1px solid rgba(239, 68, 68, 0.4)' : '1px solid rgba(34, 197, 94, 0.4)',
+                        backgroundColor: isError ? 'rgba(242, 139, 130, 0.1)' : 'rgba(129, 201, 149, 0.1)',
+                        color: isError ? 'var(--accent-error)' : 'var(--accent-success)',
+                        fontSize: '13px',
+                        lineHeight: '1.5',
+                        border: `1px solid ${isError ? 'rgba(242, 139, 130, 0.2)' : 'rgba(129, 201, 149, 0.2)'}`,
                         display: 'flex',
                         flexDirection: 'column',
                         gap: '10px',
-                        alignItems: 'center'
+                        alignItems: 'center',
+                        textAlign: 'center'
                     }}>
                         <span>{message}</span>
                         {unverifiedEmail && (
@@ -229,17 +220,11 @@ const Login = () => {
                                 type="button"
                                 onClick={handleResend}
                                 disabled={isResending}
+                                className="btn btn--ghost btn--sm"
                                 style={{
-                                    background: 'rgba(99, 102, 241, 0.25)',
-                                    border: '1px solid rgba(99, 102, 241, 0.6)',
-                                    color: '#c7d2fe',
-                                    padding: '6px 12px',
-                                    borderRadius: '6px',
-                                    fontSize: '12px',
-                                    fontWeight: '700',
-                                    cursor: 'pointer',
-                                    transition: 'all 0.2s',
-                                    outline: 'none'
+                                    borderColor: 'var(--accent-primary)',
+                                    color: 'var(--accent-primary)',
+                                    marginTop: 4
                                 }}
                             >
                                 {isResending ? 'Отправка...' : 'Отправить письмо еще раз'}
@@ -247,45 +232,55 @@ const Login = () => {
                         )}
                     </div>
                 )}
-                
-                <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+
+                <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                     {!isLoginMode && (
-                        <input 
-                            type="text" 
-                            placeholder={t('username_label')} 
-                            value={username}
-                            onChange={(e) => setUsername(e.target.value)}
-                            required
-                            className="yt-input"
-                            style={{ width: '100%' }}
-                        />
+                        <div className="material-field">
+                            <input 
+                                id="username"
+                                type="text" 
+                                placeholder=" " 
+                                value={username}
+                                onChange={(e) => setUsername(e.target.value)}
+                                required
+                            />
+                            <label htmlFor="username">{t('username_label', 'Имя пользователя')}</label>
+                        </div>
                     )}
-                    <input 
-                        type="email" 
-                        placeholder={t('email_label')} 
-                        value={email}
-                        onChange={(e) => setEmail(e.target.value)}
-                        required
-                        className="yt-input"
-                        style={{ width: '100%' }}
-                    />
-                    <input 
-                        type="password" 
-                        placeholder={t('password_label')} 
-                        value={password}
-                        onChange={handlePasswordChange}
-                        required
-                        className="yt-input"
-                        style={{ width: '100%' }}
-                    />
+                    
+                    <div className="material-field">
+                        <input 
+                            id="email"
+                            type="email" 
+                            placeholder=" " 
+                            value={email}
+                            onChange={(e) => setEmail(e.target.value)}
+                            required
+                        />
+                        <label htmlFor="email">{t('email_label', 'Email')}</label>
+                    </div>
+
+                    <div className="material-field">
+                        <input 
+                            id="password"
+                            type="password" 
+                            placeholder=" " 
+                            value={password}
+                            onChange={handlePasswordChange}
+                            required
+                        />
+                        <label htmlFor="password">{t('password_label', 'Пароль')}</label>
+                    </div>
+
                     {!isLoginMode && password && (
-                        <div style={{ marginTop: '-10px' }}>
+                        <div style={{ marginTop: '-4px' }}>
                             <div style={{ 
                                 height: '4px', 
                                 width: '100%', 
-                                backgroundColor: 'rgba(255,255,255,0.1)', 
+                                backgroundColor: 'var(--border-subtle)', 
                                 borderRadius: '2px',
-                                overflow: 'hidden'
+                                overflow: 'hidden',
+                                marginBottom: '4px'
                             }}>
                                 <div style={{ 
                                     height: '100%', 
@@ -294,34 +289,34 @@ const Login = () => {
                                     transition: 'width 0.3s ease, background-color 0.3s ease'
                                 }} />
                             </div>
-                            <span style={{ fontSize: '12px', color: getStrengthDetails(passwordScore).color }}>
+                            <span style={{ fontSize: '11.5px', color: getStrengthDetails(passwordScore).color }}>
                                 {getStrengthDetails(passwordScore).label}
                             </span>
                         </div>
                     )}
+
                     <button 
                         type="submit" 
-                        className="btn-primary"
-                        style={{ padding: '14px', width: '100%' }}
+                        className="btn btn--primary"
+                        style={{ width: '100%', marginTop: 8 }}
                         disabled={!isLoginMode && passwordScore < 3}
                     >
-                        {isLoginMode ? t('login_btn') : t('register_btn')}
+                        {isLoginMode ? t('login_btn', 'Войти') : t('register_btn', 'Создать аккаунт')}
+                        <Icon name="arrow_right" size={15} />
                     </button>
                 </form>
-                
+
                 <p 
-                    style={{ textAlign: 'center', marginTop: '20px', cursor: 'pointer', color: '#a855f7' }} 
+                    style={{ textAlign: 'center', marginTop: '24px', cursor: 'pointer', color: 'var(--accent-primary)', fontSize: '13px' }} 
                     onClick={() => {
                         setIsLoginMode(!isLoginMode);
                         setMessage('');
                         setIsError(false);
                     }}
                 >
-                    {isLoginMode ? t('no_account') : t('have_account')}
+                    {isLoginMode ? t('no_account', 'Еще нет аккаунта? Зарегистрироваться') : t('have_account', 'Уже есть аккаунт? Войти')}
                 </p>
             </div>
         </div>
     );
-};
-
-export default Login;
+}

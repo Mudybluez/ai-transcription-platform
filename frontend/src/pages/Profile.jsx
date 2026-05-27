@@ -1,10 +1,55 @@
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import api from '../api';
 import './Extras.css';
 import { useTranslation } from 'react-i18next';
+import Icon from '../components/Icon';
+import NotificationsBell from '../components/NotificationsBell';
 
-const Profile = () => {
+const NavItems = ({
+    userRole,
+    changeLanguage,
+    i18n,
+    setIsMobileMenuOpen,
+    t
+}) => {
+    const displayRole = userRole === 'admin' ? 'Admin' : userRole;
+    return (
+        <>
+            <span className={`role-badge-nav role-badge-${userRole.toLowerCase()}`}>
+                {displayRole}
+            </span>
+
+            <NotificationsBell />
+
+            <select 
+                className="lang-switcher" 
+                onChange={(e) => changeLanguage(e.target.value)} 
+                value={i18n.language}
+            >
+                <option value="en">EN</option>
+                <option value="ru">RU</option>
+                <option value="kk">KK</option>
+            </select>
+            <Link to="/" className="nav-link" onClick={() => setIsMobileMenuOpen(false)}>
+                <Icon name="arrow_left" size={14} style={{ marginRight: 4 }} />
+                {t('back_btn', 'Назад')}
+            </Link>
+            <span className="nav-link logout" onClick={() => {
+                localStorage.clear();
+                window.location.href = '/login';
+            }}>
+                <Icon name="log_out" size={14} style={{ marginRight: 4 }} />
+                {t('logout', 'Выйти')}
+            </span>
+        </>
+    );
+};
+
+export default function Profile() {
+    const navigate = useNavigate();
+    const { t, i18n } = useTranslation();
+
     const [stats, setStats] = useState({ 
         totalAnalyzed: 0, 
         lastActivity: '-', 
@@ -18,8 +63,12 @@ const Profile = () => {
     
     const [newUsername, setNewUsername] = useState(localStorage.getItem('username') || '');
     const [isUpdatingUsername, setIsUpdatingUsername] = useState(false);
+    const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
-    const { t, i18n } = useTranslation();
+    // Mock notification states
+    const [emailNotifs, setEmailNotifs] = useState(true);
+    const [pushNotifs, setPushNotifs] = useState(true);
+    const [marketingNotifs, setMarketingNotifs] = useState(false);
 
     const changeLanguage = (lng) => {
         i18n.changeLanguage(lng);
@@ -43,7 +92,6 @@ const Profile = () => {
             const historyRes = await api.get('/history');
             const statsRes = await api.get(`/user/stats/${user.id}`);
             
-            // Также запросим свежий профиль для обновления роли в реальном времени
             const profileRes = await api.get(`/users/profile/${user.id}`);
             if (profileRes.data && profileRes.data.role) {
                 localStorage.setItem('role', profileRes.data.role);
@@ -51,7 +99,7 @@ const Profile = () => {
             }
             
             const lastDate = historyRes.data.length > 0 
-                ? new Date(historyRes.data[0].created_at).toLocaleDateString('ru-RU')
+                ? new Date(historyRes.data[0].created_at).toLocaleDateString()
                 : '-';
 
             setStats({ 
@@ -75,7 +123,8 @@ const Profile = () => {
         try {
             await api.post('/users/change-password', { userId: user.id, oldPassword, newPassword });
             alert(t('password_changed_alert', 'Пароль изменен'));
-            setOldPassword(''); setNewPassword('');
+            setOldPassword(''); 
+            setNewPassword('');
         } catch (error) {
             alert(error.response?.data?.message || "Ошибка");
         } finally {
@@ -84,7 +133,7 @@ const Profile = () => {
     };
 
     const clearHistory = async () => {
-        if (!window.confirm(t('confirm_clear_all'))) return;
+        if (!window.confirm(t('confirm_clear_all', 'Вы уверены, что хотите полностью очистить всю историю разборов?'))) return;
         try {
             await api.delete('/history/all/clear');
             alert(t('history_cleared_alert', 'История очищена'));
@@ -105,7 +154,6 @@ const Profile = () => {
             const response = await api.post('/users/update-username', { userId: user.id, newUsername });
             alert(t('username_updated_alert', 'Имя пользователя успешно обновлено'));
             localStorage.setItem('username', response.data.user.username);
-            // Форсируем обновление страницы для применения изменений везде
             window.location.reload();
         } catch (error) {
             alert(error.response?.data?.message || t('error_alert', 'Ошибка'));
@@ -116,89 +164,187 @@ const Profile = () => {
 
     return (
         <div className="dashboard-container fade-in">
+            {/* Navigation Header */}
             <header className="top-nav">
-                <Link to="/" className="logo" style={{textDecoration: 'none'}}>{t('app_name')}</Link>
-                <div style={{display: 'flex', alignItems: 'center', gap: '15px'}}>
-                    <select 
-                        className="lang-switcher" 
-                        onChange={(e) => changeLanguage(e.target.value)} 
-                        value={i18n.language}
-                    >
-                        <option value="en">EN</option>
-                        <option value="ru">RU</option>
-                        <option value="kk">KK</option>
-                    </select>
-                    <Link to="/" className="nav-link">{t('back_btn')}</Link>
+                <button className="hamburger" onClick={() => setIsMobileMenuOpen(true)}>☰</button>
+                <div className="logo" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <Icon name="sparkles" size={17} style={{ color: 'var(--accent-primary)' }} />
+                    <span>AI Transcription</span>
+                </div>
+                <div className="nav-links-desktop">
+                    <NavItems 
+                        userRole={userRole} 
+                        changeLanguage={changeLanguage} 
+                        i18n={i18n} 
+                        setIsMobileMenuOpen={setIsMobileMenuOpen} 
+                        t={t} 
+                    />
                 </div>
             </header>
 
-            <div className="profile-grid fade-in-up">
-                <div className="profile-main-card">
-                    <div className="profile-avatar">{user.username.charAt(0).toUpperCase()}</div>
-                    <h2>{user.username}</h2>
-                    <p className="profile-email">{user.email}</p>
-                    <div className={`role-badge-nav role-badge-${userRole.toLowerCase()}`} style={{ fontSize: '13px', padding: '6px 14px', borderRadius: '12px', margin: '0 auto 30px auto' }}>
-                        {userRole === 'admin' ? 'Admin' : userRole}
-                    </div>
-
-                    <div className="profile-stats">
-                        <div className="stat-box">
-                            <span className="stat-number">{stats.totalAnalyzed}</span>
-                            <span className="stat-label">{t('stats_analyzed')}</span>
-                        </div>
-                        <div className="stat-box">
-                            <span className="stat-number">{stats.totalWords}</span>
-                            <span className="stat-label">{t('stats_words')}</span>
-                        </div>
-                    </div>
-
-                    <div className="user-lang-stats">
-                        <h4>{t('lang_content')}</h4>
-                        {stats.languages.map((l, i) => (
-                            <div key={i} className="lang-row">
-                                <span>{l.lang === 'ru' ? 'Русский' : l.lang === 'en' ? 'English' : 'Қазақша'}</span>
-                                <strong>{l.count}</strong>
-                            </div>
-                        ))}
-                    </div>
-
-                    <div style={{marginTop: '30px'}}>
-                        <button className="action-btn block-btn" onClick={clearHistory}>{t('clear_history_btn')}</button>
-                    </div>
-                </div>
-
-                <div className="profile-settings-card">
-                    <h3>{t('profile_settings', 'Настройки профиля')}</h3>
-                    <form onSubmit={handleUpdateUsername} className="settings-form" style={{marginBottom: '30px'}}>
-                        <div className="form-group">
-                            <label>{t('username_label', 'Имя пользователя')}</label>
-                            <input type="text" value={newUsername} onChange={(e) => setNewUsername(e.target.value)} className="yt-input" />
-                        </div>
-                        <button type="submit" className="btn-primary" disabled={isUpdatingUsername}>
-                            {isUpdatingUsername ? t('btn_loading') : t('save_btn', 'Сохранить')}
-                        </button>
-                    </form>
-
-                    <hr style={{borderColor: 'rgba(255,255,255,0.1)', marginBottom: '30px'}} />
-
-                    <h3>{t('security_title')}</h3>
-                    <form onSubmit={handleChangePassword} className="settings-form">
-                        <div className="form-group">
-                            <label>{t('old_password')}</label>
-                            <input type="password" value={oldPassword} onChange={(e) => setOldPassword(e.target.value)} className="yt-input" />
-                        </div>
-                        <div className="form-group">
-                            <label>{t('new_password')}</label>
-                            <input type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} className="yt-input" />
-                        </div>
-                        <button type="submit" className="btn-primary" disabled={isChanging}>
-                            {isChanging ? t('btn_loading') : t('update_password_btn')}
-                        </button>
-                    </form>
-                </div>
+            {/* Mobile Nav Overlay */}
+            <div className={`mobile-overlay ${isMobileMenuOpen ? 'open' : ''}`} onClick={() => setIsMobileMenuOpen(false)} />
+            <div className={`mobile-menu-drawer ${isMobileMenuOpen ? 'open' : ''}`}>
+                <button style={{background:'none', border:'none', color:'white', fontSize:'24px', alignSelf:'flex-end', marginBottom:'20px', cursor:'pointer'}} onClick={() => setIsMobileMenuOpen(false)}>×</button>
+                <NavItems 
+                    userRole={userRole} 
+                    changeLanguage={changeLanguage} 
+                    i18n={i18n} 
+                    setIsMobileMenuOpen={setIsMobileMenuOpen} 
+                    t={t} 
+                />
             </div>
+
+            {/* Main Redesigned Content Grid */}
+            <main className="page" data-screen-label="profile" style={{ maxWidth: 1000, margin: '0 auto', padding: '0 24px 80px' }}>
+                <a className="crumb" onClick={(e) => { e.preventDefault(); navigate('/'); }} href="#">
+                    <Icon name="arrow_left" size={14} />
+                    {t('back_btn', 'Назад в библиотеку')}
+                </a>
+                
+                <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 28, fontWeight: 600, letterSpacing: '-0.02em', margin: '0 0 32px' }}>
+                    {t('profile', 'Профиль')}
+                </h1>
+
+                <div className="profile-grid">
+                    {/* Left Card: Summary Stats */}
+                    <div className="profile-card">
+                        <div className="profile-avatar">
+                            {user.username.charAt(0).toUpperCase()}
+                        </div>
+                        <h2 className="profile-name">{user.username}</h2>
+                        <p className="profile-email">{user.email}</p>
+                        
+                        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 24 }}>
+                            <span className="admin-pill" style={{ textTransform: 'uppercase' }}>
+                                {userRole === 'admin' ? 'Admin' : userRole}
+                            </span>
+                        </div>
+
+                        <div className="profile-stats">
+                            <div className="profile-stats__item">
+                                <div className="profile-stats__num">{stats.totalAnalyzed}</div>
+                                <div className="profile-stats__label">{t('stats_analyzed', 'Разборов')}</div>
+                            </div>
+                            <div className="profile-stats__item">
+                                <div className="profile-stats__num">
+                                    {stats.totalWords.toLocaleString()}
+                                </div>
+                                <div className="profile-stats__label">{t('stats_words', 'Слов ИИ')}</div>
+                            </div>
+                        </div>
+
+                        <div style={{ borderTop: '1px solid var(--border-subtle)', marginTop: 24, paddingTop: 16 }}>
+                            <div className="section-title" style={{ marginBottom: 12, fontSize: 13, fontWeight: 600 }}>
+                                {t('lang_content', 'Языки контента')}
+                            </div>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                                {stats.languages.length === 0 ? (
+                                    <span style={{ fontSize: 13, color: 'var(--text-tertiary)' }}>Статистика языков отсутствует</span>
+                                ) : stats.languages.map((l, i) => (
+                                    <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', fontSize: 13.5 }}>
+                                        <span>{l.lang === 'ru' ? 'Русский' : l.lang === 'en' ? 'English' : 'Қазақша'}</span>
+                                        <span style={{ color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)' }}>{l.count}</span>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Right Column: Settings & Forms */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+                        {/* Settings card */}
+                        <div className="profile-card">
+                            <h3 style={{ margin: '0 0 4px', fontSize: 15, fontWeight: 600 }}>
+                                {t('profile_settings', 'Настройки профиля')}
+                            </h3>
+                            <p style={{ color: 'var(--text-secondary)', fontSize: 13, margin: '0 0 24px' }}>
+                                Имя и аватар отображаются в твоей библиотеке и при экспорте.
+                            </p>
+                            <form onSubmit={handleUpdateUsername}>
+                                <label className="label">{t('username_label', 'Имя пользователя')}</label>
+                                <input 
+                                    className="field" 
+                                    value={newUsername} 
+                                    onChange={e => setNewUsername(e.target.value)} 
+                                />
+                                <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 16 }}>
+                                    <button type="submit" className="btn btn--primary btn--sm" disabled={isUpdatingUsername}>
+                                        {isUpdatingUsername ? 'Сохранение...' : 'Сохранить'}
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+
+                        {/* Interactive Toggle Settings */}
+                        <div className="profile-card">
+                            <h3 style={{ margin: '0 0 4px', fontSize: 15, fontWeight: 600 }}>Уведомления</h3>
+                            <p style={{ color: 'var(--text-secondary)', fontSize: 13, margin: '0 0 16px' }}>
+                                Что присылать, когда разбор готов или меняется статус подписки.
+                            </p>
+                            <div className="list-row">
+                                <div>
+                                    <div className="list-row__label">Email-уведомления</div>
+                                    <div className="list-row__sub">Когда разбор готов или возникла ошибка</div>
+                                </div>
+                                <button className={`toggle ${emailNotifs ? 'is-on' : ''}`} onClick={() => setEmailNotifs(v => !v)} />
+                            </div>
+                            <div className="list-row">
+                                <div>
+                                    <div className="list-row__label">Push в браузер</div>
+                                    <div className="list-row__sub">Только когда вкладка открыта</div>
+                                </div>
+                                <button className={`toggle ${pushNotifs ? 'is-on' : ''}`} onClick={() => setPushNotifs(v => !v)} />
+                            </div>
+                            <div className="list-row">
+                                <div>
+                                    <div className="list-row__label">Новости платформы</div>
+                                    <div className="list-row__sub">Релизы, фичи, эксперименты</div>
+                                </div>
+                                <button className={`toggle ${marketingNotifs ? 'is-on' : ''}`} onClick={() => setMarketingNotifs(v => !v)} />
+                            </div>
+                        </div>
+
+                        {/* Security Form Card */}
+                        <div className="profile-card">
+                            <h3 style={{ margin: '0 0 4px', fontSize: 15, fontWeight: 600 }}>
+                                {t('security_title', 'Безопасность')}
+                            </h3>
+                            <p style={{ color: 'var(--text-secondary)', fontSize: 13, margin: '0 0 16px' }}>
+                                Смена пароля и завершение всех сессий.
+                            </p>
+                            <form onSubmit={handleChangePassword}>
+                                <label className="label">{t('old_password', 'Текущий пароль')}</label>
+                                <input 
+                                    className="field" 
+                                    type="password" 
+                                    placeholder="••••••••" 
+                                    value={oldPassword}
+                                    onChange={e => setOldPassword(e.target.value)}
+                                />
+                                <div style={{ height: 12 }} />
+                                <label className="label">{t('new_password', 'Новый пароль')}</label>
+                                <input 
+                                    className="field" 
+                                    type="password" 
+                                    placeholder="••••••••" 
+                                    value={newPassword}
+                                    onChange={e => setNewPassword(e.target.value)}
+                                />
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 16 }}>
+                                    <button type="button" className="btn btn--danger btn--sm" onClick={clearHistory}>
+                                        <Icon name="trash" size={13} />
+                                        {t('clear_history_btn', 'Очистить историю')}
+                                    </button>
+                                    <button type="submit" className="btn btn--primary btn--sm" disabled={isChanging}>
+                                        {isChanging ? 'Смена...' : t('update_password_btn', 'Обновить пароль')}
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </main>
         </div>
     );
-};
-
-export default Profile;
+}
