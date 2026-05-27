@@ -294,12 +294,48 @@ app.get('/recaptcha-site-key', (req, res) => {
 
 app.get('/profile/:id', async (req, res) => {
     try {
-        const userResult = await db.query('SELECT id, username, email, role, created_at FROM users WHERE id = $1', [req.params.id]);
+        const queryText = `
+            SELECT 
+                u.id, 
+                u.username, 
+                u.email, 
+                u.role, 
+                u.created_at,
+                u.custom_requests,
+                (
+                    SELECT COUNT(*)::integer 
+                    FROM jobs j 
+                    WHERE j.user_id = u.id AND j.created_at >= NOW() - INTERVAL '12 hours'
+                ) as requests_last_12h
+            FROM users u
+            WHERE u.id = $1
+        `;
+        const userResult = await db.query(queryText, [req.params.id]);
         if (userResult.rows.length === 0) {
             return res.status(404).json({ message: 'Пользователь не найден' });
         }
-        res.json(userResult.rows[0]);
+        
+        const user = userResult.rows[0];
+        const limits = {
+            'Standard': 2,
+            'Lite': 10
+        };
+        
+        let remaining = 0;
+        if (user.role === 'Pro' || user.role === 'admin') {
+            remaining = 'Unlimited';
+        } else {
+            const baseLimit = limits[user.role] !== undefined ? limits[user.role] : 2;
+            const used = user.requests_last_12h || 0;
+            remaining = Math.max(0, baseLimit - used) + (user.custom_requests || 0);
+        }
+        
+        res.json({
+            ...user,
+            remaining_requests: remaining
+        });
     } catch (error) {
+        console.error('Ошибка в GET /profile/:id:', error);
         res.status(500).json({ message: 'Ошибка сервера' });
     }
 });

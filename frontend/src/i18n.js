@@ -11,6 +11,7 @@ const resources = {
       "logout": "Выйти",
       "hero_title": "Преврати видео в знания",
       "hero_subtitle": "ИИ сгенерирует конспект, 10 вопросов для теста и карточки.",
+      "hero_eyebrow": "ИИ-генератор · {{count}} кредита сегодня",
       "input_placeholder": "Вставь ссылку на YouTube...",
       "btn_process": "Создать разбор",
       "btn_loading": "Обработка...",
@@ -179,7 +180,20 @@ const resources = {
       "feedback_prompt_title": "Понравился анализ?",
       "feedback_prompt_subtitle": "Уделите минуту и оставьте отзыв — это помогает нам стать лучше.",
       "feedback_prompt_submit": "Оставить отзыв",
-      "feedback_prompt_skip": "Пропустить"
+      "feedback_prompt_skip": "Пропустить",
+      "rating_excellent": "Отлично",
+      "rating_fine": "Хорошо",
+      "rating_normal": "Нормально",
+      "rating_bad": "Плохо",
+      "rating_terrible": "Ужасно",
+      "rating_label": "Оценка",
+      "message_label": "Сообщение",
+      "feedback_placeholder": "Что улучшить?",
+      "cancel": "Отмена",
+      "send": "Отправить",
+      "sending": "Отправка...",
+      "history_feedback": "Мои отзывы",
+      "feedback_success_alert": "Спасибо за ваш отзыв!"
     }
   },
   en: {
@@ -190,6 +204,7 @@ const resources = {
       "logout": "Logout",
       "hero_title": "Turn video into knowledge",
       "hero_subtitle": "AI will generate a summary, 10 quiz questions, and flashcards.",
+      "hero_eyebrow": "AI Generator · {{count}} credits today",
       "input_placeholder": "Paste YouTube URL...",
       "btn_process": "Create Analysis",
       "btn_loading": "Processing...",
@@ -357,7 +372,20 @@ const resources = {
       "feedback_prompt_title": "Enjoyed the analysis?",
       "feedback_prompt_subtitle": "Take a minute to leave a review — it helps us get better.",
       "feedback_prompt_submit": "Leave a review",
-      "feedback_prompt_skip": "Skip"
+      "feedback_prompt_skip": "Skip",
+      "rating_excellent": "Excellent",
+      "rating_fine": "Good",
+      "rating_normal": "Okay",
+      "rating_bad": "Bad",
+      "rating_terrible": "Terrible",
+      "rating_label": "Rating",
+      "message_label": "Message",
+      "feedback_placeholder": "What can we improve?",
+      "cancel": "Cancel",
+      "send": "Send",
+      "sending": "Sending...",
+      "history_feedback": "My Reviews",
+      "feedback_success_alert": "Thank you for your feedback!"
     }
   },
   kk: {
@@ -368,6 +396,7 @@ const resources = {
       "logout": "Шығу",
       "hero_title": "Бейнені білімге айналдыр",
       "hero_subtitle": "Жасанды интеллект конспект, 10 тест сұрағын және карточкалар жасайды.",
+      "hero_eyebrow": "ЖИ-генератор · бүгін {{count}} кредит",
       "input_placeholder": "YouTube сілтемесін енгізіңіз...",
       "btn_process": "Бастау",
       "btn_loading": "Өңделуде...",
@@ -535,7 +564,20 @@ const resources = {
       "feedback_prompt_title": "Талдау ұнады ма?",
       "feedback_prompt_subtitle": "Бір минут бөліп, пікір қалдырыңыз — бұл бізге жақсаруға көмектеседі.",
       "feedback_prompt_submit": "Пікір қалдыру",
-      "feedback_prompt_skip": "Өткізіп жіберу"
+      "feedback_prompt_skip": "Өткізіп жіберу",
+      "rating_excellent": "Өте жақсы",
+      "rating_fine": "Жақсы",
+      "rating_normal": "Қалыпты",
+      "rating_bad": "Нашар",
+      "rating_terrible": "Өте нашар",
+      "rating_label": "Баға",
+      "message_label": "Хабарлама",
+      "feedback_placeholder": "Не жақсартуға болады?",
+      "cancel": "Болдырмау",
+      "send": "Жіберу",
+      "sending": "Жіберілуде...",
+      "history_feedback": "Менің пікірлерім",
+      "feedback_success_alert": "Пікіріңіз үшін рахмет!"
     }
   }
 };

@@ -98,6 +98,7 @@ export default function Dashboard() {
     const [highlightText, setHighlightText] = useState(null);
     
     const [userRole, setUserRole] = useState(localStorage.getItem('role') || 'Standard');
+    const [remainingRequests, setRemainingRequests] = useState(null);
 
     // Feedback States
     const [isFeedbackModalOpen, setIsFeedbackModalOpen] = useState(false);
@@ -294,13 +295,23 @@ export default function Dashboard() {
         e.preventDefault();
         if (!feedbackMessage.trim()) return;
 
+        // Map frontend display values to backend-accepted rating keys
+        const ratingMap = {
+            'Excellent': 'Good',
+            'Fine':      'Fine',
+            'Normal':    'Okay',
+            'Bad':       'Bad',
+            'Terrible':  'Very Bad'
+        };
+        const backendRating = ratingMap[feedbackRating] || feedbackRating;
+
         setIsSubmittingFeedback(true);
         try {
             const csrfRes = await api.get('/csrf-token');
             const csrfToken = csrfRes.data.csrfToken;
 
             await api.post('/feedbacks', {
-                rating: feedbackRating,
+                rating: backendRating,
                 message: feedbackMessage
             }, {
                 headers: {
@@ -324,9 +335,14 @@ export default function Dashboard() {
         if (!userId) return;
         try {
             const res = await api.get(`/users/profile/${userId}`);
-            if (res.data && res.data.role) {
-                localStorage.setItem('role', res.data.role);
-                setUserRole(res.data.role);
+            if (res.data) {
+                if (res.data.role) {
+                    localStorage.setItem('role', res.data.role);
+                    setUserRole(res.data.role);
+                }
+                if (res.data.remaining_requests !== undefined) {
+                    setRemainingRequests(res.data.remaining_requests);
+                }
             }
         } catch (e) {
             console.error("Error fetching user profile", e);
@@ -698,6 +714,7 @@ export default function Dashboard() {
             
             if (response && response.data.job_id) {
                 setPollingJobId(response.data.job_id);
+                fetchUserProfile();
             }
         } catch (err) {
             const errorMsg = err.response?.data?.message || "Произошла ошибка при отправке данных на сервер.";
@@ -863,7 +880,7 @@ ${detailed}`;
                             <div className="hero__wrap">
                                 <span className="hero__eyebrow">
                                     <span className="dot" />
-                                    {t('hero_eyebrow', 'ИИ-генератор · 3 кредита сегодня')}
+                                    {t('hero_eyebrow', 'ИИ-генератор · {{count}} кредита сегодня', { count: (userRole.toLowerCase() === 'pro' || userRole.toLowerCase() === 'admin') ? '∞' : (remainingRequests !== null ? remainingRequests : 2) })}
                                 </span>
                                 <div ref={heroTriggerRef} className="hero__trigger">
                                     <h1 className="hero__title">{t('hero_title', 'Преврати видео в знания')}</h1>
@@ -958,8 +975,9 @@ ${detailed}`;
                                                                 <Icon name="trash" size={12} />
                                                                 {t('delete_btn', 'Удалить')}
                                                             </button>
-                                                            <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
-                                                                🎙️ {t('record_ready', 'Аудиофайл готов к отправке')} ({selectedFile ? (selectedFile.size / (1024 * 1024)).toFixed(2) + ' MB' : ''})
+                                                            <span style={{ fontSize: 13, color: 'var(--text-secondary)', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                                                                <Icon name="mic" size={14} style={{ color: 'var(--accent-primary)' }} />
+                                                                {t('record_ready', 'Аудиофайл готов к отправке')} ({selectedFile ? (selectedFile.size / (1024 * 1024)).toFixed(2) + ' MB' : ''})
                                                             </span>
                                                         </div>
                                                     </div>
@@ -1278,15 +1296,7 @@ ${detailed}`;
                                                     );
                                                 })}
                                             </div>
-                                            {(isAnswered && !isCorrect && !isRevealed) && (
-                                                <button 
-                                                    className="btn btn--ghost btn--sm" 
-                                                    style={{ marginTop: 12 }} 
-                                                    onClick={() => setRevealedAnswers({...revealedAnswers, [qIndex]: true})}
-                                                >
-                                                    {t('show_answer', 'Показать правильный ответ')}
-                                                </button>
-                                            )}
+                                            
                                         </div>
                                     );
                                 })}
@@ -1360,11 +1370,11 @@ ${detailed}`;
                                 <label className="label">{t('rating_label', 'Оценка')}</label>
                                 <div style={{ display: 'flex', gap: 6, marginBottom: 16, flexWrap: 'wrap' }}>
                                     {[
-                                        { value: 'Excellent', label: 'Отлично' },
-                                        { value: 'Fine', label: 'Хорошо' },
-                                        { value: 'Normal', label: 'Нормально' },
-                                        { value: 'Bad', label: 'Плохо' },
-                                        { value: 'Terrible', label: 'Ужасно' }
+                                        { value: 'Excellent', labelKey: 'rating_excellent', labelFallback: 'Отлично' },
+                                        { value: 'Fine',      labelKey: 'rating_fine',      labelFallback: 'Хорошо' },
+                                        { value: 'Normal',    labelKey: 'rating_normal',    labelFallback: 'Нормально' },
+                                        { value: 'Bad',       labelKey: 'rating_bad',       labelFallback: 'Плохо' },
+                                        { value: 'Terrible',  labelKey: 'rating_terrible',  labelFallback: 'Ужасно' }
                                     ].map(rating => (
                                         <button
                                             type="button"
@@ -1372,7 +1382,7 @@ ${detailed}`;
                                             className={`btn btn--sm ${feedbackRating === rating.value ? 'btn--primary' : 'btn--ghost'}`}
                                             onClick={() => setFeedbackRating(rating.value)}
                                         >
-                                            {rating.label}
+                                            {t(rating.labelKey, rating.labelFallback)}
                                         </button>
                                     ))}
                                 </div>
@@ -1381,7 +1391,7 @@ ${detailed}`;
                                     className="field"
                                     rows={4}
                                     style={{ height: 'auto', padding: 12, resize: 'vertical', fontFamily: 'var(--font-body)', marginBottom: 20 }}
-                                    placeholder="Что улучшить?"
+                                    placeholder={t('feedback_placeholder', 'Что улучшить?')}
                                     value={feedbackMessage}
                                     onChange={e => setFeedbackMessage(e.target.value)}
                                     required
@@ -1389,7 +1399,7 @@ ${detailed}`;
                                 <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
                                     <button type="button" className="btn btn--ghost btn--sm" onClick={() => setIsFeedbackModalOpen(false)}>{t('cancel', 'Отмена')}</button>
                                     <button type="submit" className="btn btn--primary btn--sm" disabled={isSubmittingFeedback}>
-                                        {isSubmittingFeedback ? 'Отправка...' : 'Отправить'}
+                                        {isSubmittingFeedback ? t('sending', 'Отправка...') : t('send', 'Отправить')}
                                     </button>
                                 </div>
                             </form>
