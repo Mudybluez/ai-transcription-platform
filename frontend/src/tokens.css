@@ -1078,10 +1078,18 @@ body.mobile-mode .hero { padding: var(--s-8) 0 var(--s-10); }
 body.mobile-mode .hero__title { font-size: 32px; }
 body.mobile-mode .detail-title { font-size: 22px; }
 body.mobile-mode .tabs {
+  width: 100% !important;
+  max-width: 100% !important;
+  box-sizing: border-box !important;
   overflow-x: auto !important;
   display: flex !important;
   flex-wrap: nowrap !important;
   -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;  /* Firefox */
+  -ms-overflow-style: none;  /* IE/Edge */
+}
+body.mobile-mode .tabs::-webkit-scrollbar {
+  display: none !important;
 }
 body.mobile-mode .tab {
   flex-shrink: 0 !important;
@@ -1314,10 +1322,18 @@ body.mobile-mode .map-focus-card { left: 8px !important; right: 8px !important; 
 
   /* Make categories/tabs horizontally scrollable on mobile */
   .tabs {
+    width: 100% !important;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
     overflow-x: auto !important;
     display: flex !important;
     flex-wrap: nowrap !important;
     -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;  /* Firefox */
+    -ms-overflow-style: none;  /* IE/Edge */
+  }
+  .tabs::-webkit-scrollbar {
+    display: none !important;
   }
   .tab {
     flex-shrink: 0 !important;
