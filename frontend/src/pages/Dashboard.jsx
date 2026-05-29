@@ -146,84 +146,95 @@ export default function Dashboard() {
         )
     );
 
-    // Fetch a relevant featured image from Wikipedia (free, no API key, CORS-enabled)
+    // Fetch a relevant featured image via Wikipedia (precise opensearch → article lead image)
     useEffect(() => {
         if (!activeItem?.analysis?.title) {
             setAnalysisImageUrl(null);
             return;
         }
+
         // Prefer English title for better Wikipedia coverage
         const searchTitle = activeItem.analysis.title?.en ||
                             activeItem.analysis.title?.ru ||
                             activeItem.file_name || '';
-
         if (!searchTitle) return;
 
-        const keywords = searchTitle
+        setAnalysisImageUrl(null);
+
+        // Generic meta-words that describe the analysis type, not the actual subject
+        const GENERIC_WORDS = new Set([
+            'analysis', 'review', 'overview', 'assessment', 'study', 'report',
+            'summary', 'lecture', 'presentation', 'introduction', 'impact',
+            'effects', 'influence', 'role', 'exploration', 'examination',
+            'discussion', 'comparison', 'evaluation', 'understanding', 'exploring',
+            'content', 'video', 'audio', 'file', 'document', 'анализ', 'обзор',
+            'исследование', 'изучение', 'тема', 'about', 'the', 'and', 'for',
+            'with', 'from', 'into', 'within', 'across', 'overview', 'basics',
+        ]);
+
+        // Full keywords from title (used as fallback)
+        const allKeywords = searchTitle
             .replace(/[^\w\s]/g, ' ')
             .trim()
             .split(/\s+/)
-            .filter(w => w.length > 2)
-            .slice(0, 4)
+            .filter(w => w.length > 2);
+
+        // Core keywords: remove generic words to find the real subject
+        const coreWords = allKeywords
+            .filter(w => !GENERIC_WORDS.has(w.toLowerCase()))
+            .slice(0, 3)
             .join(' ');
 
-        if (!keywords) return;
-        setAnalysisImageUrl(null);
+        const searchQuery = coreWords || allKeywords.slice(0, 3).join(' ');
+        if (!searchQuery) return;
 
-        console.log('[ZenScribe] Image search keywords:', keywords);
+        console.log('[ZenScribe] Core search query:', searchQuery);
 
         const controller = new AbortController();
         const fetchImage = async () => {
             try {
-                // Wikipedia page image search — returns reliable JPEG article thumbnails
-                const wikiUrl = `https://en.wikipedia.org/w/api.php?action=query&generator=search&gsrsearch=${encodeURIComponent(keywords)}&gsrlimit=10&prop=pageimages&pithumbsize=1200&format=json&origin=*`;
-                console.log('[ZenScribe] Wikipedia API:', wikiUrl);
+                // Step 1: Wikipedia opensearch — finds the most precise matching article title
+                const openUrl = `https://en.wikipedia.org/w/api.php?action=opensearch&search=${encodeURIComponent(searchQuery)}&limit=3&namespace=0&format=json&origin=*`;
+                console.log('[ZenScribe] opensearch:', openUrl);
 
+                const openRes = await fetch(openUrl, { signal: controller.signal });
+                const [, titles] = await openRes.json();
+                console.log('[ZenScribe] opensearch titles:', titles);
+
+                if (titles.length > 0) {
+                    // Step 2: Get the lead image of the top matching Wikipedia article
+                    const imgUrl = `https://en.wikipedia.org/w/api.php?action=query&titles=${encodeURIComponent(titles[0])}&prop=pageimages&pithumbsize=1200&format=json&origin=*`;
+                    const imgRes = await fetch(imgUrl, { signal: controller.signal });
+                    const imgData = await imgRes.json();
+
+                    const pages = Object.values(imgData?.query?.pages || {});
+                    const found = pages.find(p => p.thumbnail?.source);
+                    if (found) {
+                        console.log('[ZenScribe] Image from opensearch article:', found.thumbnail.source);
+                        setAnalysisImageUrl(found.thumbnail.source);
+                        return;
+                    }
+                }
+
+                // Fallback: generator search with core words
+                const wikiUrl = `https://en.wikipedia.org/w/api.php?action=query&generator=search&gsrsearch=${encodeURIComponent(searchQuery)}&gsrlimit=10&prop=pageimages&pithumbsize=1200&format=json&origin=*`;
                 const res = await fetch(wikiUrl, { signal: controller.signal });
                 const data = await res.json();
-
                 const pages = Object.values(data?.query?.pages || {});
-                console.log('[ZenScribe] Wikipedia pages:', pages.length);
-
-                // Find the first page that has a thumbnail image
                 const page = pages.find(p => p.thumbnail?.source);
                 if (page) {
-                    console.log('[ZenScribe] Found image:', page.thumbnail.source);
+                    console.log('[ZenScribe] Fallback image:', page.thumbnail.source);
                     setAnalysisImageUrl(page.thumbnail.source);
-                    return;
-                }
-
-                // Fallback: Wikimedia Commons with very relaxed filter
-                console.log('[ZenScribe] No Wikipedia image, trying Wikimedia Commons...');
-                const commonsUrl = `https://commons.wikimedia.org/w/api.php?action=query&generator=search&gsrsearch=${encodeURIComponent(keywords)}&gsrnamespace=6&prop=imageinfo&iiprop=url|size|mime&format=json&origin=*&gsrlimit=20`;
-                const commonsRes = await fetch(commonsUrl, { signal: controller.signal });
-                const commonsData = await commonsRes.json();
-
-                const commonsPages = Object.values(commonsData?.query?.pages || {});
-                const commonsImages = commonsPages
-                    .map(p => p.imageinfo?.[0])
-                    .filter(info => {
-                        if (!info?.url) return false;
-                        const mime = info.mime || '';
-                        return mime === 'image/jpeg' || mime === 'image/png' || mime === 'image/webp';
-                    })
-                    .map(info => info.url);
-
-                console.log('[ZenScribe] Commons fallback images:', commonsImages.length, commonsImages[0] || 'none');
-                if (commonsImages.length > 0) {
-                    setAnalysisImageUrl(commonsImages[0]);
                 }
             } catch (e) {
-                if (e.name !== 'AbortError') {
-                    console.error('[ZenScribe] Image fetch failed:', e);
-                }
+                if (e.name !== 'AbortError') console.error('[ZenScribe] Image fetch failed:', e);
             }
         };
 
         fetchImage();
         return () => controller.abort();
-    // Use job_id or id — whichever is present — to re-trigger on new analysis
     }, [activeItem?.job_id ?? activeItem?.id]);
+
 
     // Suppress stray image tags that may exist in old analyses (previously inserted by loremflickr)
     const getMarkdownImageComponents = () => ({
