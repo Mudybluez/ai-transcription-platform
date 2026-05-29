@@ -438,6 +438,24 @@ export default function Dashboard() {
         }
     }, [location.state, history]);
 
+    // Intercept browser back button and breadcrumb exits to refresh the page when exiting the analysis
+    useEffect(() => {
+        if (!activeItem) return;
+
+        // Push a state so that browser back button doesn't leave the app
+        window.history.pushState({ isAnalysisOpen: true }, '');
+
+        const handlePopState = (event) => {
+            // Exiting the analysis -> refresh page
+            window.location.reload();
+        };
+
+        window.addEventListener('popstate', handlePopState);
+        return () => {
+            window.removeEventListener('popstate', handlePopState);
+        };
+    }, [activeItem]);
+
     // Highlight text on map node click
     useEffect(() => {
         if (!highlightText || !activeItem) return;
@@ -1229,7 +1247,7 @@ ${detailed}`;
                 ) : (
                     /* Redesigned detail screen views */
                     <main className="page" data-screen-label="detail" style={{ maxWidth: 840, margin: '0 auto', padding: '0 24px 80px' }}>
-                        <a className="crumb" onClick={(e) => { e.preventDefault(); window.location.reload(); }} href="#">
+                        <a className="crumb" onClick={(e) => { e.preventDefault(); if (window.history.state?.isAnalysisOpen) { window.history.back(); } else { window.location.reload(); } }} href="#">
                             <Icon name="arrow_left" size={14} />
                             {t('back_btn', 'Назад в библиотеку')}
                         </a>
