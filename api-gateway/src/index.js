@@ -145,6 +145,12 @@ app.post('/api/notifications/read-all', proxy(process.env.USER_SERVICE_URL || 'h
 app.post('/api/notifications/:id/read', proxy(process.env.USER_SERVICE_URL || 'http://localhost:3001', {
     proxyReqPathResolver: (req) => `/notifications/${req.params.id}/read`
 }));
+app.delete('/api/notifications', proxy(process.env.USER_SERVICE_URL || 'http://localhost:3001', {
+    proxyReqPathResolver: () => '/notifications'
+}));
+app.delete('/api/notifications/:id', proxy(process.env.USER_SERVICE_URL || 'http://localhost:3001', {
+    proxyReqPathResolver: (req) => `/notifications/${req.params.id}`
+}));
 
 
 // Базовый роут для проверки работоспособности
