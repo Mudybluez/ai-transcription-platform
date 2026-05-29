@@ -143,6 +143,72 @@ export default function Dashboard() {
         )
     );
 
+    // Stable hash function to generate consistent lock values for loremflickr based on analysis title
+    const getStableHash = (str) => {
+        if (!str) return 1;
+        let hash = 0;
+        for (let i = 0; i < str.length; i++) {
+            hash = str.charCodeAt(i) + ((hash << 5) - hash);
+        }
+        return Math.abs(hash) % 100000;
+    };
+
+    // Clean and extract a highly optimized keyword string from the analysis title
+    const getSearchQueryFromTitle = (title) => {
+        if (!title || typeof title !== 'string') return '';
+        // Extract letters and spaces only
+        let clean = title.replace(/[^\w\sа-яА-ЯёЁәӘіІңҢғҒүҮұҰқҚөӨһҺ]/g, ' ');
+        // Convert to lowercase and split by spaces
+        const words = clean.toLowerCase().split(/\s+/).filter(w => w.length > 2);
+        if (words.length === 0) return 'abstract';
+        // Take up to 4 significant words and join them with commas (loremflickr format)
+        return words.slice(0, 4).join(',');
+    };
+
+    const getMarkdownImageComponents = () => {
+        const title = getLangText(activeItem?.analysis?.title) || activeItem?.file_name || 'analysis';
+        const query = getSearchQueryFromTitle(title);
+        const stableLock = getStableHash(title);
+        
+        return {
+            img: ({ node, src, alt, ...props }) => {
+                // If it is a loremflickr link, replace it with a locked, title-based high quality Flickr image!
+                let finalSrc = src;
+                if (src && src.includes('loremflickr.com')) {
+                    // Extract width/height from the original URL if present (e.g. /800/400/...)
+                    const dimensionsMatch = src.match(/loremflickr\.com\/(\d+)\/(\d+)/);
+                    const width = dimensionsMatch ? dimensionsMatch[1] : '800';
+                    const height = dimensionsMatch ? dimensionsMatch[2] : '450';
+                    
+                    finalSrc = `https://loremflickr.com/${width}/${height}/${encodeURIComponent(query)}?lock=${stableLock}`;
+                }
+                
+                return (
+                    <img 
+                        src={finalSrc} 
+                        alt={alt || title} 
+                        style={{
+                            maxWidth: '100%',
+                            height: 'auto',
+                            borderRadius: '12px',
+                            border: '1px solid var(--border-subtle)',
+                            boxShadow: '0 12px 24px rgba(0, 0, 0, 0.25)',
+                            marginTop: '24px',
+                            marginBottom: '24px',
+                            display: 'block',
+                            marginLeft: 'auto',
+                            marginRight: 'auto',
+                            transition: 'transform 0.3s ease',
+                        }}
+                        onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.01)'}
+                        onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
+                        {...props}
+                    />
+                );
+            }
+        };
+    };
+
     const DETAIL_TABS = [
         { id: 'summary', label: t('tab_summary', 'Анализ'), icon: 'file_text' },
         ...(isYoutubeVideo ? [{ id: 'video', label: t('tab_video', 'Видео'), icon: 'youtube' }] : []),
@@ -1312,7 +1378,7 @@ ${detailed}`;
                         {currentTab === 'summary' && (
                             <div className="fade-in">
                                 <div className="prose hero-summary">
-                                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                                    <ReactMarkdown remarkPlugins={[remarkGfm]} components={getMarkdownImageComponents()}>
                                         {getMarkdownText(getLangText(activeItem.analysis?.summary))}
                                     </ReactMarkdown>
                                 </div>
@@ -1343,7 +1409,7 @@ ${detailed}`;
                                     {t('detailed_analysis', 'Подробный разбор')}
                                 </h2>
                                 <div className="prose detailed-content" style={{ marginBottom: 48 }}>
-                                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                                    <ReactMarkdown remarkPlugins={[remarkGfm]} components={getMarkdownImageComponents()}>
                                         {getMarkdownText(getLangText(activeItem.analysis?.detailed_analysis))}
                                     </ReactMarkdown>
                                 </div>
