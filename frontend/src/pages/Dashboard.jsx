@@ -99,6 +99,9 @@ export default function Dashboard() {
     const [revealedAnswers, setRevealedAnswers] = useState({}); 
     const [showScrollTop, setShowScrollTop] = useState(false);
     const [highlightText, setHighlightText] = useState(null);
+
+    // Featured image fetched from Wikimedia Commons based on analysis title
+    const [analysisImageUrl, setAnalysisImageUrl] = useState(null);
     
     const [userRole, setUserRole] = useState(localStorage.getItem('role') || 'Standard');
     const [remainingRequests, setRemainingRequests] = useState(null);
@@ -143,71 +146,70 @@ export default function Dashboard() {
         )
     );
 
-    // Stable hash function to generate consistent lock values for loremflickr based on analysis title
-    const getStableHash = (str) => {
-        if (!str) return 1;
-        let hash = 0;
-        for (let i = 0; i < str.length; i++) {
-            hash = str.charCodeAt(i) + ((hash << 5) - hash);
+    // Fetch a relevant featured image from Wikimedia Commons (free, no API key, CORS-enabled)
+    useEffect(() => {
+        if (!activeItem?.analysis?.title) {
+            setAnalysisImageUrl(null);
+            return;
         }
-        return Math.abs(hash) % 100000;
-    };
+        // Prefer English title for better Wikimedia coverage
+        const searchTitle = activeItem.analysis.title?.en ||
+                            activeItem.analysis.title?.ru ||
+                            activeItem.file_name || '';
+        if (!searchTitle) return;
 
-    // Clean and extract a highly optimized keyword string from the analysis title
-    const getSearchQueryFromTitle = (title) => {
-        if (!title || typeof title !== 'string') return '';
-        // Extract letters and spaces only
-        let clean = title.replace(/[^\w\sа-яА-ЯёЁәӘіІңҢғҒүҮұҰқҚөӨһҺ]/g, ' ');
-        // Convert to lowercase and split by spaces
-        const words = clean.toLowerCase().split(/\s+/).filter(w => w.length > 2);
-        if (words.length === 0) return 'abstract';
-        // Take up to 4 significant words and join them with commas (loremflickr format)
-        return words.slice(0, 4).join(',');
-    };
+        const keywords = searchTitle
+            .replace(/[^\w\s]/g, ' ')
+            .trim()
+            .split(/\s+/)
+            .filter(w => w.length > 2)
+            .slice(0, 5)
+            .join(' ');
 
-    const getMarkdownImageComponents = () => {
-        const title = getLangText(activeItem?.analysis?.title) || activeItem?.file_name || 'analysis';
-        const query = getSearchQueryFromTitle(title);
-        const stableLock = getStableHash(title);
-        
-        return {
-            img: ({ node, src, alt, ...props }) => {
-                // If it is a loremflickr link, replace it with a locked, title-based high quality Flickr image!
-                let finalSrc = src;
-                if (src && src.includes('loremflickr.com')) {
-                    // Extract width/height from the original URL if present (e.g. /800/400/...)
-                    const dimensionsMatch = src.match(/loremflickr\.com\/(\d+)\/(\d+)/);
-                    const width = dimensionsMatch ? dimensionsMatch[1] : '800';
-                    const height = dimensionsMatch ? dimensionsMatch[2] : '450';
-                    
-                    finalSrc = `https://loremflickr.com/${width}/${height}/${encodeURIComponent(query)}?lock=${stableLock}`;
+        if (!keywords) return;
+        setAnalysisImageUrl(null);
+
+        const controller = new AbortController();
+        const fetchImage = async () => {
+            try {
+                // Step 1: Search for matching file pages in Wikimedia Commons
+                const searchUrl = `https://commons.wikimedia.org/w/api.php?action=query&generator=search&gsrsearch=${encodeURIComponent(keywords)}&gsrnamespace=6&prop=imageinfo&iiprop=url|size|mime&format=json&origin=*&gsrlimit=20`;
+                const res = await fetch(searchUrl, { signal: controller.signal });
+                const data = await res.json();
+
+                const pages = Object.values(data?.query?.pages || {});
+                const images = pages
+                    .map(p => p.imageinfo?.[0])
+                    .filter(info => {
+                        if (!info) return false;
+                        const mime = info.mime || '';
+                        const w = info.width || 0;
+                        const h = info.height || 0;
+                        // Only landscape / square JPEG or PNG, min 500px wide
+                        return (mime === 'image/jpeg' || mime === 'image/png' || mime === 'image/webp')
+                            && w >= 500
+                            && (h === 0 || w / h >= 0.7);
+                    })
+                    .map(info => info.url);
+
+                if (images.length > 0) {
+                    setAnalysisImageUrl(images[0]);
                 }
-                
-                return (
-                    <img 
-                        src={finalSrc} 
-                        alt={alt || title} 
-                        style={{
-                            maxWidth: '100%',
-                            height: 'auto',
-                            borderRadius: '12px',
-                            border: '1px solid var(--border-subtle)',
-                            boxShadow: '0 12px 24px rgba(0, 0, 0, 0.25)',
-                            marginTop: '24px',
-                            marginBottom: '24px',
-                            display: 'block',
-                            marginLeft: 'auto',
-                            marginRight: 'auto',
-                            transition: 'transform 0.3s ease',
-                        }}
-                        onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.01)'}
-                        onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
-                        {...props}
-                    />
-                );
+            } catch (e) {
+                if (e.name !== 'AbortError') {
+                    console.warn('[ZenScribe] Could not fetch Wikimedia image:', e);
+                }
             }
         };
-    };
+
+        fetchImage();
+        return () => controller.abort();
+    }, [activeItem?.job_id]);
+
+    // Suppress stray image tags that may exist in old analyses (previously inserted by loremflickr)
+    const getMarkdownImageComponents = () => ({
+        img: () => null  // Remove any embedded images — featured image shown separately above
+    });
 
     const DETAIL_TABS = [
         { id: 'summary', label: t('tab_summary', 'Анализ'), icon: 'file_text' },
@@ -1377,11 +1379,48 @@ ${detailed}`;
                         {/* Analysis list Tab */}
                         {currentTab === 'summary' && (
                             <div className="fade-in">
+                                {/* Featured image from Wikimedia Commons */}
+                                {analysisImageUrl && (
+                                    <div style={{
+                                        width: '100%',
+                                        borderRadius: '16px',
+                                        overflow: 'hidden',
+                                        marginBottom: '32px',
+                                        border: '1px solid var(--border-subtle)',
+                                        boxShadow: '0 16px 48px rgba(0,0,0,0.3)',
+                                        maxHeight: '360px',
+                                        position: 'relative'
+                                    }}>
+                                        <img
+                                            src={analysisImageUrl}
+                                            alt={getLangText(activeItem.analysis?.title)}
+                                            style={{
+                                                width: '100%',
+                                                height: '360px',
+                                                objectFit: 'cover',
+                                                display: 'block',
+                                                transition: 'transform 0.5s ease',
+                                            }}
+                                            onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.03)'}
+                                            onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}
+                                        />
+                                        <div style={{
+                                            position: 'absolute',
+                                            bottom: 0,
+                                            left: 0,
+                                            right: 0,
+                                            height: '80px',
+                                            background: 'linear-gradient(to top, var(--bg-app) 0%, transparent 100%)'
+                                        }} />
+                                    </div>
+                                )}
+
                                 <div className="prose hero-summary">
                                     <ReactMarkdown remarkPlugins={[remarkGfm]} components={getMarkdownImageComponents()}>
                                         {getMarkdownText(getLangText(activeItem.analysis?.summary))}
                                     </ReactMarkdown>
                                 </div>
+
 
                                 <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 20, fontWeight: 600, margin: '48px 0 24px' }}>
                                     {t('key_insights', 'Ключевые инсайты')}
