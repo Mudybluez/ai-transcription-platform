@@ -85,6 +85,9 @@ export default function Dashboard() {
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
     const [recordingTime, setRecordingTime] = useState(0);
     const [pollingJobId, setPollingJobId] = useState(null);
+    const [progressPercent, setProgressPercent] = useState(0);
+    const [progressStageText, setProgressStageText] = useState('');
+    const [showProgressCard, setShowProgressCard] = useState(false);
     
     // Detail and tabs
     const [activeItem, setActiveItem] = useState(null);
@@ -579,11 +582,17 @@ export default function Dashboard() {
                     
                     const finishedJob = historyData.find(j => j.job_id === pollingJobId && j.structured_analysis);
                     if (finishedJob) {
-                        clearInterval(pollInterval);
-                        setPollingJobId(null);
-                        setStatus('');
-                        openItem(finishedJob);
-                        loadHistory();
+                        // Smoothly transition progress bar to 100% and success
+                        setProgressPercent(100);
+                        setProgressStageText(t('progress_completed', 'Анализ успешно завершен!'));
+                        
+                        setTimeout(() => {
+                            clearInterval(pollInterval);
+                            setPollingJobId(null);
+                            setStatus('');
+                            openItem(finishedJob);
+                            loadHistory();
+                        }, 1500);
                     }
                 } catch (e) {
                     console.error("Error in HTTP polling fallback:", e);
@@ -603,18 +612,24 @@ export default function Dashboard() {
                             
                             const finishedJob = historyData.find(j => j.job_id === pollingJobId);
                             if (finishedJob) {
-                                setPollingJobId(null);
-                                setStatus('');
-                                openItem(finishedJob);
-                                loadHistory();
+                                // Smoothly transition progress bar to 100% and success
+                                setProgressPercent(100);
+                                setProgressStageText(t('progress_completed', 'Анализ успешно завершен!'));
+                                
+                                setTimeout(() => {
+                                    setPollingJobId(null);
+                                    setStatus('');
+                                    openItem(finishedJob);
+                                    loadHistory();
 
-                                // Feedback prompt on 2nd completed analysis
-                                const prevCount = parseInt(localStorage.getItem('analysisCompletedCount') || '0', 10);
-                                const nextCount = prevCount + 1;
-                                localStorage.setItem('analysisCompletedCount', String(nextCount));
-                                if (nextCount % 2 === 0) {
-                                    setTimeout(() => setIsFeedbackPromptOpen(true), 1500);
-                                }
+                                    // Feedback prompt on 2nd completed analysis
+                                    const prevCount = parseInt(localStorage.getItem('analysisCompletedCount') || '0', 10);
+                                    const nextCount = prevCount + 1;
+                                    localStorage.setItem('analysisCompletedCount', String(nextCount));
+                                    if (nextCount % 2 === 0) {
+                                        setTimeout(() => setIsFeedbackPromptOpen(true), 1500);
+                                    }
+                                }, 1500);
                             } else {
                                 startHttpFallback();
                             }
@@ -624,6 +639,7 @@ export default function Dashboard() {
                         }
                     } else if (data.status.startsWith('FAILED')) {
                         setPollingJobId(null);
+                        setShowProgressCard(false);
                         setStatus('Ошибка добавления задачи');
                         alert(`Ошибка анализа: ${data.status.replace('FAILED:', '')}`);
                         loadHistory();
@@ -648,6 +664,61 @@ export default function Dashboard() {
             if (pollInterval) clearInterval(pollInterval);
         };
     }, [pollingJobId]);
+
+    // Custom smooth progress simulation
+    useEffect(() => {
+        if (!pollingJobId) {
+            if (progressPercent === 100) {
+                // Keep showing 100% for 2 seconds, then hide
+                const timer = setTimeout(() => {
+                    setShowProgressCard(false);
+                    setProgressPercent(0);
+                }, 2000);
+                return () => clearTimeout(timer);
+            }
+            return;
+        }
+
+        setShowProgressCard(true);
+        
+        const interval = setInterval(() => {
+            setProgressPercent((prev) => {
+                let next = prev;
+                if (prev < 10) {
+                    next = prev + 1.5;
+                } else if (prev < 45) {
+                    next = prev + 0.6;
+                } else if (prev < 75) {
+                    next = prev + 0.4;
+                } else if (prev < 88) {
+                    next = prev + 0.3;
+                } else if (prev < 96) {
+                    next = prev + 0.2;
+                } else if (prev < 99) {
+                    next = prev + 0.05;
+                }
+                
+                // Update stage text based on percentage
+                if (next < 10) {
+                    setProgressStageText(t('progress_stage_1', 'Инициализация и подготовка медиафайла...'));
+                } else if (next < 45) {
+                    setProgressStageText(t('progress_stage_2', 'Распознавание речи и транскрибация текста...'));
+                } else if (next < 75) {
+                    setProgressStageText(t('progress_stage_3', 'ИИ анализирует текст и собирает конспект...'));
+                } else if (next < 88) {
+                    setProgressStageText(t('progress_stage_4', 'Генерация интеллект-карты и ключевых инсайтов...'));
+                } else if (next < 96) {
+                    setProgressStageText(t('progress_stage_5', 'Создание вопросов для теста и колоды карточек...'));
+                } else {
+                    setProgressStageText(t('progress_stage_6', 'Сохранение результатов анализа...'));
+                }
+
+                return Math.min(next, 99);
+            });
+        }, 200);
+
+        return () => clearInterval(interval);
+    }, [pollingJobId, progressPercent]);
 
     const loadHistory = async () => {
         try {
@@ -1009,6 +1080,86 @@ ${detailed}`;
                                     )}
                                 </div>
                             </div>
+                            
+                            {/* Sleek Localized Premium Progress Bar */}
+                            {showProgressCard && (
+                                <div className="progress-card fade-in" style={{
+                                    maxWidth: 640,
+                                    margin: '32px auto 0',
+                                    padding: '20px 24px',
+                                    background: 'rgba(255, 255, 255, 0.03)',
+                                    border: '1px solid rgba(255, 255, 255, 0.08)',
+                                    borderRadius: '16px',
+                                    backdropFilter: 'blur(20px)',
+                                    boxShadow: '0 20px 40px rgba(0, 0, 0, 0.3)',
+                                    position: 'relative',
+                                    zIndex: 10,
+                                    width: 'calc(100% - 48px)',
+                                    boxSizing: 'border-box'
+                                }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, gap: 16 }}>
+                                        <span style={{ 
+                                            fontSize: 14, 
+                                            fontWeight: 600, 
+                                            color: 'var(--text-primary)', 
+                                            fontFamily: 'var(--font-display)',
+                                            letterSpacing: '-0.01em',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: 8
+                                        }}>
+                                            {progressPercent === 100 ? (
+                                                <Icon name="check_circle" size={16} style={{ color: 'var(--accent-success)' }} />
+                                            ) : (
+                                                <span className="status-dot status-dot--pending spin" style={{ width: 12, height: 12 }} />
+                                            )}
+                                            {t('progress_title', 'Анализ контента в процессе...')}
+                                        </span>
+                                        <span style={{ 
+                                            fontSize: 14, 
+                                            fontWeight: 700, 
+                                            color: progressPercent === 100 ? 'var(--accent-success)' : 'var(--accent-primary)',
+                                            marginLeft: 'auto'
+                                        }}>
+                                            {Math.round(progressPercent)}%
+                                        </span>
+                                    </div>
+                                    
+                                    {/* Progress track */}
+                                    <div style={{
+                                        height: 6,
+                                        width: '100%',
+                                        background: 'rgba(255, 255, 255, 0.05)',
+                                        borderRadius: 3,
+                                        overflow: 'hidden',
+                                        position: 'relative',
+                                        marginBottom: 10
+                                    }}>
+                                        <div style={{
+                                            height: '100%',
+                                            width: `${progressPercent}%`,
+                                            background: progressPercent === 100 
+                                                ? 'linear-gradient(90deg, #34D399, #10B981)' 
+                                                : 'linear-gradient(90deg, #A78BFA, #8AB4F8)',
+                                            borderRadius: 3,
+                                            transition: 'width 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                                            boxShadow: progressPercent === 100
+                                                ? '0 0 12px rgba(16, 185, 129, 0.5)'
+                                                : '0 0 12px rgba(138, 180, 248, 0.5)'
+                                        }} />
+                                    </div>
+
+                                    {/* Localized stage caption */}
+                                    <p style={{
+                                        margin: 0,
+                                        fontSize: 12,
+                                        color: progressPercent === 100 ? 'var(--accent-success)' : 'var(--text-tertiary)',
+                                        transition: 'color 0.3s'
+                                    }}>
+                                        {progressStageText}
+                                    </p>
+                                </div>
+                            )}
                         </section>
 
                         {/* Library Grid with premium redesigned cards */}
