@@ -111,7 +111,7 @@ app.post('/register', async (req, res) => {
 
         // 6. Генерация токена верификации почты
         const verificationToken = crypto.randomBytes(32).toString('hex');
-        const verificationTokenExpiresAt = new Date(Date.now() + 3 * 60 * 1000); // Срок действия 3 минуты
+        const verificationTokenExpiresAt = new Date(Date.now() + 15 * 60 * 1000); // Срок действия 15 минут
 
         // 7. Сохранение в БД (по умолчанию is_verified = FALSE)
         const newUser = await db.query(
@@ -261,9 +261,9 @@ app.post('/resend-verification', async (req, res) => {
             return res.status(400).json({ message: 'Ваш email уже подтвержден.' });
         }
 
-        // Генерация нового токена верификации на 3 минуты
+        // Генерация нового токена верификации на 15 минут
         const verificationToken = crypto.randomBytes(32).toString('hex');
-        const verificationTokenExpiresAt = new Date(Date.now() + 3 * 60 * 1000); // 3 минуты
+        const verificationTokenExpiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 минут
 
         await db.query(
             `UPDATE users 
@@ -339,7 +339,7 @@ app.get('/profile/:id', async (req, res) => {
         res.status(500).json({ message: 'Ошибка сервера' });
     }
 });
-app.get('/all', async (req, res) => {
+app.get('/all', requireAdmin, async (req, res) => {
     try {
         // Запрашиваем всех пользователей со статистикой запросов для админки
         const queryText = `
@@ -452,7 +452,7 @@ app.post('/update-username', async (req, res) => {
 });
 
 // Мидлвар для проверки прав администратора
-const requireAdmin = (req, res, next) => {
+function requireAdmin(req, res, next) {
     const authHeader = req.headers['authorization'];
     if (!authHeader) {
         return res.status(401).json({ message: 'Доступ запрещен. Токен не предоставлен.' });
@@ -469,7 +469,7 @@ const requireAdmin = (req, res, next) => {
     } catch (e) {
         return res.status(403).json({ message: 'Недействительный или просроченный токен.' });
     }
-};
+}
 
 // Обновление роли пользователя (только для администраторов)
 app.post('/update-role', requireAdmin, async (req, res) => {
