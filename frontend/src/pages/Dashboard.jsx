@@ -127,8 +127,25 @@ export default function Dashboard() {
         { id: 'record', label: t('type_record', 'Запись'), icon: 'mic' }
     ];
 
+    const getYoutubeId = (url) => {
+        if (!url || typeof url !== 'string') return null;
+        const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
+        const match = url.match(regExp);
+        return (match && match[2].length === 11) ? match[2] : null;
+    };
+
+    const isYoutubeVideo = !!(
+        activeItem && (
+            getYoutubeId(activeItem.file_path) || 
+            getYoutubeId(activeItem.youtube_link) || 
+            (activeItem.file_name && activeItem.file_name.toLowerCase().includes('youtube')) ||
+            (activeItem.file_path && activeItem.file_path.toLowerCase().includes('youtube'))
+        )
+    );
+
     const DETAIL_TABS = [
         { id: 'summary', label: t('tab_summary', 'Анализ'), icon: 'file_text' },
+        ...(isYoutubeVideo ? [{ id: 'video', label: t('tab_video', 'Видео'), icon: 'youtube' }] : []),
         { id: 'mindmap', label: t('tab_mindmap', 'Карта'), icon: 'network' },
         { id: 'flashcards', label: t('tab_flashcards', 'Карточки'), icon: 'layers' },
         { id: 'quiz', label: t('tab_quiz', 'Тест'), icon: 'help_circle' },
@@ -163,7 +180,7 @@ export default function Dashboard() {
         const ro = new ResizeObserver(measure);
         if (detailTabsRef.current) ro.observe(detailTabsRef.current);
         return () => ro.disconnect();
-    }, [currentTab, activeItem]);
+    }, [currentTab, activeItem, isYoutubeVideo]);
 
     // Smooth Momentum Wheel Scroll Setup
     useEffect(() => {
@@ -1343,6 +1360,24 @@ ${detailed}`;
                                             <p style={{ margin: 0, color: '#D9DBDE', fontSize: 14.5, lineHeight: 1.6 }}>{item}</p>
                                         </div>
                                     ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* YouTube Video Player Tab */}
+                        {currentTab === 'video' && isYoutubeVideo && (
+                            <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 24, padding: '24px 0' }}>
+                                <div className="video-player-wrapper">
+                                    <iframe
+                                        width="100%"
+                                        height="100%"
+                                        src={`https://www.youtube.com/embed/${getYoutubeId(activeItem.file_path || activeItem.youtube_link)}?autoplay=0&rel=0`}
+                                        title={getLangText(activeItem.analysis?.title) || "YouTube Video"}
+                                        frameBorder="0"
+                                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                                        allowFullScreen
+                                        style={{ border: 'none' }}
+                                    ></iframe>
                                 </div>
                             </div>
                         )}
