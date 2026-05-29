@@ -153,7 +153,11 @@ app.get('/', authenticateUser, async (req, res) => {
 app.get('/history', authenticateUser, async (req, res) => {
     try {
         const result = await db.query(
-            'SELECT id, job_id, raw_text, structured_analysis, created_at FROM transcriptions WHERE user_id = $1 ORDER BY created_at DESC',
+            `SELECT t.id, t.job_id, t.raw_text, t.structured_analysis, t.created_at, j.file_path, j.file_name 
+             FROM transcriptions t 
+             LEFT JOIN jobs j ON t.job_id = j.id 
+             WHERE t.user_id = $1 
+             ORDER BY t.created_at DESC`,
             [req.userId]
         );
 
