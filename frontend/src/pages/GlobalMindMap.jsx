@@ -360,7 +360,7 @@ export default function GlobalMindMap() {
             x: customNodePositions['root']?.x ?? cx,
             y: customNodePositions['root']?.y ?? cy,
             type: 'root',
-            meta: `${history.length} разборов`
+            meta: t('mindmap_meta_count', { count: history.length })
         });
 
         const activeAnalyses = history.filter(item => {
@@ -564,7 +564,7 @@ export default function GlobalMindMap() {
                             {t('tab_mindmap', 'Карта знаний')}
                         </h1>
                         <p style={{ color: 'var(--text-secondary)', margin: '6px 0 0', fontSize: 14 }}>
-                            Все {history.length} разборов в едином созвездии. Наведите на узлы, чтобы проследить смысловые связи.
+                            {t('mindmap_subtitle', { count: history.length })}
                         </p>
                     </div>
                     <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
@@ -574,7 +574,7 @@ export default function GlobalMindMap() {
                             </span>
                             <input
                                 className="field"
-                                placeholder="Поиск по карте..."
+                                placeholder={t('search_placeholder', 'Поиск по карте...')}
                                 style={{ height: 36, fontSize: 13, padding: '0 12px 0 34px', width: 220 }}
                                 value={searchQuery}
                                 onChange={e => setSearchQuery(e.target.value)}
@@ -582,7 +582,7 @@ export default function GlobalMindMap() {
                         </div>
                         <button className="btn btn--ghost btn--sm" onClick={toggleFullscreen} style={{ height: 36 }}>
                             <Icon name="maximize" size={14} />
-                            {isFullscreen ? 'Свернуть' : 'Во весь экран'}
+                            {isFullscreen ? t('immersive_close', 'Свернуть') : t('immersive_expand', 'Во весь экран')}
                         </button>
                     </div>
                 </div>
@@ -594,7 +594,7 @@ export default function GlobalMindMap() {
                         style={{ borderColor: selectedCategoryFilter === 'all' ? 'var(--border-medium)' : 'transparent' }}
                         onClick={() => setSelectedCategoryFilter('all')}
                     >
-                        Все разборы
+                        {t('mindmap_filter_all', 'Все разборы')}
                     </button>
                     <button
                         className={`btn btn--sm ${selectedCategoryFilter === 'ru' ? 'btn--ghost' : 'btn--quiet'}`}
@@ -602,7 +602,7 @@ export default function GlobalMindMap() {
                         onClick={() => setSelectedCategoryFilter('ru')}
                     >
                         <span style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--accent-primary)', marginRight: 4, display: 'inline-block' }} />
-                        Русский (RU)
+                        {t('lang_ru', 'Русский (RU)')}
                     </button>
                     <button
                         className={`btn btn--sm ${selectedCategoryFilter === 'en' ? 'btn--ghost' : 'btn--quiet'}`}
@@ -610,7 +610,7 @@ export default function GlobalMindMap() {
                         onClick={() => setSelectedCategoryFilter('en')}
                     >
                         <span style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--accent-secondary)', marginRight: 4, display: 'inline-block' }} />
-                        English (EN)
+                        {t('lang_en', 'English (EN)')}
                     </button>
                 </div>
 
@@ -766,7 +766,7 @@ export default function GlobalMindMap() {
                             }}
                         >
                             <Icon name="x" size={14} />
-                            Свернуть (Esc)
+                            {t('mindmap_collapse_esc', 'Свернуть (Esc)')}
                         </button>
                     )}
 
@@ -784,8 +784,8 @@ export default function GlobalMindMap() {
                             fontSize: 13,
                         }} className="fade-in">
                             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, color: 'var(--text-tertiary)', fontSize: 11, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
-                                {focusNode.type === 'item' ? 'Разбор' : 'Ключевая тема'}
-                                {pinnedNodeId && <span style={{ color: 'var(--accent-primary)', display: 'inline-flex', alignItems: 'center', gap: 3 }}><Icon name="pin" size={10} /> закреплен</span>}
+                                {focusNode.type === 'item' ? t('mindmap_type_analysis', 'Разбор') : t('mindmap_type_topic', 'Ключевая тема')}
+                                {pinnedNodeId && <span style={{ color: 'var(--accent-primary)', display: 'inline-flex', alignItems: 'center', gap: 3 }}><Icon name="pin" size={10} /> {t('mindmap_pinned', 'закреплен')}</span>}
                             </div>
                             <div style={{ fontWeight: 600, fontSize: 14, lineHeight: 1.4, color: 'var(--text-primary)', marginBottom: 8 }}>
                                 {focusNode.label}
@@ -796,18 +796,18 @@ export default function GlobalMindMap() {
                             <div style={{ display: 'flex', gap: 8 }}>
                                 {focusNode.type === 'item' ? (
                                     <button className="btn btn--primary btn--sm" onClick={() => navigate('/', { state: { openItemId: focusNode.libId } })}>
-                                        Открыть разбор
+                                        {t('mindmap_open_analysis', 'Открыть разбор')}
                                         <Icon name="arrow_right" size={13} />
                                     </button>
                                 ) : (
                                     <button className="btn className btn--primary btn--sm" onClick={() => navigate('/', { state: { openItemId: idMap[focusNode.analysisId]?.libId, highlightText: focusNode.label } })}>
-                                        Найти в конспекте
+                                        {t('mindmap_find_in_summary', 'Найти в конспекте')}
                                         <Icon name="search" size={12} />
                                     </button>
                                 )}
                                 {pinnedNodeId && (
                                     <button className="btn btn--ghost btn--sm" onClick={() => setPinnedNodeId(null)}>
-                                        Открепить
+                                        {t('mindmap_unpin', 'Открепить')}
                                     </button>
                                 )}
                             </div>
@@ -830,15 +830,15 @@ export default function GlobalMindMap() {
                     }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                             <span style={{ width: 10, height: 10, borderRadius: '50%', background: 'var(--accent-primary)' }} />
-                            Вы / Разбор RU
+                            {t('mindmap_legend_you_ru', 'Вы / Разбор RU')}
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                             <span style={{ width: 10, height: 10, borderRadius: '50%', background: 'var(--accent-secondary)' }} />
-                            Разбор EN
+                            {t('mindmap_legend_en', 'Разбор EN')}
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                             <span style={{ width: 7, height: 7, borderRadius: '50%', background: 'var(--text-tertiary)' }} />
-                            Тема
+                            {t('mindmap_legend_topic', 'Тема')}
                         </div>
                     </div>
                 </div>

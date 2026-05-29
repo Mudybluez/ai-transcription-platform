@@ -177,16 +177,16 @@ export default function AdminPanel() {
                     window.location.href = '/';
                 }
             }
-            alert(res.data.message || "Роль успешно обновлена");
+            alert(res.data.message || t('admin_alert_role_updated', 'Роль успешно обновлена'));
         } catch (error) {
-            alert(error.response?.data?.message || "Не удалось обновить роль");
+            alert(error.response?.data?.message || t('admin_alert_role_fail', 'Не удалось обновить роль'));
         }
     };
 
     const handleAwardCustomRequests = async (userId) => {
         const value = parseInt(customRequestsInput[userId]);
         if (isNaN(value) || value < 0) {
-            alert("Заполните корректно поле кастомных запросов");
+            alert(t('admin_alert_requests_invalid', 'Заполните корректно поле кастомных запросов'));
             return;
         }
 
@@ -204,9 +204,9 @@ export default function AdminPanel() {
                 }
                 return u;
             }));
-            alert(res.data.message || "Кастомные лимиты обновлены");
+            alert(res.data.message || t('admin_alert_limits_updated', 'Кастомные лимиты обновлены'));
         } catch (error) {
-            alert(error.response?.data?.message || "Не удалось сохранить изменения");
+            alert(error.response?.data?.message || t('admin_alert_limits_fail', 'Не удалось сохранить изменения'));
         }
     };
 
@@ -226,18 +226,18 @@ export default function AdminPanel() {
                 }
                 return u;
             }));
-            alert(res.data.message || "Модерация успешно выполнена");
+            alert(res.data.message || t('admin_alert_moderation_success', 'Модерация успешно выполнена'));
         } catch (error) {
-            alert(error.response?.data?.message || "Не удалось применить действие");
+            alert(error.response?.data?.message || t('admin_alert_moderation_fail', 'Не удалось применить действие'));
         }
     };
 
     const triggerTempBan = (userId) => {
-        const hoursStr = prompt("Введите время блокировки в часах (например, 24):", "24");
+        const hoursStr = prompt(t('admin_prompt_ban_hours', 'Введите время блокировки в часах (например, 24):'), "24");
         if (hoursStr === null) return;
         const hours = parseInt(hoursStr);
         if (isNaN(hours) || hours <= 0) {
-            alert("Неверный формат времени.");
+            alert(t('admin_alert_time_invalid', 'Неверный формат времени.'));
             return;
         }
         handleModerateUser(userId, 'temp_ban', hours);
@@ -272,13 +272,13 @@ export default function AdminPanel() {
 
     const handleDeleteSelectedAnalyses = async () => {
         if (selectedAnalyses.length === 0) return;
-        if (!confirm("Удалить выбранные разборы?")) return;
+        if (!confirm(t('admin_lib_confirm_delete_selected', 'Удалить выбранные разборы?'))) return;
 
         try {
             const res = await api.delete('/search/admin/transcriptions/bulk', { data: { ids: selectedAnalyses } });
             setAnalyses(prev => prev.filter(a => !selectedAnalyses.includes(a.id)));
             setSelectedAnalyses([]);
-            alert(res.data.message || "Разборы удалены");
+            alert(res.data.message || t('admin_alert_analyses_deleted', 'Разборы удалены'));
         } catch (error) {
             alert(t('server_error'));
         }
@@ -370,10 +370,10 @@ export default function AdminPanel() {
                                     <Icon name="more" size={14} />
                                 </div>
                                 <div className="kpi__num">{stats.totalUsers}</div>
-                                <div className="kpi__label">Пользователей в ИИ</div>
+                                <div className="kpi__label">{t('admin_stat_users_in_ai', 'Пользователей в ИИ')}</div>
                                 <div className="kpi__delta">
                                     <Icon name="trending_up" size={12} />
-                                    Активно
+                                    {t('admin_stat_active', 'Активно')}
                                 </div>
                             </div>
                             <div className="kpi">
@@ -382,10 +382,10 @@ export default function AdminPanel() {
                                     <Icon name="more" size={14} />
                                 </div>
                                 <div className="kpi__num">{stats.total24h}</div>
-                                <div className="kpi__label">Запросов за 24 часа</div>
+                                <div className="kpi__label">{t('admin_stat_requests_24h_label', 'Запросов за 24 часа')}</div>
                                 <div className="kpi__delta">
                                     <Icon name="trending_up" size={12} />
-                                    Пик темпа
+                                    {t('admin_stat_peak_rate', 'Пик темпа')}
                                 </div>
                             </div>
                             <div className="kpi">
@@ -394,10 +394,10 @@ export default function AdminPanel() {
                                     <Icon name="more" size={14} />
                                 </div>
                                 <div className="kpi__num">{(stats.totalChars / 1024 / 1024).toFixed(1)} MB</div>
-                                <div className="kpi__label">{stats.totalWords.toLocaleString()} слов ИИ всего</div>
+                                <div className="kpi__label">{t('admin_stat_words_total_label', { words: stats.totalWords.toLocaleString() }, '{{words}} слов ИИ всего')}</div>
                                 <div className="kpi__delta">
                                     <Icon name="trending_up" size={12} />
-                                    Накоплено
+                                    {t('admin_stat_accumulated', 'Накоплено')}
                                 </div>
                             </div>
                         </div>
@@ -406,11 +406,11 @@ export default function AdminPanel() {
                         <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', borderRadius: 12, padding: 24, marginBottom: 32 }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 12 }}>
                                 <div>
-                                    <h3 style={{ margin: 0, fontSize: 15, fontWeight: 600 }}>Использование Астропрокси</h3>
-                                    <p style={{ color: 'var(--text-secondary)', fontSize: 12.5, margin: '4px 0 0' }}>Для скачивания и инференса</p>
+                                    <h3 style={{ margin: 0, fontSize: 15, fontWeight: 600 }}>{t('admin_astroproxy_title', 'Использование Астропрокси')}</h3>
+                                    <p style={{ color: 'var(--text-secondary)', fontSize: 12.5, margin: '4px 0 0' }}>{t('admin_astroproxy_subtitle', 'Для скачивания и инференса')}</p>
                                 </div>
                                 <span style={{ fontFamily: 'var(--font-mono)', fontSize: 15, fontWeight: 600 }}>
-                                    {proxyStats.spentMB} MB из {proxyStats.limitMB} MB
+                                    {t('admin_astroproxy_usage_desc', { spent: proxyStats.spentMB, limit: proxyStats.limitMB }, '{{spent}} MB из {{limit}} MB')}
                                 </span>
                             </div>
                             <div style={{ height: 8, background: 'var(--border-subtle)', borderRadius: 99, overflow: 'hidden' }}>
@@ -430,7 +430,7 @@ export default function AdminPanel() {
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(350px, 1fr))', gap: 32 }}>
                             {/* Weekly Activity */}
                             <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', borderRadius: 12, padding: 24 }}>
-                                <h3 style={{ margin: '0 0 24px', fontSize: 15, fontWeight: 600 }}>Активность за неделю</h3>
+                                <h3 style={{ margin: '0 0 24px', fontSize: 15, fontWeight: 600 }}>{t('admin_chart_weekly_activity', 'Активность за неделю')}</h3>
                                 <div style={{ display: 'flex', alignItems: 'flex-end', gap: 12, height: 160 }}>
                                     {stats.dailyActivity.map((d, i) => {
                                         const isDim = hoverActivityBar !== null && hoverActivityBar !== i;
@@ -449,7 +449,7 @@ export default function AdminPanel() {
                                                             background: 'var(--bg-surface-hover)', border: '1px solid var(--border-medium)',
                                                             borderRadius: 6, padding: '4px 8px', fontSize: 11, whiteSpace: 'nowrap', pointerEvents: 'none', zIndex: 10
                                                         }}>
-                                                            {d.count} запросов
+                                                            {t('admin_chart_requests_count', { count: d.count }, '{{count}} запросов')}
                                                         </div>
                                                     )}
                                                     <div style={{
@@ -469,12 +469,12 @@ export default function AdminPanel() {
 
                             {/* Languages Distribution */}
                             <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', borderRadius: 12, padding: 24 }}>
-                                <h3 style={{ margin: '0 0 24px', fontSize: 15, fontWeight: 600 }}>Распределение языков</h3>
+                                <h3 style={{ margin: '0 0 24px', fontSize: 15, fontWeight: 600 }}>{t('admin_chart_lang_dist', 'Распределение языков')}</h3>
                                 <div style={{ display: 'flex', alignItems: 'flex-end', gap: 24, height: 160, padding: '0 24px' }}>
                                     {stats.langDistribution.map((d, i) => {
                                         const isDim = hoverLangBar !== null && hoverLangBar !== i;
                                         const h = (d.count / maxLangs) * 130;
-                                        const displayLabel = d.label === 'ru' ? 'Русский' : d.label === 'en' ? 'English' : d.label === 'kk' ? 'Қазақ' : String(d.label).toUpperCase();
+                                        const displayLabel = d.label === 'ru' ? t('lang_ru_short', 'Русский') : d.label === 'en' ? t('lang_en_short', 'English') : d.label === 'kk' ? t('lang_kk_short', 'Қазақ') : String(d.label).toUpperCase();
                                         return (
                                             <div
                                                 key={i}
@@ -489,7 +489,7 @@ export default function AdminPanel() {
                                                             background: 'var(--bg-surface-hover)', border: '1px solid var(--border-medium)',
                                                             borderRadius: 6, padding: '4px 8px', fontSize: 11, whiteSpace: 'nowrap', pointerEvents: 'none', zIndex: 10
                                                         }}>
-                                                            {d.count} разборов
+                                                            {t('admin_chart_analyses_count', { count: d.count }, '{{count}} разборов')}
                                                         </div>
                                                     )}
                                                     <div style={{
@@ -517,9 +517,9 @@ export default function AdminPanel() {
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16, flexWrap: 'wrap', gap: 12 }}>
                             <div style={{ display: 'flex', gap: 4 }}>
                                 {[
-                                    { id: 'all', label: 'Все' },
+                                    { id: 'all', label: t('admin_users_filter_all', 'Все') },
                                     { id: 'pro', label: 'Pro+' },
-                                    { id: 'banned', label: 'Заблокированы' }
+                                    { id: 'banned', label: t('admin_users_filter_banned', 'Заблокированы') }
                                 ].map(f => (
                                     <button
                                         key={f.id}
@@ -537,7 +537,7 @@ export default function AdminPanel() {
                                 </span>
                                 <input
                                     className="field"
-                                    placeholder="Поиск по имени/email..."
+                                    placeholder={t('admin_users_search_placeholder', 'Поиск по имени/email...')}
                                     style={{ height: 32, fontSize: 13, padding: '0 12px 0 30px' }}
                                     value={userSearch}
                                     onChange={e => setUserSearch(e.target.value)}
@@ -551,12 +551,12 @@ export default function AdminPanel() {
                                 <thead>
                                     <tr>
                                         <th>ID</th>
-                                        <th>Пользователь</th>
-                                        <th>Роль</th>
-                                        <th>Кастомные лимиты</th>
-                                        <th>Осталось запросов</th>
-                                        <th>Статус</th>
-                                        <th style={{ textAlign: 'right' }}>Действия</th>
+                                        <th>{t('admin_user_col_user', 'Пользователь')}</th>
+                                        <th>{t('admin_user_col_role', 'Роль')}</th>
+                                        <th>{t('admin_user_col_custom_limits', 'Кастомные лимиты')}</th>
+                                        <th>{t('admin_user_col_requests', 'Осталось запросов')}</th>
+                                        <th>{t('admin_user_col_status', 'Статус')}</th>
+                                        <th style={{ textAlign: 'right' }}>{t('admin_user_col_actions', 'Действия')}</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -600,7 +600,7 @@ export default function AdminPanel() {
                                                                 onChange={e => setCustomRequestsInput({...customRequestsInput, [user.id]: e.target.value})}
                                                             />
                                                             <button className="btn btn--ghost btn--sm" style={{ height: 28 }} onClick={() => handleAwardCustomRequests(user.id)}>
-                                                                ОК
+                                                                {t('admin_status_ok', 'ОК')}
                                                             </button>
                                                         </div>
                                                     ) : (
@@ -623,15 +623,15 @@ export default function AdminPanel() {
                                                     <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
                                                         {isBanned ? (
                                                             <button className="btn btn--ghost btn--sm" style={{ height: 28 }} onClick={() => handleModerateUser(user.id, 'unban')}>
-                                                                Разбанить
+                                                                {t('admin_user_action_unban', 'Разбанить')}
                                                             </button>
                                                         ) : (
                                                             <>
                                                                 <button className="btn btn--danger btn--sm" style={{ height: 28 }} onClick={() => triggerTempBan(user.id)}>
-                                                                    Временный бан
+                                                                    {t('admin_user_action_ban_temp', 'Временный бан')}
                                                                 </button>
                                                                 <button className="btn btn--danger btn--sm" style={{ height: 28, background: 'rgba(242, 139, 130, 0.15)' }} onClick={() => handleModerateUser(user.id, 'perm_ban')}>
-                                                                    Перм. бан
+                                                                    {t('admin_user_action_ban_perm_short', 'Перм. бан')}
                                                                 </button>
                                                             </>
                                                         )}
@@ -657,12 +657,12 @@ export default function AdminPanel() {
                                     onChange={toggleSelectAllAnalyses}
                                     style={{ width: 16, height: 16, accentColor: 'var(--accent-primary)' }}
                                 />
-                                <span style={{ fontSize: 13.5, color: 'var(--text-secondary)' }}>Выделить все на этой странице</span>
+                                <span style={{ fontSize: 13.5, color: 'var(--text-secondary)' }}>{t('admin_lib_select_all_page', 'Выделить все на этой странице')}</span>
                             </div>
                             {selectedAnalyses.length > 0 && (
                                 <button className="btn btn--danger btn--sm" onClick={handleDeleteSelectedAnalyses}>
                                     <Icon name="trash" size={13} />
-                                    Удалить выбранные ({selectedAnalyses.length})
+                                    {t('admin_lib_delete_selected_count', { count: selectedAnalyses.length }, 'Удалить выбранные ({{count}})')}
                                 </button>
                             )}
                         </div>
@@ -673,11 +673,11 @@ export default function AdminPanel() {
                                 <thead>
                                     <tr>
                                         <th style={{ width: 40 }}></th>
-                                        <th>ID</th>
-                                        <th>Название разбора</th>
-                                        <th>Язык</th>
-                                        <th>Создан</th>
-                                        <th style={{ textAlign: 'right' }}>Действия</th>
+                                        <th>{t('admin_lib_col_id', 'ID')}</th>
+                                        <th>{t('admin_lib_col_title', 'Название разбора')}</th>
+                                        <th>{t('admin_lib_col_lang', 'Язык')}</th>
+                                        <th>{t('admin_lib_col_created', 'Создан')}</th>
+                                        <th style={{ textAlign: 'right' }}>{t('admin_lib_col_actions', 'Действия')}</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -701,7 +701,7 @@ export default function AdminPanel() {
                                                 <td>
                                                     <div style={{ display: 'flex', flexDirection: 'column' }}>
                                                         <span style={{ fontWeight: 600, color: 'var(--text-primary)', fontSize: 13.5 }}>{title}</span>
-                                                        <span style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 4 }}>ID задачи: {item.job_id}</span>
+                                                        <span style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 4 }}>{t('admin_lib_task_id', { jobId: item.job_id }, 'ID задачи: {{jobId}}')}</span>
                                                     </div>
                                                 </td>
                                                 <td><span className="card__lang" style={{ textTransform: 'uppercase' }}>{item.language || 'ru'}</span></td>
@@ -709,10 +709,10 @@ export default function AdminPanel() {
                                                 <td style={{ textAlign: 'right' }}>
                                                     <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
                                                         <button className="btn btn--ghost btn--sm" style={{ height: 28 }} onClick={() => setActiveAnalysis(item)}>
-                                                            Просмотр
+                                                            {t('admin_lib_view', 'Просмотр')}
                                                         </button>
                                                         <button className="btn btn--danger btn--sm" style={{ height: 28 }} onClick={() => handleDeleteAnalysis(item.id)}>
-                                                            Удалить
+                                                            {t('delete_btn', 'Удалить')}
                                                         </button>
                                                     </div>
                                                 </td>
@@ -732,11 +732,11 @@ export default function AdminPanel() {
                             <table className="tbl">
                                 <thead>
                                     <tr>
-                                        <th>Оценка</th>
-                                        <th>Отзыв пользователя</th>
-                                        <th>Почта автора</th>
-                                        <th>Дата создания</th>
-                                        <th style={{ textAlign: 'right' }}>Действия</th>
+                                        <th>{t('admin_feedback_col_rating', 'Оценка')}</th>
+                                        <th>{t('admin_feedback_col_comment', 'Отзыв пользователя')}</th>
+                                        <th>{t('admin_feedback_col_email', 'Почта автора')}</th>
+                                        <th>{t('admin_feedback_col_date', 'Дата создания')}</th>
+                                        <th style={{ textAlign: 'right' }}>{t('admin_lib_col_actions', 'Действия')}</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -760,7 +760,7 @@ export default function AdminPanel() {
                                                     </p>
                                                     {fb.reply && (
                                                         <div style={{ padding: '6px 12px', background: 'var(--bg-surface-hover)', borderRadius: 6, fontSize: 11.5, color: 'var(--accent-primary)', marginTop: 4 }}>
-                                                            <strong>Ответ:</strong> {typeof fb.reply === 'object' && fb.reply !== null ? fb.reply.text : String(fb.reply)}
+                                                            <strong>{t('admin_feedback_reply_label', 'Ответ:')}</strong> {typeof fb.reply === 'object' && fb.reply !== null ? fb.reply.text : String(fb.reply)}
                                                         </div>
                                                     )}
                                                 </div>
@@ -769,7 +769,7 @@ export default function AdminPanel() {
                                             <td><span style={{ fontSize: 12.5, color: 'var(--text-secondary)' }}>{new Date(fb.created_at || fb.createdAt || Date.now()).toLocaleDateString()}</span></td>
                                             <td style={{ textAlign: 'right' }}>
                                                 <button className="btn btn--ghost btn--sm" style={{ height: 28 }} onClick={() => setSelectedFeedback(fb)}>
-                                                    Ответить
+                                                    {t('admin_feedback_reply_btn', 'Ответить')}
                                                 </button>
                                             </td>
                                         </tr>
@@ -786,13 +786,13 @@ export default function AdminPanel() {
                 <div style={{ position: 'fixed', inset: 0, zIndex: 10000, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }} onClick={() => setActiveAnalysis(null)}>
                     <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-medium)', borderRadius: 14, width: '100%', maxWidth: 700, maxHeight: '85vh', overflow: 'hidden', padding: 24, boxShadow: '0 20px 40px rgba(0,0,0,0.5)', display: 'flex', flexDirection: 'column' }} onClick={e => e.stopPropagation()}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-                            <h2 style={{ fontSize: 17, fontWeight: 600, margin: 0 }}>Просмотр конспекта разбора</h2>
+                            <h2 style={{ fontSize: 17, fontWeight: 600, margin: 0 }}>{t('admin_lib_view_summary', 'Просмотр конспекта разбора')}</h2>
                             <button style={{ color: 'var(--text-secondary)', fontSize: 20 }} onClick={() => setActiveAnalysis(null)}>×</button>
                         </div>
                         
                         <div style={{ display: 'flex', gap: 12, borderBottom: '1px solid var(--border-subtle)', marginBottom: 16 }}>
-                            <button className={`btn btn--sm ${modalTab === 'rendered' ? 'btn--ghost' : 'btn--quiet'}`} style={{ borderBottomLeftRadius: 0, borderBottomRightRadius: 0 }} onClick={() => setModalTab('rendered')}>Конспект</button>
-                            <button className={`btn btn--sm ${modalTab === 'raw' ? 'btn--ghost' : 'btn--quiet'}`} style={{ borderBottomLeftRadius: 0, borderBottomRightRadius: 0 }} onClick={() => setModalTab('raw')}>Исходный текст</button>
+                            <button className={`btn btn--sm ${modalTab === 'rendered' ? 'btn--ghost' : 'btn--quiet'}`} style={{ borderBottomLeftRadius: 0, borderBottomRightRadius: 0 }} onClick={() => setModalTab('rendered')}>{t('admin_lib_tab_summary', 'Конспект')}</button>
+                            <button className={`btn btn--sm ${modalTab === 'raw' ? 'btn--ghost' : 'btn--quiet'}`} style={{ borderBottomLeftRadius: 0, borderBottomRightRadius: 0 }} onClick={() => setModalTab('raw')}>{t('admin_lib_tab_raw', 'Исходный текст')}</button>
                         </div>
 
                         <div style={{ flex: 1, overflowY: 'auto', paddingRight: 8 }}>
@@ -821,7 +821,7 @@ export default function AdminPanel() {
                 <div style={{ position: 'fixed', inset: 0, zIndex: 10000, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }} onClick={() => setSelectedFeedback(null)}>
                     <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-medium)', borderRadius: 14, width: '100%', maxWidth: 450, padding: 24, boxShadow: '0 20px 40px rgba(0,0,0,0.5)' }} onClick={e => e.stopPropagation()}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-                            <h2 style={{ fontSize: 16, fontWeight: 600, margin: 0 }}>Написать ответ администратора</h2>
+                            <h2 style={{ fontSize: 16, fontWeight: 600, margin: 0 }}>{t('admin_feedback_write_reply', 'Написать ответ администратора')}</h2>
                             <button style={{ color: 'var(--text-secondary)', fontSize: 20 }} onClick={() => setSelectedFeedback(null)}>×</button>
                         </div>
                         <div style={{ padding: 12, background: 'var(--bg-base)', border: '1px solid var(--border-subtle)', borderRadius: 8, marginBottom: 16, fontSize: 13, color: 'var(--text-secondary)' }}>
@@ -832,15 +832,15 @@ export default function AdminPanel() {
                                 className="field"
                                 rows={4}
                                 style={{ height: 'auto', padding: 12, resize: 'vertical', fontFamily: 'var(--font-body)', marginBottom: 20 }}
-                                placeholder="Введите ваш ответ..."
+                                placeholder={t('admin_feedback_reply_placeholder', 'Введите ваш ответ...')}
                                 value={adminReplyText}
                                 onChange={e => setAdminReplyText(e.target.value)}
                                 required
                             />
                             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-                                <button type="button" className="btn btn--ghost btn--sm" onClick={() => setSelectedFeedback(null)}>Отмена</button>
+                                <button type="button" className="btn btn--ghost btn--sm" onClick={() => setSelectedFeedback(null)}>{t('cancel', 'Отмена')}</button>
                                 <button type="submit" className="btn btn--primary btn--sm" disabled={isSubmittingReply}>
-                                    {isSubmittingReply ? 'Отправка...' : 'Отправить ответ'}
+                                    {isSubmittingReply ? t('sending', 'Отправка...') : t('admin_feedback_send_reply', 'Отправить ответ')}
                                 </button>
                             </div>
                         </form>

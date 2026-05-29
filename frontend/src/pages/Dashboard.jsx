@@ -1575,7 +1575,7 @@ ${detailed}`;
                         ) : (
                             <div style={{ maxHeight: 250, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 12 }}>
                                 {feedbacks.length === 0 ? (
-                                    <p style={{ color: 'var(--text-tertiary)', fontSize: 13, textAlign: 'center', margin: '20px 0' }}>Еще нет оставленных отзывов.</p>
+                                    <p style={{ color: 'var(--text-tertiary)', fontSize: 13, textAlign: 'center', margin: '20px 0' }}>{t('feedback_empty', 'Еще нет оставленных отзывов.')}</p>
                                 ) : feedbacks.map((fb, idx) => (
                                     <div key={idx} style={{ padding: 12, background: 'var(--bg-base)', border: '1px solid var(--border-subtle)', borderRadius: 8 }}>
                                         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6, fontSize: 11 }}>
@@ -1602,17 +1602,17 @@ ${detailed}`;
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: 'var(--accent-primary)', fontWeight: 600, fontSize: 13 }}>
                             <Icon name="message_circle" size={14} />
-                            Мы ценим ваше мнение!
+                            {t('feedback_toast_title', 'Мы ценим ваше мнение!')}
                         </span>
                         <button style={{ color: 'var(--text-tertiary)', background: 'none', border: 'none', cursor: 'pointer' }} onClick={() => setIsFeedbackPromptOpen(false)}>×</button>
                     </div>
                     <p style={{ margin: 0, fontSize: 12.5, color: 'var(--text-secondary)', lineHeight: 1.4 }}>
-                        Понравилось ли вам качество структурированного анализа? Оставьте короткий отзыв, чтобы помочь нам сделать систему лучше.
+                        {t('feedback_toast_text', 'Понравилось ли вам качество структурированного анализа? Оставьте короткий отзыв, чтобы помочь нам сделать систему лучше.')}
                     </p>
                     <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 4 }}>
-                        <button className="btn btn--quiet btn--sm" onClick={() => setIsFeedbackPromptOpen(false)}>Позже</button>
+                        <button className="btn btn--quiet btn--sm" onClick={() => setIsFeedbackPromptOpen(false)}>{t('feedback_toast_later', 'Позже')}</button>
                         <button className="btn btn--primary btn--sm" onClick={() => { setIsFeedbackPromptOpen(false); setIsFeedbackModalOpen(true); setFeedbackModalTab('write'); }}>
-                            Да, конечно!
+                            {t('feedback_toast_sure', 'Да, конечно!')}
                         </button>
                     </div>
                 </div>
