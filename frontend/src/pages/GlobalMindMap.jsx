@@ -172,6 +172,79 @@ export default function GlobalMindMap() {
         draggingNodeIdRef.current = null;
     };
 
+    // Stage Touch Start: Pan Start
+    const handleStageTouchStart = (e) => {
+        if (e.touches.length !== 1) return;
+        const touch = e.touches[0];
+        if (e.target.closest('g') || draggingNodeIdRef.current) return;
+        
+        setPanStart({
+            x: touch.clientX - transform.x,
+            y: touch.clientY - transform.y
+        });
+    };
+
+    // Node Touch Start
+    const handleNodeTouchStart = (e, node) => {
+        if (e.touches.length !== 1) return;
+        e.stopPropagation();
+
+        const touch = e.touches[0];
+        draggingNodeIdRef.current = node.id;
+        hasDraggedRef.current = false;
+
+        const svgRect = graphWrapperRef.current.getBoundingClientRect();
+        const mouseX = touch.clientX - svgRect.left;
+        const mouseY = touch.clientY - svgRect.top;
+
+        const localX = (mouseX - transform.x) / transform.scale;
+        const localY = (mouseY - transform.y) / transform.scale;
+
+        dragStartOffsetRef.current = {
+            x: localX - node.x,
+            y: localY - node.y
+        };
+    };
+
+    // Stage Touch Move (handles panning and node dragging on mobile)
+    const handleStageTouchMove = (e) => {
+        if (e.touches.length !== 1) return;
+        const touch = e.touches[0];
+
+        if (draggingNodeIdRef.current) {
+            hasDraggedRef.current = true;
+            const svgRect = graphWrapperRef.current.getBoundingClientRect();
+            const mouseX = touch.clientX - svgRect.left;
+            const mouseY = touch.clientY - svgRect.top;
+
+            const localX = (mouseX - transform.x) / transform.scale;
+            const localY = (mouseY - transform.y) / transform.scale;
+
+            const targetX = localX - dragStartOffsetRef.current.x;
+            const targetY = localY - dragStartOffsetRef.current.y;
+
+            setCustomNodePositions(prev => ({
+                ...prev,
+                [draggingNodeIdRef.current]: { x: targetX, y: targetY }
+            }));
+            return;
+        }
+
+        if (panStart) {
+            setTransform(prev => ({
+                ...prev,
+                x: touch.clientX - panStart.x,
+                y: touch.clientY - panStart.y
+            }));
+        }
+    };
+
+    // Stage Touch End
+    const handleStageTouchEnd = () => {
+        setPanStart(null);
+        draggingNodeIdRef.current = null;
+    };
+
     // Direct zoom controls
     const handleButtonZoom = (factor) => {
         setTransform(prev => {
@@ -575,6 +648,10 @@ export default function GlobalMindMap() {
                                 onMouseMove={handleStageMouseMove}
                                 onMouseUp={handleStageMouseUp}
                                 onMouseLeave={handleStageMouseUp}
+                                onTouchStart={handleStageTouchStart}
+                                onTouchMove={handleStageTouchMove}
+                                onTouchEnd={handleStageTouchEnd}
+                                onTouchCancel={handleStageTouchEnd}
                             >
                                 <defs>
                                     <radialGradient id="mapRootGlow" cx="50%" cy="50%" r="50%">
@@ -621,6 +698,7 @@ export default function GlobalMindMap() {
                                                 onMouseEnter={() => !pinnedNodeId && setHoverNodeId(n.id)}
                                                 onMouseLeave={() => !pinnedNodeId && setHoverNodeId(null)}
                                                 onMouseDown={(e) => handleNodeDragStart(e, n)}
+                                                onTouchStart={(e) => handleNodeTouchStart(e, n)}
                                                 onClick={(e) => {
                                                     if (hasDraggedRef.current) {
                                                         e.preventDefault();
