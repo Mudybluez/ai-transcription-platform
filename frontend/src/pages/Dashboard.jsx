@@ -1229,7 +1229,7 @@ ${detailed}`;
                 ) : (
                     /* Redesigned detail screen views */
                     <main className="page" data-screen-label="detail" style={{ maxWidth: 840, margin: '0 auto', padding: '0 24px 80px' }}>
-                        <a className="crumb" onClick={(e) => { e.preventDefault(); setActiveItem(null); setHighlightText(null); }} href="#">
+                        <a className="crumb" onClick={(e) => { e.preventDefault(); window.location.reload(); }} href="#">
                             <Icon name="arrow_left" size={14} />
                             {t('back_btn', 'Назад в библиотеку')}
                         </a>
