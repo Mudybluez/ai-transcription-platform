@@ -183,8 +183,8 @@ export default function Login() {
 
             <div className="auth-card fade-in">
                 <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 24 }}>
-                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 10, color: 'var(--accent-primary)' }}>
-                        <img src="/logo.webp" alt="Logo" style={{ width: 48, height: 48, borderRadius: '6px', objectFit: 'contain' }} />
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 12, color: 'var(--accent-primary)' }}>
+                        <img src="/logo.webp" alt="Logo" style={{ width: 96, height: 96, borderRadius: '8px', objectFit: 'contain' }} />
                         <span style={{ fontWeight: 600, color: 'var(--text-primary)', letterSpacing: '-0.01em', fontSize: 16 }}>
                             AI Transcription
                         </span>
