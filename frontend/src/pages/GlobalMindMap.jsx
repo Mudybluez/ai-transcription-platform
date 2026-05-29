@@ -529,7 +529,7 @@ export default function GlobalMindMap() {
             <header className="top-nav">
                 <button className="hamburger" onClick={() => setIsMobileMenuOpen(true)}>☰</button>
                 <div className="logo" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <Icon name="sparkles" size={17} style={{ color: 'var(--accent-primary)' }} />
+                    <img src="/logo.webp" alt="Logo" style={{ width: 18, height: 18, objectFit: 'contain' }} />
                     <span>AI Transcription</span>
                 </div>
                 <div className="nav-links-desktop">

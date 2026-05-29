@@ -184,7 +184,7 @@ export default function Login() {
             <div className="auth-card fade-in">
                 <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 24 }}>
                     <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, color: 'var(--accent-primary)' }}>
-                        <Icon name="sparkles" size={22} strokeWidth={1.8} />
+                        <img src="/logo.webp" alt="Logo" style={{ width: 24, height: 24, borderRadius: '4px', objectFit: 'contain' }} />
                         <span style={{ fontWeight: 600, color: 'var(--text-primary)', letterSpacing: '-0.01em', fontSize: 16 }}>
                             AI Transcription
                         </span>
