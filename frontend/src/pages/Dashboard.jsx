@@ -146,16 +146,17 @@ export default function Dashboard() {
         )
     );
 
-    // Fetch a relevant featured image from Wikimedia Commons (free, no API key, CORS-enabled)
+    // Fetch a relevant featured image from Wikipedia (free, no API key, CORS-enabled)
     useEffect(() => {
         if (!activeItem?.analysis?.title) {
             setAnalysisImageUrl(null);
             return;
         }
-        // Prefer English title for better Wikimedia coverage
+        // Prefer English title for better Wikipedia coverage
         const searchTitle = activeItem.analysis.title?.en ||
                             activeItem.analysis.title?.ru ||
                             activeItem.file_name || '';
+
         if (!searchTitle) return;
 
         const keywords = searchTitle
@@ -163,48 +164,66 @@ export default function Dashboard() {
             .trim()
             .split(/\s+/)
             .filter(w => w.length > 2)
-            .slice(0, 5)
+            .slice(0, 4)
             .join(' ');
 
         if (!keywords) return;
         setAnalysisImageUrl(null);
 
+        console.log('[ZenScribe] Image search keywords:', keywords);
+
         const controller = new AbortController();
         const fetchImage = async () => {
             try {
-                // Step 1: Search for matching file pages in Wikimedia Commons
-                const searchUrl = `https://commons.wikimedia.org/w/api.php?action=query&generator=search&gsrsearch=${encodeURIComponent(keywords)}&gsrnamespace=6&prop=imageinfo&iiprop=url|size|mime&format=json&origin=*&gsrlimit=20`;
-                const res = await fetch(searchUrl, { signal: controller.signal });
+                // Wikipedia page image search — returns reliable JPEG article thumbnails
+                const wikiUrl = `https://en.wikipedia.org/w/api.php?action=query&generator=search&gsrsearch=${encodeURIComponent(keywords)}&gsrlimit=10&prop=pageimages&pithumbsize=1200&format=json&origin=*`;
+                console.log('[ZenScribe] Wikipedia API:', wikiUrl);
+
+                const res = await fetch(wikiUrl, { signal: controller.signal });
                 const data = await res.json();
 
                 const pages = Object.values(data?.query?.pages || {});
-                const images = pages
+                console.log('[ZenScribe] Wikipedia pages:', pages.length);
+
+                // Find the first page that has a thumbnail image
+                const page = pages.find(p => p.thumbnail?.source);
+                if (page) {
+                    console.log('[ZenScribe] Found image:', page.thumbnail.source);
+                    setAnalysisImageUrl(page.thumbnail.source);
+                    return;
+                }
+
+                // Fallback: Wikimedia Commons with very relaxed filter
+                console.log('[ZenScribe] No Wikipedia image, trying Wikimedia Commons...');
+                const commonsUrl = `https://commons.wikimedia.org/w/api.php?action=query&generator=search&gsrsearch=${encodeURIComponent(keywords)}&gsrnamespace=6&prop=imageinfo&iiprop=url|size|mime&format=json&origin=*&gsrlimit=20`;
+                const commonsRes = await fetch(commonsUrl, { signal: controller.signal });
+                const commonsData = await commonsRes.json();
+
+                const commonsPages = Object.values(commonsData?.query?.pages || {});
+                const commonsImages = commonsPages
                     .map(p => p.imageinfo?.[0])
                     .filter(info => {
-                        if (!info) return false;
+                        if (!info?.url) return false;
                         const mime = info.mime || '';
-                        const w = info.width || 0;
-                        const h = info.height || 0;
-                        // Only landscape / square JPEG or PNG, min 500px wide
-                        return (mime === 'image/jpeg' || mime === 'image/png' || mime === 'image/webp')
-                            && w >= 500
-                            && (h === 0 || w / h >= 0.7);
+                        return mime === 'image/jpeg' || mime === 'image/png' || mime === 'image/webp';
                     })
                     .map(info => info.url);
 
-                if (images.length > 0) {
-                    setAnalysisImageUrl(images[0]);
+                console.log('[ZenScribe] Commons fallback images:', commonsImages.length, commonsImages[0] || 'none');
+                if (commonsImages.length > 0) {
+                    setAnalysisImageUrl(commonsImages[0]);
                 }
             } catch (e) {
                 if (e.name !== 'AbortError') {
-                    console.warn('[ZenScribe] Could not fetch Wikimedia image:', e);
+                    console.error('[ZenScribe] Image fetch failed:', e);
                 }
             }
         };
 
         fetchImage();
         return () => controller.abort();
-    }, [activeItem?.job_id]);
+    // Use job_id or id — whichever is present — to re-trigger on new analysis
+    }, [activeItem?.job_id ?? activeItem?.id]);
 
     // Suppress stray image tags that may exist in old analyses (previously inserted by loremflickr)
     const getMarkdownImageComponents = () => ({
