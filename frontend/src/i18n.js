@@ -5,7 +5,7 @@ import LanguageDetector from 'i18next-browser-languagedetector';
 const resources = {
   ru: {
     translation: {
-      "app_name": "AI Transcription Platform",
+      "app_name": "ZenScribe",
       "admin_panel": "Админ панель",
       "profile": "Профиль",
       "logout": "Выйти",
@@ -198,7 +198,7 @@ const resources = {
   },
   en: {
     translation: {
-      "app_name": "AI Transcription Platform",
+      "app_name": "ZenScribe",
       "admin_panel": "Admin Panel",
       "profile": "Profile",
       "logout": "Logout",
@@ -390,7 +390,7 @@ const resources = {
   },
   kk: {
     translation: {
-      "app_name": "AI Transcription Platform",
+      "app_name": "ZenScribe",
       "admin_panel": "Әкімшілік панель",
       "profile": "Профиль",
       "logout": "Шығу",

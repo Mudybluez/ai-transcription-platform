@@ -186,7 +186,7 @@ export default function Login() {
                     <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: 'var(--accent-primary)' }}>
                         <img src="/logo.webp" alt="Logo" style={{ width: 112, height: 112, borderRadius: '8px', objectFit: 'contain' }} />
                         <span style={{ fontWeight: 600, color: 'var(--text-primary)', letterSpacing: '-0.01em', fontSize: 16 }}>
-                            AI Transcription
+                            ZenScribe
                         </span>
                     </span>
                 </div>
