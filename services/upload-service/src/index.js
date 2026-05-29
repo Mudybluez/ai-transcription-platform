@@ -24,7 +24,7 @@ const storage = multer.diskStorage({
 
 const upload = multer({ 
     storage: storage,
-    limits: { fileSize: 500 * 1024 * 1024 } // Лимит 500 МБ
+    limits: { fileSize: 20 * 1024 * 1024 } // Лимит 20 МБ
 });
 
 // Инициализация RabbitMQ
