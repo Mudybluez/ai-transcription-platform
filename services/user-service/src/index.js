@@ -847,6 +847,40 @@ app.post('/notifications/:id/read', authenticateToken, async (req, res) => {
     }
 });
 
+// Удалить все уведомления пользователя
+app.delete('/notifications', authenticateToken, async (req, res) => {
+    const userId = req.userId;
+    try {
+        await db.query(
+            'DELETE FROM notifications WHERE user_id = $1',
+            [userId]
+        );
+        res.status(200).json({ message: 'Все уведомления удалены.' });
+    } catch (err) {
+        console.error('Ошибка при удалении всех уведомлений:', err);
+        res.status(500).json({ message: 'Ошибка сервера при удалении уведомлений.' });
+    }
+});
+
+// Удалить конкретное уведомление пользователя
+app.delete('/notifications/:id', authenticateToken, async (req, res) => {
+    const notifId = req.params.id;
+    const userId = req.userId;
+    try {
+        const result = await db.query(
+            'DELETE FROM notifications WHERE id = $1 AND user_id = $2 RETURNING *',
+            [notifId, userId]
+        );
+        if (result.rows.length === 0) {
+            return res.status(404).json({ message: 'Уведомление не найдено.' });
+        }
+        res.status(200).json({ message: 'Уведомление удалено.', notification: result.rows[0] });
+    } catch (err) {
+        console.error('Ошибка при удалении уведомления:', err);
+        res.status(500).json({ message: 'Ошибка сервера при удалении уведомления.' });
+    }
+});
+
 
 app.listen(PORT, () => {
     console.log(`👤 User Service запущен на порту ${PORT}`);
