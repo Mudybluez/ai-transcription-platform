@@ -206,50 +206,97 @@ export default function Profile() {
 
         setPaymentStatus('processing');
         
-        setTimeout(async () => {
-            try {
-                if (checkoutPlan === 'Tokens') {
-                    const response = await api.post('/users/billing/buy-tokens', {
-                        userId: user.id,
-                        tokenCount: Number(tokenCount)
-                    });
-                    if (response.data.success) {
-                        setPaymentStatus('success');
-                        fetchStats();
-                        // Reset forms
-                        setCardNumber('');
-                        setCardHolder('');
-                        setCardExpiry('');
-                        setCardCvc('');
-                        setPaypalEmail('');
-                        setPaypalPassword('');
-                    } else {
-                        setPaymentStatus('error');
-                    }
-                } else {
-                    const response = await api.post('/users/billing/subscribe', {
-                        userId: user.id,
-                        plan: checkoutPlan
-                    });
-                    if (response.data.success) {
-                        setPaymentStatus('success');
-                        fetchStats();
-                        // Reset forms
-                        setCardNumber('');
-                        setCardHolder('');
-                        setCardExpiry('');
-                        setCardCvc('');
-                        setPaypalEmail('');
-                        setPaypalPassword('');
-                    } else {
-                        setPaymentStatus('error');
-                    }
+        try {
+            if (checkoutMethod === 'card' || checkoutMethod === 'gpay') {
+                // 1. Создаем Payment Intent на бэкенде
+                const intentRes = await api.post('/users/billing/stripe-create-intent', {
+                    userId: user.id,
+                    plan: checkoutPlan,
+                    tokenCount: Number(tokenCount)
+                });
+
+                if (!intentRes.data.success) {
+                    setPaymentStatus('error');
+                    return;
                 }
-            } catch (err) {
-                console.error('Ошибка при оплате:', err);
-                setPaymentStatus('error');
+
+                const { clientSecret, paymentIntentId } = intentRes.data;
+
+                // 2. Имитируем подтверждение платежа клиентом в Stripe/Google Pay (2 секунды задержки для визуала)
+                setTimeout(async () => {
+                    try {
+                        // 3. Отправляем бэкенду запрос на верификацию и начисление токенов/подписки
+                        const verifyRes = await api.post('/users/billing/stripe-verify', {
+                            userId: user.id,
+                            plan: checkoutPlan,
+                            tokenCount: Number(tokenCount),
+                            paymentIntentId,
+                            method: checkoutMethod === 'card' ? 'Direct Card' : 'Google Pay'
+                        });
+
+                        if (verifyRes.data.success) {
+                            setPaymentStatus('success');
+                            fetchStats();
+                            // Очистка полей ввода
+                            setCardNumber('');
+                            setCardHolder('');
+                            setCardExpiry('');
+                            setCardCvc('');
+                        } else {
+                            setPaymentStatus('error');
+                        }
+                    } catch (err) {
+                        console.error('Ошибка верификации Stripe:', err);
+                        setPaymentStatus('error');
+                    }
+                }, 2000);
+
+            } else if (checkoutMethod === 'paypal') {
+                // 1. Создаем заказ PayPal на бэкенде
+                const orderRes = await api.post('/users/billing/paypal-create-order', {
+                    userId: user.id,
+                    plan: checkoutPlan,
+                    tokenCount: Number(tokenCount)
+                });
+
+                if (!orderRes.data.success) {
+                    setPaymentStatus('error');
+                    return;
+                }
+
+                const { orderId } = orderRes.data;
+
+                // 2. Имитируем авторизацию заказа в PayPal (2 секунды для красивого UI)
+                setTimeout(async () => {
+                    try {
+                        // 3. Отправляем бэкенду запрос на списание и начисление баланса/подписки
+                        const captureRes = await api.post('/users/billing/paypal-capture-order', {
+                            userId: user.id,
+                            plan: checkoutPlan,
+                            tokenCount: Number(tokenCount),
+                            orderId,
+                            method: 'PayPal'
+                        });
+
+                        if (captureRes.data.success) {
+                            setPaymentStatus('success');
+                            fetchStats();
+                            // Очистка полей ввода
+                            setPaypalEmail('');
+                            setPaypalPassword('');
+                        } else {
+                            setPaymentStatus('error');
+                        }
+                    } catch (err) {
+                        console.error('Ошибка захвата PayPal:', err);
+                        setPaymentStatus('error');
+                    }
+                }, 2000);
             }
-        }, 2200);
+        } catch (err) {
+            console.error('Критическая ошибка платежного шлюза:', err);
+            setPaymentStatus('error');
+        }
     };
 
     return (
