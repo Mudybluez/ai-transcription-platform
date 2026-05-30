@@ -1272,7 +1272,7 @@ ${detailed}`;
                                                 </span>
                                                 <input 
                                                     className="field" 
-                                                    placeholder="Вставь ссылку на YouTube..."
+                                                    placeholder={t('input_placeholder', 'Вставь ссылку на YouTube...')}
                                                     value={youtubeUrl}
                                                     onChange={e => setYoutubeUrl(e.target.value)}
                                                     onKeyDown={e => { if (e.key === 'Enter') handleSubmit(e); }}
@@ -1505,7 +1505,7 @@ ${detailed}`;
                                                             </span>
                                                         </>
                                                     ) : (
-                                                        <span className="status-dot status-dot--pending">В работе</span>
+                                                        <span className="status-dot status-dot--pending">{t('status_pending', 'В работе')}</span>
                                                     )}
                                                 </div>
                                             </div>
