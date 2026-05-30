@@ -146,14 +146,14 @@ export default function Dashboard() {
         )
     );
 
-    // Fetch a relevant featured image via Wikipedia (precise opensearch → article lead image)
+    // Fetch a relevant featured image via Wikimedia Commons and Wikipedia (Cyrillic-smart + cascading fallback)
     useEffect(() => {
         if (!activeItem?.analysis?.title) {
             setAnalysisImageUrl(null);
             return;
         }
 
-        // Prefer English title for better Wikipedia coverage
+        // Prefer English title for better Wikipedia coverage, or fallback
         const searchTitle = activeItem.analysis.title?.en ||
                             activeItem.analysis.title?.ru ||
                             activeItem.file_name || '';
@@ -161,25 +161,35 @@ export default function Dashboard() {
 
         setAnalysisImageUrl(null);
 
-        // Generic meta-words that describe the analysis type, not the actual subject
+        // Generic meta-words that describe the analysis type/format rather than the actual topic
         const GENERIC_WORDS = new Set([
             'analysis', 'review', 'overview', 'assessment', 'study', 'report',
             'summary', 'lecture', 'presentation', 'introduction', 'impact',
             'effects', 'influence', 'role', 'exploration', 'examination',
             'discussion', 'comparison', 'evaluation', 'understanding', 'exploring',
-            'content', 'video', 'audio', 'file', 'document', 'анализ', 'обзор',
-            'исследование', 'изучение', 'тема', 'about', 'the', 'and', 'for',
-            'with', 'from', 'into', 'within', 'across', 'overview', 'basics',
+            'content', 'video', 'audio', 'file', 'document', 'about', 'the', 'and', 
+            'for', 'with', 'from', 'into', 'within', 'across', 'basics', 'gameplay',
+            'walkthrough', 'guide', 'tutorial', 'game', 'play', 'video',
+            'анализ', 'обзор', 'исследование', 'изучение', 'тема', 'введение', 
+            'лекция', 'презентация', 'оценка', 'содержание', 'видео', 'аудио', 
+            'документ', 'файл', 'как', 'что', 'для', 'на', 'по', 'из', 'от', 
+            'до', 'про', 'об', 'игры', 'игра', 'геймплей', 'прохождение', 
+            'руководство', 'инструкция', 'урок', 'класс', 'курс',
+            'талдау', 'шолу', 'зерттеу', 'бейне', 'аудио', 'файл', 'құжат', 
+            'туралы', 'үшін', 'ойын', 'сабақ', 'класс'
         ]);
 
-        // Full keywords from title (used as fallback)
-        const allKeywords = searchTitle
-            .replace(/[^\w\s]/g, ' ')
-            .trim()
+        // Clean title: keep Unicode letters, numbers and spaces, replacing punctuation/symbols with spaces
+        const cleanTitle = searchTitle
+            .replace(/[^\p{L}\p{N}\s]/gu, ' ')
+            .trim();
+
+        // Split into words of length > 2
+        const allKeywords = cleanTitle
             .split(/\s+/)
             .filter(w => w.length > 2);
 
-        // Core keywords: remove generic words to find the real subject
+        // Core keywords: exclude noise words to isolate the real subject
         const coreWords = allKeywords
             .filter(w => !GENERIC_WORDS.has(w.toLowerCase()))
             .slice(0, 3)
@@ -188,44 +198,113 @@ export default function Dashboard() {
         const searchQuery = coreWords || allKeywords.slice(0, 3).join(' ');
         if (!searchQuery) return;
 
-        console.log('[ZenScribe] Core search query:', searchQuery);
+        console.log('[ZenScribe] Cleaned image search query:', searchQuery);
 
         const controller = new AbortController();
         const fetchImage = async () => {
             try {
-                // Step 1: Wikipedia opensearch — finds the most precise matching article title
-                const openUrl = `https://en.wikipedia.org/w/api.php?action=opensearch&search=${encodeURIComponent(searchQuery)}&limit=3&namespace=0&format=json&origin=*`;
-                console.log('[ZenScribe] opensearch:', openUrl);
+                // 1. Try Wikimedia Commons search (excellent for illustrations/screenshots/photos across all languages)
+                const commonsUrl = `https://commons.wikimedia.org/w/api.php?action=query&generator=search&gsrsearch=${encodeURIComponent(searchQuery)}&gsrnamespace=6&prop=imageinfo&iiprop=url|size|mime&format=json&origin=*&gsrlimit=20`;
+                console.log('[ZenScribe] Wikimedia Commons search:', commonsUrl);
+                
+                const commonsRes = await fetch(commonsUrl, { signal: controller.signal });
+                const commonsData = await commonsRes.json();
+                
+                const pages = Object.values(commonsData?.query?.pages || {});
+                const images = [];
+                for (const p of pages) {
+                    const info = p.imageinfo?.[0] || {};
+                    const mime = info.mime || '';
+                    const w = info.width || 0;
+                    const h = info.height || 0;
+                    // Accept high-res landscape/semi-landscape JPEG, PNG, WebP images
+                    if (
+                        (mime === 'image/jpeg' || mime === 'image/png' || mime === 'image/webp') &&
+                        w >= 400 &&
+                        (h === 0 || w / h >= 0.7)
+                    ) {
+                        images.push(info.url);
+                    }
+                }
+                
+                if (images.length > 0) {
+                    console.log('[ZenScribe] Image matched via Wikimedia Commons:', images[0]);
+                    setAnalysisImageUrl(images[0]);
+                    return;
+                }
 
+                // 2. Fallback: Search Wikipedia Pageimages (smart-routing based on Cyrillic script)
+                const isCyrillic = /[а-яА-ЯёЁәӘғҒқҚңҢөӨұҰүҮһҺіІ]/.test(searchQuery);
+                const wikiHost = isCyrillic ? 'ru.wikipedia.org' : 'en.wikipedia.org';
+                
+                const openUrl = `https://${wikiHost}/w/api.php?action=opensearch&search=${encodeURIComponent(searchQuery)}&limit=3&namespace=0&format=json&origin=*`;
+                console.log('[ZenScribe] Wikipedia opensearch (' + wikiHost + '):', openUrl);
+                
                 const openRes = await fetch(openUrl, { signal: controller.signal });
                 const [, titles] = await openRes.json();
-                console.log('[ZenScribe] opensearch titles:', titles);
-
-                if (titles.length > 0) {
-                    // Step 2: Get the lead image of the top matching Wikipedia article
-                    const imgUrl = `https://en.wikipedia.org/w/api.php?action=query&titles=${encodeURIComponent(titles[0])}&prop=pageimages&pithumbsize=1200&format=json&origin=*`;
+                
+                if (titles && titles.length > 0) {
+                    const imgUrl = `https://${wikiHost}/w/api.php?action=query&titles=${encodeURIComponent(titles[0])}&prop=pageimages&pithumbsize=1200&format=json&origin=*`;
                     const imgRes = await fetch(imgUrl, { signal: controller.signal });
                     const imgData = await imgRes.json();
-
-                    const pages = Object.values(imgData?.query?.pages || {});
-                    const found = pages.find(p => p.thumbnail?.source);
+                    
+                    const wikiPages = Object.values(imgData?.query?.pages || {});
+                    const found = wikiPages.find(p => p.thumbnail?.source);
                     if (found) {
-                        console.log('[ZenScribe] Image from opensearch article:', found.thumbnail.source);
+                        console.log('[ZenScribe] Image matched via Wikipedia article pageimages:', found.thumbnail.source);
                         setAnalysisImageUrl(found.thumbnail.source);
                         return;
                     }
                 }
 
-                // Fallback: generator search with core words
-                const wikiUrl = `https://en.wikipedia.org/w/api.php?action=query&generator=search&gsrsearch=${encodeURIComponent(searchQuery)}&gsrlimit=10&prop=pageimages&pithumbsize=1200&format=json&origin=*`;
-                const res = await fetch(wikiUrl, { signal: controller.signal });
-                const data = await res.json();
-                const pages = Object.values(data?.query?.pages || {});
-                const page = pages.find(p => p.thumbnail?.source);
+                // 3. Fallback: Wikipedia generator search
+                const wikiUrl = `https://${wikiHost}/w/api.php?action=query&generator=search&gsrsearch=${encodeURIComponent(searchQuery)}&gsrlimit=10&prop=pageimages&pithumbsize=1200&format=json&origin=*`;
+                const wikiRes = await fetch(wikiUrl, { signal: controller.signal });
+                const wikiData = await wikiRes.json();
+                
+                const wikiPages = Object.values(wikiData?.query?.pages || {});
+                const page = wikiPages.find(p => p.thumbnail?.source);
                 if (page) {
-                    console.log('[ZenScribe] Fallback image:', page.thumbnail.source);
+                    console.log('[ZenScribe] Image matched via Wikipedia generator search:', page.thumbnail.source);
                     setAnalysisImageUrl(page.thumbnail.source);
+                    return;
                 }
+
+                // 4. Secondary Fallback: Try raw cleanTitle on Wikimedia Commons
+                if (cleanTitle !== searchQuery) {
+                    const secondaryUrl = `https://commons.wikimedia.org/w/api.php?action=query&generator=search&gsrsearch=${encodeURIComponent(cleanTitle)}&gsrnamespace=6&prop=imageinfo&iiprop=url|size|mime&format=json&origin=*&gsrlimit=10`;
+                    const secRes = await fetch(secondaryUrl, { signal: controller.signal });
+                    const secData = await secRes.json();
+                    const secPages = Object.values(secData?.query?.pages || {});
+                    for (const p of secPages) {
+                        const info = p.imageinfo?.[0] || {};
+                        const mime = info.mime || '';
+                        const w = info.width || 0;
+                        const h = info.height || 0;
+                        if (
+                            (mime === 'image/jpeg' || mime === 'image/png' || mime === 'image/webp') &&
+                            w >= 400 &&
+                            (h === 0 || w / h >= 0.7)
+                        ) {
+                            console.log('[ZenScribe] Secondary fallback match via Wikimedia:', info.url);
+                            setAnalysisImageUrl(info.url);
+                            return;
+                        }
+                    }
+                }
+
+                // 5. Ultimate Fallback: Show a premium curated cover background
+                const fallbackImages = [
+                    'https://images.unsplash.com/photo-1451187580459-43490279c0fa?q=80&w=1200&auto=format&fit=crop', // Tech deep space
+                    'https://images.unsplash.com/photo-1518770660439-4636190af475?q=80&w=1200&auto=format&fit=crop', // Futuristic microchip
+                    'https://images.unsplash.com/photo-1504868584819-f8e8b4b6d7e3?q=80&w=1200&auto=format&fit=crop', // Tech analytics board
+                    'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=1200&auto=format&fit=crop', // Premium minimalist graphic
+                ];
+                const itemId = activeItem?.job_id || activeItem?.id || 0;
+                const fallbackUrl = fallbackImages[itemId % fallbackImages.length];
+                console.log('[ZenScribe] Using curated technology cover fallback:', fallbackUrl);
+                setAnalysisImageUrl(fallbackUrl);
+
             } catch (e) {
                 if (e.name !== 'AbortError') console.error('[ZenScribe] Image fetch failed:', e);
             }
