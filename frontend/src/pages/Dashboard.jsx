@@ -1201,7 +1201,7 @@ ${detailed}`;
                 {/* Redesigned Premium Top Navigation */}
                 <header className="top-nav">
                     <button className="hamburger" onClick={() => setIsMobileMenuOpen(true)}>☰</button>
-                    <Link to="/" className="logo" style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <Link to="/" className="logo" style={{ display: 'flex', alignItems: 'center', gap: 4 }} onClick={() => setActiveItem(null)}>
                         <img src="/logo.webp" alt="Logo" style={{ width: 88, height: 88, objectFit: 'contain' }} />
                         <span>ZenScribe</span>
                     </Link>
