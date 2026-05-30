@@ -2259,4 +2259,57 @@ body.mobile-mode .map-focus-card { left: 8px !important; right: 8px !important; 
   to { transform: scale(1); opacity: 1; }
 }
 
+/* =========================================================
+   Pagination Styling
+   ========================================================= */
+.pagination-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: var(--s-3);
+  margin-top: var(--s-6);
+  margin-bottom: var(--s-4);
+  user-select: none;
+}
+
+.pagination-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--bg-surface-2);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-secondary);
+  font-family: var(--font-body);
+  font-size: 14px;
+  padding: 8px 14px;
+  border-radius: var(--r-md);
+  cursor: pointer;
+  transition: all var(--dur-fast) var(--ease-out);
+}
+
+.pagination-btn:hover:not(:disabled) {
+  background-color: var(--bg-surface-hover);
+  color: var(--text-primary);
+  border-color: var(--border-medium);
+}
+
+.pagination-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.pagination-btn.active {
+  background-color: var(--accent-primary);
+  color: var(--accent-primary-ink);
+  border-color: var(--accent-primary);
+  font-weight: 500;
+}
+
+.pagination-info {
+  font-family: var(--font-mono);
+  color: var(--text-tertiary);
+  font-size: 13px;
+  margin: 0 var(--s-2);
+}
+
 
