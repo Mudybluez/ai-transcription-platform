@@ -4,7 +4,7 @@ import json
 import pika
 import requests
 from db import init_db, update_job_status, save_result
-from ai_core import transcribe_audio, analyze_content, download_youtube_audio, get_youtube_transcript, GeminiRateLimitError
+from ai_core import transcribe_audio, analyze_content, download_youtube_audio, get_youtube_transcript, get_youtube_metadata, GeminiRateLimitError
 
 # Инициализируем БД при старте
 init_db()
@@ -68,10 +68,24 @@ def callback(ch, method, properties, body):
             if is_youtube and os.path.exists(audio_to_process):
                 os.remove(audio_to_process)
 
+        # 1.5. Получаем метаданные YouTube (название и описание) для лучшего качества анализа ИИ
+        raw_text_for_analysis = raw_text
+        if is_youtube:
+            try:
+                metadata = get_youtube_metadata(file_path)
+                if metadata:
+                    title = metadata.get('title', 'Unknown')
+                    description = metadata.get('description', '')
+                    metadata_prefix = f"--- YOUTUBE VIDEO CONTEXT ---\nTitle: {title}\nDescription:\n{description}\n------------------------------\n\n"
+                    raw_text_for_analysis = metadata_prefix + raw_text
+                    print(f"📌 Метаданные YouTube добавлены к анализу. Название: '{title}'")
+            except Exception as me:
+                print(f"⚠️ Не удалось получить/добавить метаданные YouTube: {me}")
+
         print(f"Анализ в Gemini (мультиязычный)...")
         
         # 2. Анализируем контент (теперь сразу на 3 языках)
-        analysis_data = analyze_content(raw_text)
+        analysis_data = analyze_content(raw_text_for_analysis)
         analysis_data['language'] = language
         
         # 3. Сохраняем результат

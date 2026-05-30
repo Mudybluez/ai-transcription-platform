@@ -101,6 +101,33 @@ def extract_youtube_video_id(url):
         return match.group(1)
     return None
 
+def get_youtube_metadata(url):
+    """Получает название и описание видео с YouTube с помощью yt_dlp без скачивания медиа"""
+    ydl_opts = {
+        'extract_flat': False,
+        'skip_download': True,
+        'quiet': True,
+        'no_warnings': True,
+    }
+    if YOUTUBE_PROXY:
+        ydl_opts['proxy'] = YOUTUBE_PROXY
+        
+    try:
+        print(f"📡 Получение метаданных YouTube для {url}...")
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(url, download=False)
+            if info:
+                title = info.get('title', '').strip()
+                description = info.get('description', '').strip()
+                print(f"✅ Успешно получены метаданные YouTube. Название: '{title}'")
+                return {
+                    'title': title,
+                    'description': description
+                }
+    except Exception as e:
+        print(f"⚠️ Не удалось получить метаданные YouTube: {str(e)}")
+    return None
+
 def get_youtube_transcript(url, language='ru'):
     """Попытка спарсить субтитры YouTube напрямую с поддержкой прокси и мультиязычности"""
     try:
