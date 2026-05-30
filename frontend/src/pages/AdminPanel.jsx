@@ -616,6 +616,8 @@ export default function AdminPanel() {
                             </div>
                         </div>
 
+                        {renderPagination(activeUsersPage, totalUsersPages, setUsersCurrentPage)}
+
                         {/* Users Table */}
                         <div className="tbl-wrap">
                             <table className="tbl">
@@ -739,6 +741,8 @@ export default function AdminPanel() {
                             )}
                         </div>
 
+                        {renderPagination(activeAnalysesPage, totalAnalysesPages, setAnalysesCurrentPage)}
+
                         {/* Transcriptions Table */}
                         <div className="tbl-wrap">
                             <table className="tbl">
@@ -801,6 +805,8 @@ export default function AdminPanel() {
                 {/* ==================== 4. FEEDBACKS TAB ==================== */}
                 {activeTab === 'feedback' && (
                     <div className="fade-in">
+                        {renderPagination(activeFeedbacksPage, totalFeedbacksPages, setFeedbacksCurrentPage)}
+                        
                         <div className="tbl-wrap">
                             <table className="tbl">
                                 <thead>
