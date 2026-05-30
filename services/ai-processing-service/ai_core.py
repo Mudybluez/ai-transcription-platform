@@ -648,3 +648,57 @@ def analyze_content(text):
     
     return normalize_analysis_data(merged_data)
 
+def is_video_file(file_path):
+    """Проверяет, является ли файл видеофайлом по его расширению"""
+    if not file_path:
+        return False
+    video_extensions = ('.mp4', '.mkv', '.webm', '.avi', '.mov', '.flv', '.mpeg', '.mpg', '.3gp', '.m4v')
+    return file_path.lower().endswith(video_extensions)
+
+def get_video_duration(video_path):
+    """Получает длительность видео в секундах с помощью ffprobe с фолбеком на ffmpeg"""
+    import subprocess
+    import re
+    try:
+        cmd = [
+            'ffprobe', '-v', 'error',
+            '-show_entries', 'format=duration',
+            '-of', 'default=noprint_wrappers=1:nokey=1',
+            video_path
+        ]
+        res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, check=True)
+        duration = float(res.stdout.strip())
+        return duration
+    except Exception as e:
+        print(f"⚠️ Не удалось получить длительность с помощью ffprobe: {e}")
+        try:
+            cmd = ['ffmpeg', '-i', video_path]
+            res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+            match = re.search(r"Duration:\s*(\d+):(\d+):(\d+\.\d+)", res.stderr)
+            if match:
+                hours = int(match.group(1))
+                minutes = int(match.group(2))
+                seconds = float(match.group(3))
+                return hours * 3600 + minutes * 60 + seconds
+        except Exception:
+            pass
+    return None
+
+def extract_video_screenshot(video_path, output_path, timestamp=5.0):
+    """Извлекает один кадр из видеофайла на определенной секунде с помощью FFmpeg"""
+    import subprocess
+    try:
+        cmd = [
+            'ffmpeg', '-y',
+            '-ss', str(timestamp),
+            '-i', video_path,
+            '-vframes', '1',
+            '-q:v', '2',
+            output_path
+        ]
+        subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True)
+        return True
+    except Exception as e:
+        print(f"⚠️ Не удалось извлечь кадр на {timestamp}с: {str(e)}")
+        return False
+

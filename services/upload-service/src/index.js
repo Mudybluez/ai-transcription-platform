@@ -10,6 +10,7 @@ const PORT = process.env.PORT || 3002;
 const JWT_SECRET = process.env.JWT_SECRET || 'super_secret_jwt_key';
 
 app.use(express.json());
+app.use('/uploads', express.static('/usr/src/app/uploads'));
 
 // Настройка хранилища Multer (пока локально в volume, позже можно S3)
 const storage = multer.diskStorage({

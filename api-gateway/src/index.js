@@ -89,6 +89,9 @@ app.use('/api/upload', proxy(process.env.UPLOAD_SERVICE_URL || 'http://localhost
     proxyReqPathResolver: () => '/',
     parseReqBody: false
 }));
+app.use('/api/uploads', proxy(process.env.UPLOAD_SERVICE_URL || 'http://localhost:3002', {
+    proxyReqPathResolver: (req) => '/uploads' + req.url
+}));
 
 // Запросы к микросервису поиска
 app.use('/api/search/admin/stats', proxy(process.env.SEARCH_SERVICE_URL || 'http://localhost:3003', {

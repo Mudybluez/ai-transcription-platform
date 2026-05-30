@@ -4,7 +4,12 @@ import json
 import pika
 import requests
 from db import init_db, update_job_status, save_result
-from ai_core import transcribe_audio, analyze_content, download_youtube_audio, get_youtube_transcript, get_youtube_metadata, GeminiRateLimitError
+from ai_core import (
+    transcribe_audio, analyze_content, download_youtube_audio, 
+    get_youtube_transcript, get_youtube_metadata, extract_youtube_video_id,
+    is_video_file, get_video_duration, extract_video_screenshot, 
+    GeminiRateLimitError
+)
 
 # Инициализируем БД при старте
 init_db()
@@ -31,6 +36,38 @@ def connect_to_rabbitmq():
         except Exception as e:
             print(f"Ожидание RabbitMQ... Ошибка: {e}")
             time.sleep(5)
+
+def append_video_frames_to_analysis(analysis_data, job_id):
+    """Добавляет ссылки на извлеченные кадры видеоряда в конец саммари для каждого языка"""
+    langs = {
+        'ru': {
+            'title': "\n\n### 📸 Кадры из видеоряда лекции:",
+            'cap1': "\n*Рис. 1: Вводная часть и начало лекции*",
+            'cap2': "\n*Рис. 2: Разбор ключевых вопросов и темы*",
+            'cap3': "\n*Рис. 3: Заключение и финальные выводы*"
+        },
+        'en': {
+            'title': "\n\n### 📸 Video Timeline Frames:",
+            'cap1': "\n*Figure 1: Introduction and initial lecture section*",
+            'cap2': "\n*Figure 2: Core subject analysis and discussion*",
+            'cap3': "\n*Figure 3: Summary and final takeaways*"
+        },
+        'kk': {
+            'title': "\n\n### 📸 Бейнебаяннан алынған кадрлар:",
+            'cap1': "\n*1-сурет: Бейнебаянның басы және кіріспе бөлімі*",
+            'cap2': "\n*2-сурет: Негізгі тақырыпты талдау сәті*",
+            'cap3': "\n*3-сурет: Қорытынды және маңызды тұжырымдар*"
+        }
+    }
+
+    for lang, texts in langs.items():
+        if lang in analysis_data.get('summary', {}):
+            img1 = f"\n![Video Frame 1](/api/uploads/screenshot_{job_id}_1.jpg)"
+            img2 = f"\n![Video Frame 2](/api/uploads/screenshot_{job_id}_2.jpg)"
+            img3 = f"\n![Video Frame 3](/api/uploads/screenshot_{job_id}_3.jpg)"
+            
+            frames_block = f"{texts['title']}{img1}{texts['cap1']}{img2}{texts['cap2']}{img3}{texts['cap3']}\n"
+            analysis_data['summary'][lang] = analysis_data['summary'][lang] + frames_block
 
 def callback(ch, method, properties, body):
     job_data = json.loads(body)
@@ -87,6 +124,60 @@ def callback(ch, method, properties, body):
         # 2. Анализируем контент (теперь сразу на 3 языках)
         analysis_data = analyze_content(raw_text_for_analysis)
         analysis_data['language'] = language
+
+        # 2.5. Видеоряд / Скриншоты для видеофайлов и YouTube
+        screenshot_url = None
+        if is_youtube:
+            # Получаем ID видео
+            youtube_id = extract_youtube_video_id(file_path)
+            if youtube_id:
+                screenshot_url = f"https://img.youtube.com/vi/{youtube_id}/maxresdefault.jpg"
+                print(f"📺 Для YouTube видео используется обложка: {screenshot_url}")
+        elif is_video_file(file_path):
+            print("🎬 Обнаружен локальный видеофайл. Запуск извлечения кадров...")
+            try:
+                # Извлекаем длительность
+                duration = get_video_duration(file_path)
+                print(f"⏱️ Длительность видео: {duration} секунд.")
+                
+                # Определяем временные метки
+                if duration and duration > 5.0:
+                    t_main = max(1.0, duration * 0.05) # Главная обложка на 5%
+                    t1 = max(2.0, duration * 0.15)
+                    t2 = duration * 0.5
+                    t3 = duration * 0.8
+                else:
+                    t_main, t1, t2, t3 = 1.0, 2.0, 3.0, 4.0
+                    
+                # Папка для скриншотов
+                uploads_dir = "/usr/src/app/uploads"
+                
+                # Извлекаем главную обложку
+                main_path = os.path.join(uploads_dir, f"screenshot_{job_id}_main.jpg")
+                if extract_video_screenshot(file_path, main_path, t_main):
+                    screenshot_url = f"/api/uploads/screenshot_{job_id}_main.jpg"
+                    print(f"✅ Главная обложка извлечена: {screenshot_url}")
+                    
+                # Извлекаем дополнительные 3 кадра для тела анализа
+                path1 = os.path.join(uploads_dir, f"screenshot_{job_id}_1.jpg")
+                path2 = os.path.join(uploads_dir, f"screenshot_{job_id}_2.jpg")
+                path3 = os.path.join(uploads_dir, f"screenshot_{job_id}_3.jpg")
+                
+                ext1 = extract_video_screenshot(file_path, path1, t1)
+                ext2 = extract_video_screenshot(file_path, path2, t2)
+                ext3 = extract_video_screenshot(file_path, path3, t3)
+                
+                if ext1 and ext2 and ext3:
+                    print("✅ Все 3 кадра видеоряда успешно извлечены!")
+                    # Встраиваем кадры в анализ
+                    append_video_frames_to_analysis(analysis_data, job_id)
+                else:
+                    print("⚠️ Некоторые кадры видеоряда не удалось извлечь.")
+            except Exception as ve:
+                print(f"⚠️ Ошибка при обработке видеоряда: {ve}")
+                
+        if screenshot_url:
+            analysis_data['video_screenshot'] = screenshot_url
         
         # 3. Сохраняем результат
         save_result(job_id, user_id, raw_text, analysis_data)

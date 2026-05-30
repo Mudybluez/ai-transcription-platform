@@ -155,6 +155,13 @@ export default function Dashboard() {
 
         setAnalysisImageUrl(null);
 
+        // 0. Если у нас есть готовый кадр видеоряда от бэкенда (или обложка YouTube), используем его моментально!
+        if (activeItem.analysis?.video_screenshot) {
+            console.log('[ZenScribe] Using backend-extracted video_screenshot:', activeItem.analysis.video_screenshot);
+            setAnalysisImageUrl(activeItem.analysis.video_screenshot);
+            return;
+        }
+
         // 1. Determine search query. If AI provided explicit image_query, use it! Otherwise fallback to title extraction.
         let searchQuery = '';
         if (activeItem.analysis?.image_query && typeof activeItem.analysis.image_query === 'string' && activeItem.analysis.image_query.trim()) {
