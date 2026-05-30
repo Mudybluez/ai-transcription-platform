@@ -86,6 +86,14 @@ app.post('/register', async (req, res) => {
             }
         }
 
+        // 1.5 Проверка валидности имени пользователя (латиница, цифры, без пробелов, только символы -, _, @)
+        const usernameRegex = /^[a-zA-Z0-9\-_@]+$/;
+        if (!username || !usernameRegex.test(username)) {
+            return res.status(400).json({ 
+                message: 'Имя пользователя должно быть одним словом на латинице и может содержать только буквы, цифры и символы: -, _, @' 
+            });
+        }
+
         // 2. Проверка силы пароля
         if (!isPasswordStrongEnough(password)) {
             return res.status(400).json({ 
@@ -891,8 +899,11 @@ app.post('/change-password', async (req, res) => {
 app.post('/update-username', async (req, res) => {
     const { userId, newUsername } = req.body;
 
-    if (!newUsername || newUsername.trim() === '') {
-        return res.status(400).json({ message: 'Имя пользователя не может быть пустым' });
+    const usernameRegex = /^[a-zA-Z0-9\-_@]+$/;
+    if (!newUsername || !usernameRegex.test(newUsername)) {
+        return res.status(400).json({ 
+            message: 'Имя пользователя должно быть одним словом на латинице и может содержать только буквы, цифры и символы: -, _, @' 
+        });
     }
 
     try {
