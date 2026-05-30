@@ -99,6 +99,9 @@ export default function Dashboard() {
     const [revealedAnswers, setRevealedAnswers] = useState({}); 
     const [showScrollTop, setShowScrollTop] = useState(false);
     const [highlightText, setHighlightText] = useState(null);
+
+    // Featured image fetched from Wikimedia Commons based on analysis title
+    const [analysisImageUrl, setAnalysisImageUrl] = useState(null);
     
     const [userRole, setUserRole] = useState(localStorage.getItem('role') || 'Standard');
     const [remainingRequests, setRemainingRequests] = useState(null);
@@ -127,8 +130,208 @@ export default function Dashboard() {
         { id: 'record', label: t('type_record', 'Запись'), icon: 'mic' }
     ];
 
+    const getYoutubeId = (url) => {
+        if (!url || typeof url !== 'string') return null;
+        const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
+        const match = url.match(regExp);
+        return (match && match[2].length === 11) ? match[2] : null;
+    };
+
+    const isYoutubeVideo = !!(
+        activeItem && (
+            getYoutubeId(activeItem.file_path) || 
+            getYoutubeId(activeItem.youtube_link) || 
+            (activeItem.file_name && activeItem.file_name.toLowerCase().includes('youtube')) ||
+            (activeItem.file_path && activeItem.file_path.toLowerCase().includes('youtube'))
+        )
+    );
+
+    // Fetch a relevant featured image via Wikimedia Commons and Wikipedia (Cyrillic-smart + cascading fallback)
+    useEffect(() => {
+        if (!activeItem?.analysis?.title) {
+            setAnalysisImageUrl(null);
+            return;
+        }
+
+        setAnalysisImageUrl(null);
+
+        // 1. Determine search query. If AI provided explicit image_query, use it! Otherwise fallback to title extraction.
+        let searchQuery = '';
+        if (activeItem.analysis?.image_query && typeof activeItem.analysis.image_query === 'string' && activeItem.analysis.image_query.trim()) {
+            searchQuery = activeItem.analysis.image_query.trim();
+            console.log('[ZenScribe] Using AI-provided image_query:', searchQuery);
+        } else {
+            // Prefer English title for better Wikipedia coverage, or fallback
+            const searchTitle = activeItem.analysis.title?.en ||
+                                activeItem.analysis.title?.ru ||
+                                activeItem.file_name || '';
+            if (!searchTitle) return;
+
+            // Generic meta-words that describe the analysis type/format rather than the actual topic
+            const GENERIC_WORDS = new Set([
+                'analysis', 'review', 'overview', 'assessment', 'study', 'report',
+                'summary', 'lecture', 'presentation', 'introduction', 'impact',
+                'effects', 'influence', 'role', 'exploration', 'examination',
+                'discussion', 'comparison', 'evaluation', 'understanding', 'exploring',
+                'content', 'video', 'audio', 'file', 'document', 'about', 'the', 'and', 
+                'for', 'with', 'from', 'into', 'within', 'across', 'basics', 'gameplay',
+                'walkthrough', 'guide', 'tutorial', 'game', 'play', 'video',
+                'анализ', 'обзор', 'исследование', 'изучение', 'тема', 'введение', 
+                'лекция', 'презентация', 'оценка', 'содержание', 'видео', 'аудио', 
+                'документ', 'файл', 'как', 'что', 'для', 'на', 'по', 'из', 'от', 
+                'до', 'про', 'об', 'игры', 'игра', 'геймплей', 'прохождение', 
+                'руководство', 'инструкция', 'урок', 'класс', 'курс',
+                'талдау', 'шолу', 'зерттеу', 'бейне', 'аудио', 'файл', 'құжат', 
+                'туралы', 'үшін', 'ойын', 'сабақ', 'класс'
+            ]);
+
+            // Clean title: keep Unicode letters, numbers and spaces, replacing punctuation/symbols with spaces
+            const cleanTitle = searchTitle
+                .replace(/[^\p{L}\p{N}\s]/gu, ' ')
+                .trim();
+
+            // Split into words of length > 2
+            const allKeywords = cleanTitle
+                .split(/\s+/)
+                .filter(w => w.length > 2);
+
+            // Core keywords: exclude noise words to isolate the real subject
+            const coreWords = allKeywords
+                .filter(w => !GENERIC_WORDS.has(w.toLowerCase()))
+                .slice(0, 3)
+                .join(' ');
+
+            searchQuery = coreWords || allKeywords.slice(0, 3).join(' ');
+            console.log('[ZenScribe] Extracted fallback image search query:', searchQuery);
+        }
+
+        if (!searchQuery) return;
+
+        console.log('[ZenScribe] Cleaned image search query:', searchQuery);
+
+        const controller = new AbortController();
+        const fetchImage = async () => {
+            try {
+                // 1. Try Wikimedia Commons search (excellent for illustrations/screenshots/photos across all languages)
+                const commonsUrl = `https://commons.wikimedia.org/w/api.php?action=query&generator=search&gsrsearch=${encodeURIComponent(searchQuery)}&gsrnamespace=6&prop=imageinfo&iiprop=url|size|mime&format=json&origin=*&gsrlimit=20`;
+                console.log('[ZenScribe] Wikimedia Commons search:', commonsUrl);
+                
+                const commonsRes = await fetch(commonsUrl, { signal: controller.signal });
+                const commonsData = await commonsRes.json();
+                
+                const pages = Object.values(commonsData?.query?.pages || {});
+                const images = [];
+                for (const p of pages) {
+                    const info = p.imageinfo?.[0] || {};
+                    const mime = info.mime || '';
+                    const w = info.width || 0;
+                    const h = info.height || 0;
+                    // Accept high-res landscape/semi-landscape JPEG, PNG, WebP images
+                    if (
+                        (mime === 'image/jpeg' || mime === 'image/png' || mime === 'image/webp') &&
+                        w >= 400 &&
+                        (h === 0 || w / h >= 0.7)
+                    ) {
+                        images.push(info.url);
+                    }
+                }
+                
+                if (images.length > 0) {
+                    console.log('[ZenScribe] Image matched via Wikimedia Commons:', images[0]);
+                    setAnalysisImageUrl(images[0]);
+                    return;
+                }
+
+                // 2. Fallback: Search Wikipedia Pageimages (smart-routing based on Cyrillic script)
+                const isCyrillic = /[а-яА-ЯёЁәӘғҒқҚңҢөӨұҰүҮһҺіІ]/.test(searchQuery);
+                const wikiHost = isCyrillic ? 'ru.wikipedia.org' : 'en.wikipedia.org';
+                
+                const openUrl = `https://${wikiHost}/w/api.php?action=opensearch&search=${encodeURIComponent(searchQuery)}&limit=3&namespace=0&format=json&origin=*`;
+                console.log('[ZenScribe] Wikipedia opensearch (' + wikiHost + '):', openUrl);
+                
+                const openRes = await fetch(openUrl, { signal: controller.signal });
+                const [, titles] = await openRes.json();
+                
+                if (titles && titles.length > 0) {
+                    const imgUrl = `https://${wikiHost}/w/api.php?action=query&titles=${encodeURIComponent(titles[0])}&prop=pageimages&pithumbsize=1200&format=json&origin=*`;
+                    const imgRes = await fetch(imgUrl, { signal: controller.signal });
+                    const imgData = await imgRes.json();
+                    
+                    const wikiPages = Object.values(imgData?.query?.pages || {});
+                    const found = wikiPages.find(p => p.thumbnail?.source);
+                    if (found) {
+                        console.log('[ZenScribe] Image matched via Wikipedia article pageimages:', found.thumbnail.source);
+                        setAnalysisImageUrl(found.thumbnail.source);
+                        return;
+                    }
+                }
+
+                // 3. Fallback: Wikipedia generator search
+                const wikiUrl = `https://${wikiHost}/w/api.php?action=query&generator=search&gsrsearch=${encodeURIComponent(searchQuery)}&gsrlimit=10&prop=pageimages&pithumbsize=1200&format=json&origin=*`;
+                const wikiRes = await fetch(wikiUrl, { signal: controller.signal });
+                const wikiData = await wikiRes.json();
+                
+                const wikiPages = Object.values(wikiData?.query?.pages || {});
+                const page = wikiPages.find(p => p.thumbnail?.source);
+                if (page) {
+                    console.log('[ZenScribe] Image matched via Wikipedia generator search:', page.thumbnail.source);
+                    setAnalysisImageUrl(page.thumbnail.source);
+                    return;
+                }
+
+                // 4. Secondary Fallback: Try raw cleanTitle on Wikimedia Commons
+                if (cleanTitle !== searchQuery) {
+                    const secondaryUrl = `https://commons.wikimedia.org/w/api.php?action=query&generator=search&gsrsearch=${encodeURIComponent(cleanTitle)}&gsrnamespace=6&prop=imageinfo&iiprop=url|size|mime&format=json&origin=*&gsrlimit=10`;
+                    const secRes = await fetch(secondaryUrl, { signal: controller.signal });
+                    const secData = await secRes.json();
+                    const secPages = Object.values(secData?.query?.pages || {});
+                    for (const p of secPages) {
+                        const info = p.imageinfo?.[0] || {};
+                        const mime = info.mime || '';
+                        const w = info.width || 0;
+                        const h = info.height || 0;
+                        if (
+                            (mime === 'image/jpeg' || mime === 'image/png' || mime === 'image/webp') &&
+                            w >= 400 &&
+                            (h === 0 || w / h >= 0.7)
+                        ) {
+                            console.log('[ZenScribe] Secondary fallback match via Wikimedia:', info.url);
+                            setAnalysisImageUrl(info.url);
+                            return;
+                        }
+                    }
+                }
+
+                // 5. Ultimate Fallback: Show a premium curated cover background
+                const fallbackImages = [
+                    'https://images.unsplash.com/photo-1451187580459-43490279c0fa?q=80&w=1200&auto=format&fit=crop', // Tech deep space
+                    'https://images.unsplash.com/photo-1518770660439-4636190af475?q=80&w=1200&auto=format&fit=crop', // Futuristic microchip
+                    'https://images.unsplash.com/photo-1504868584819-f8e8b4b6d7e3?q=80&w=1200&auto=format&fit=crop', // Tech analytics board
+                    'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=1200&auto=format&fit=crop', // Premium minimalist graphic
+                ];
+                const itemId = activeItem?.job_id || activeItem?.id || 0;
+                const fallbackUrl = fallbackImages[itemId % fallbackImages.length];
+                console.log('[ZenScribe] Using curated technology cover fallback:', fallbackUrl);
+                setAnalysisImageUrl(fallbackUrl);
+
+            } catch (e) {
+                if (e.name !== 'AbortError') console.error('[ZenScribe] Image fetch failed:', e);
+            }
+        };
+
+        fetchImage();
+        return () => controller.abort();
+    }, [activeItem?.job_id ?? activeItem?.id]);
+
+
+    // Suppress stray image tags that may exist in old analyses (previously inserted by loremflickr)
+    const getMarkdownImageComponents = () => ({
+        img: () => null  // Remove any embedded images — featured image shown separately above
+    });
+
     const DETAIL_TABS = [
         { id: 'summary', label: t('tab_summary', 'Анализ'), icon: 'file_text' },
+        ...(isYoutubeVideo ? [{ id: 'video', label: t('tab_video', 'Видео'), icon: 'youtube' }] : []),
         { id: 'mindmap', label: t('tab_mindmap', 'Карта'), icon: 'network' },
         { id: 'flashcards', label: t('tab_flashcards', 'Карточки'), icon: 'layers' },
         { id: 'quiz', label: t('tab_quiz', 'Тест'), icon: 'help_circle' },
@@ -163,7 +366,7 @@ export default function Dashboard() {
         const ro = new ResizeObserver(measure);
         if (detailTabsRef.current) ro.observe(detailTabsRef.current);
         return () => ro.disconnect();
-    }, [currentTab, activeItem]);
+    }, [currentTab, activeItem, isYoutubeVideo]);
 
     // Smooth Momentum Wheel Scroll Setup
     useEffect(() => {
@@ -1294,11 +1497,48 @@ ${detailed}`;
                         {/* Analysis list Tab */}
                         {currentTab === 'summary' && (
                             <div className="fade-in">
+                                {/* Featured image from Wikimedia Commons */}
+                                {analysisImageUrl && (
+                                    <div style={{
+                                        width: '100%',
+                                        borderRadius: '16px',
+                                        overflow: 'hidden',
+                                        marginBottom: '32px',
+                                        border: '1px solid var(--border-subtle)',
+                                        boxShadow: '0 16px 48px rgba(0,0,0,0.3)',
+                                        maxHeight: '360px',
+                                        position: 'relative'
+                                    }}>
+                                        <img
+                                            src={analysisImageUrl}
+                                            alt={getLangText(activeItem.analysis?.title)}
+                                            style={{
+                                                width: '100%',
+                                                height: '360px',
+                                                objectFit: 'cover',
+                                                display: 'block',
+                                                transition: 'transform 0.5s ease',
+                                            }}
+                                            onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.03)'}
+                                            onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}
+                                        />
+                                        <div style={{
+                                            position: 'absolute',
+                                            bottom: 0,
+                                            left: 0,
+                                            right: 0,
+                                            height: '80px',
+                                            background: 'linear-gradient(to top, var(--bg-app) 0%, transparent 100%)'
+                                        }} />
+                                    </div>
+                                )}
+
                                 <div className="prose hero-summary">
-                                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                                    <ReactMarkdown remarkPlugins={[remarkGfm]} components={getMarkdownImageComponents()}>
                                         {getMarkdownText(getLangText(activeItem.analysis?.summary))}
                                     </ReactMarkdown>
                                 </div>
+
 
                                 <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 20, fontWeight: 600, margin: '48px 0 24px' }}>
                                     {t('key_insights', 'Ключевые инсайты')}
@@ -1326,7 +1566,7 @@ ${detailed}`;
                                     {t('detailed_analysis', 'Подробный разбор')}
                                 </h2>
                                 <div className="prose detailed-content" style={{ marginBottom: 48 }}>
-                                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                                    <ReactMarkdown remarkPlugins={[remarkGfm]} components={getMarkdownImageComponents()}>
                                         {getMarkdownText(getLangText(activeItem.analysis?.detailed_analysis))}
                                     </ReactMarkdown>
                                 </div>
@@ -1343,6 +1583,24 @@ ${detailed}`;
                                             <p style={{ margin: 0, color: '#D9DBDE', fontSize: 14.5, lineHeight: 1.6 }}>{item}</p>
                                         </div>
                                     ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* YouTube Video Player Tab */}
+                        {currentTab === 'video' && isYoutubeVideo && (
+                            <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 24, padding: '24px 0' }}>
+                                <div className="video-player-wrapper">
+                                    <iframe
+                                        width="100%"
+                                        height="100%"
+                                        src={`https://www.youtube.com/embed/${getYoutubeId(activeItem.file_path || activeItem.youtube_link)}?autoplay=0&rel=0`}
+                                        title={getLangText(activeItem.analysis?.title) || "YouTube Video"}
+                                        frameBorder="0"
+                                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                                        allowFullScreen
+                                        style={{ border: 'none' }}
+                                    ></iframe>
                                 </div>
                             </div>
                         )}
@@ -1575,7 +1833,7 @@ ${detailed}`;
                         ) : (
                             <div style={{ maxHeight: 250, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 12 }}>
                                 {feedbacks.length === 0 ? (
-                                    <p style={{ color: 'var(--text-tertiary)', fontSize: 13, textAlign: 'center', margin: '20px 0' }}>Еще нет оставленных отзывов.</p>
+                                    <p style={{ color: 'var(--text-tertiary)', fontSize: 13, textAlign: 'center', margin: '20px 0' }}>{t('feedback_empty', 'Еще нет оставленных отзывов.')}</p>
                                 ) : feedbacks.map((fb, idx) => (
                                     <div key={idx} style={{ padding: 12, background: 'var(--bg-base)', border: '1px solid var(--border-subtle)', borderRadius: 8 }}>
                                         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6, fontSize: 11 }}>
@@ -1602,17 +1860,17 @@ ${detailed}`;
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: 'var(--accent-primary)', fontWeight: 600, fontSize: 13 }}>
                             <Icon name="message_circle" size={14} />
-                            Мы ценим ваше мнение!
+                            {t('feedback_toast_title', 'Мы ценим ваше мнение!')}
                         </span>
                         <button style={{ color: 'var(--text-tertiary)', background: 'none', border: 'none', cursor: 'pointer' }} onClick={() => setIsFeedbackPromptOpen(false)}>×</button>
                     </div>
                     <p style={{ margin: 0, fontSize: 12.5, color: 'var(--text-secondary)', lineHeight: 1.4 }}>
-                        Понравилось ли вам качество структурированного анализа? Оставьте короткий отзыв, чтобы помочь нам сделать систему лучше.
+                        {t('feedback_toast_text', 'Понравилось ли вам качество структурированного анализа? Оставьте короткий отзыв, чтобы помочь нам сделать систему лучше.')}
                     </p>
                     <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 4 }}>
-                        <button className="btn btn--quiet btn--sm" onClick={() => setIsFeedbackPromptOpen(false)}>Позже</button>
+                        <button className="btn btn--quiet btn--sm" onClick={() => setIsFeedbackPromptOpen(false)}>{t('feedback_toast_later', 'Позже')}</button>
                         <button className="btn btn--primary btn--sm" onClick={() => { setIsFeedbackPromptOpen(false); setIsFeedbackModalOpen(true); setFeedbackModalTab('write'); }}>
-                            Да, конечно!
+                            {t('feedback_toast_sure', 'Да, конечно!')}
                         </button>
                     </div>
                 </div>

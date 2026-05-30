@@ -1695,3 +1695,23 @@ body.mobile-mode .map-focus-card { left: 8px !important; right: 8px !important; 
   -ms-user-select: none !important;
 }
 
+/* YouTube Embedded Player */
+.video-player-wrapper {
+  width: 100%;
+  max-width: 800px;
+  margin: 0 auto;
+  aspect-ratio: 16/9;
+  border-radius: var(--r-lg);
+  overflow: hidden;
+  border: 1px solid var(--border-subtle);
+  background: rgba(255, 255, 255, 0.03);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.35);
+  transition: all var(--dur-base) var(--ease-out);
+}
+
+.video-player-wrapper:hover {
+  border-color: rgba(255, 255, 255, 0.15);
+  box-shadow: 0 25px 50px rgba(0, 0, 0, 0.45);
+}
+

@@ -75,7 +75,7 @@ export default function Profile() {
 
     const user = {
         id: localStorage.getItem('userId'),
-        username: localStorage.getItem('username') || 'Студент',
+        username: localStorage.getItem('username') || t('profile_default_username', 'Студент'),
         email: localStorage.getItem('email') || 'student@turbo.ai',
         role: localStorage.getItem('role') || 'user'
     };
@@ -239,10 +239,10 @@ export default function Profile() {
                             </div>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                                 {stats.languages.length === 0 ? (
-                                    <span style={{ fontSize: 13, color: 'var(--text-tertiary)' }}>Статистика языков отсутствует</span>
+                                    <span style={{ fontSize: 13, color: 'var(--text-tertiary)' }}>{t('profile_no_lang_stats', 'Статистика языков отсутствует')}</span>
                                 ) : stats.languages.map((l, i) => (
                                     <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', fontSize: 13.5 }}>
-                                        <span>{l.lang === 'ru' ? 'Русский' : l.lang === 'en' ? 'English' : 'Қазақша'}</span>
+                                        <span>{l.lang === 'ru' ? t('lang_ru_name', 'Русский') : l.lang === 'en' ? t('lang_en_name', 'English') : t('lang_kk_name', 'Қазақша')}</span>
                                         <span style={{ color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)' }}>{l.count}</span>
                                     </div>
                                 ))}
@@ -258,7 +258,7 @@ export default function Profile() {
                                 {t('profile_settings', 'Настройки профиля')}
                             </h3>
                             <p style={{ color: 'var(--text-secondary)', fontSize: 13, margin: '0 0 24px' }}>
-                                Имя и аватар отображаются в твоей библиотеке и при экспорте.
+                                {t('profile_username_hint', 'Имя и аватар отображаются в твоей библиотеке и при экспорте.')}
                             </p>
                             <form onSubmit={handleUpdateUsername}>
                                 <label className="label">{t('username_label', 'Имя пользователя')}</label>
@@ -269,7 +269,7 @@ export default function Profile() {
                                 />
                                 <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 16 }}>
                                     <button type="submit" className="btn btn--primary btn--sm" disabled={isUpdatingUsername}>
-                                        {isUpdatingUsername ? 'Сохранение...' : 'Сохранить'}
+                                        {isUpdatingUsername ? t('saving', 'Сохранение...') : t('save_btn', 'Сохранить')}
                                     </button>
                                 </div>
                             </form>
@@ -277,28 +277,28 @@ export default function Profile() {
 
                         {/* Interactive Toggle Settings */}
                         <div className="profile-card">
-                            <h3 style={{ margin: '0 0 4px', fontSize: 15, fontWeight: 600 }}>Уведомления</h3>
+                            <h3 style={{ margin: '0 0 4px', fontSize: 15, fontWeight: 600 }}>{t('profile_notifications_title', 'Уведомления')}</h3>
                             <p style={{ color: 'var(--text-secondary)', fontSize: 13, margin: '0 0 16px' }}>
-                                Что присылать, когда разбор готов или меняется статус подписки.
+                                {t('profile_notifications_hint', 'Что присылать, когда разбор готов или меняется статус подписки.')}
                             </p>
                             <div className="list-row">
                                 <div>
-                                    <div className="list-row__label">Email-уведомления</div>
-                                    <div className="list-row__sub">Когда разбор готов или возникла ошибка</div>
+                                    <div className="list-row__label">{t('profile_notif_email', 'Email-уведомления')}</div>
+                                    <div className="list-row__sub">{t('profile_notif_email_hint', 'Когда разбор готов или возникла ошибка')}</div>
                                 </div>
                                 <button className={`toggle ${emailNotifs ? 'is-on' : ''}`} onClick={() => setEmailNotifs(v => !v)} />
                             </div>
                             <div className="list-row">
                                 <div>
-                                    <div className="list-row__label">Push в браузер</div>
-                                    <div className="list-row__sub">Только когда вкладка открыта</div>
+                                    <div className="list-row__label">{t('profile_notif_push', 'Push в браузер')}</div>
+                                    <div className="list-row__sub">{t('profile_notif_push_hint', 'Только когда вкладка открыта')}</div>
                                 </div>
                                 <button className={`toggle ${pushNotifs ? 'is-on' : ''}`} onClick={() => setPushNotifs(v => !v)} />
                             </div>
                             <div className="list-row">
                                 <div>
-                                    <div className="list-row__label">Новости платформы</div>
-                                    <div className="list-row__sub">Релизы, фичи, эксперименты</div>
+                                    <div className="list-row__label">{t('profile_notif_news', 'Новости платформы')}</div>
+                                    <div className="list-row__sub">{t('profile_notif_news_hint', 'Релизы, фичи, эксперименты')}</div>
                                 </div>
                                 <button className={`toggle ${marketingNotifs ? 'is-on' : ''}`} onClick={() => setMarketingNotifs(v => !v)} />
                             </div>
@@ -310,7 +310,7 @@ export default function Profile() {
                                 {t('security_title', 'Безопасность')}
                             </h3>
                             <p style={{ color: 'var(--text-secondary)', fontSize: 13, margin: '0 0 16px' }}>
-                                Смена пароля и завершение всех сессий.
+                                {t('profile_security_hint', 'Смена пароля и завершение всех сессий.')}
                             </p>
                             <form onSubmit={handleChangePassword}>
                                 <label className="label">{t('old_password', 'Текущий пароль')}</label>
@@ -336,7 +336,7 @@ export default function Profile() {
                                         {t('clear_history_btn', 'Очистить историю')}
                                     </button>
                                     <button type="submit" className="btn btn--primary btn--sm" disabled={isChanging}>
-                                        {isChanging ? 'Смена...' : t('update_password_btn', 'Обновить пароль')}
+                                        {isChanging ? t('profile_changing_pwd', 'Смена...') : t('update_password_btn', 'Обновить пароль')}
                                     </button>
                                 </div>
                             </form>
