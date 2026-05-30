@@ -93,6 +93,11 @@ app.post('/register', async (req, res) => {
                 message: 'Имя пользователя должно быть одним словом на латинице и может содержать только буквы, цифры и символы: -, _, @' 
             });
         }
+        if (username.length >= 13) {
+            return res.status(400).json({ 
+                message: 'Длина имени пользователя должна быть меньше 13 символов' 
+            });
+        }
 
         // 2. Проверка силы пароля
         if (!isPasswordStrongEnough(password)) {
@@ -903,6 +908,11 @@ app.post('/update-username', async (req, res) => {
     if (!newUsername || !usernameRegex.test(newUsername)) {
         return res.status(400).json({ 
             message: 'Имя пользователя должно быть одним словом на латинице и может содержать только буквы, цифры и символы: -, _, @' 
+        });
+    }
+    if (newUsername.length >= 13) {
+        return res.status(400).json({ 
+            message: 'Длина имени пользователя должна быть меньше 13 символов' 
         });
     }
 

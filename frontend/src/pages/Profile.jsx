@@ -178,6 +178,10 @@ export default function Profile() {
             alert('Имя пользователя должно быть одним словом на латинице и может содержать только буквы, цифры и символы: -, _, @');
             return;
         }
+        if (newUsername.length >= 13) {
+            alert('Длина имени пользователя должна быть меньше 13 символов');
+            return;
+        }
         setIsUpdatingUsername(true);
         try {
             const response = await api.post('/users/update-username', { userId: user.id, newUsername });

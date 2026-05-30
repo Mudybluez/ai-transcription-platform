@@ -136,6 +136,11 @@ export default function Login() {
                     setMessage('Имя пользователя должно быть одним словом на латинице и может содержать только буквы, цифры и символы: -, _, @');
                     return;
                 }
+                if (username.length >= 13) {
+                    setIsError(true);
+                    setMessage('Длина имени пользователя должна быть меньше 13 символов');
+                    return;
+                }
 
                 let recaptchaToken = null;
                 const siteKey = recaptchaSiteKey;

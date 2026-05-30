@@ -13,7 +13,7 @@ const pool = new Pool({
 const usernameRegex = /^[a-zA-Z0-9\-_@]+$/;
 
 function validateUsername(username) {
-    return !!username && usernameRegex.test(username);
+    return !!username && usernameRegex.test(username) && username.length < 13;
 }
 
 async function runUsernameValidationTests() {
@@ -27,6 +27,8 @@ async function runUsernameValidationTests() {
         { username: 'admin-123', expected: true, desc: 'Латиница с цифрами и дефисом' },
         { username: 'user@name', expected: true, desc: 'Латиница с символом @' },
         { username: 'SimpleName', expected: true, desc: 'Просто латиница разного регистра' },
+        { username: 'john_doe_long', expected: false, desc: 'Длина 13 символов (не меньше 13)' },
+        { username: 'verylongusername', expected: false, desc: 'Длина 16 символов (не меньше 13)' },
         { username: 'john doe', expected: false, desc: 'Наличие пробела (не одно слово)' },
         { username: 'иван_иванов', expected: false, desc: 'Кириллица' },
         { username: 'user.name', expected: false, desc: 'Неразрешенный символ .' },
@@ -58,17 +60,17 @@ async function runUsernameValidationTests() {
         // Очистка старых тестов
         await pool.query("DELETE FROM users WHERE email IN ('test_dup1@example.com', 'test_dup2@example.com')");
 
-        console.log('📡 Вставка первого пользователя с никнеймом "test_duplicate_nick"...');
+        console.log('📡 Вставка первого пользователя с никнеймом "dup_nick"...');
         const user1 = await pool.query(
             "INSERT INTO users (username, email, password, role, is_verified) VALUES ($1, $2, $3, $4, TRUE) RETURNING id",
-            ['test_duplicate_nick', 'test_dup1@example.com', 'hashed_pass_placeholder', 'Standard']
+            ['dup_nick', 'test_dup1@example.com', 'hashed_pass_placeholder', 'Standard']
         );
         console.log(`   Успешно! ID: ${user1.rows[0].id}`);
 
-        console.log('📡 Вставка второго пользователя с ТЕМ ЖЕ никнеймом "test_duplicate_nick"...');
+        console.log('📡 Вставка второго пользователя с ТЕМ ЖЕ никнеймом "dup_nick"...');
         const user2 = await pool.query(
             "INSERT INTO users (username, email, password, role, is_verified) VALUES ($1, $2, $3, $4, TRUE) RETURNING id",
-            ['test_duplicate_nick', 'test_dup2@example.com', 'hashed_pass_placeholder', 'Standard']
+            ['dup_nick', 'test_dup2@example.com', 'hashed_pass_placeholder', 'Standard']
         );
         console.log(`   Успешно! ID: ${user2.rows[0].id}`);
         console.log('✅ База данных успешно позволила сохранить дублирующийся никнейм!');
