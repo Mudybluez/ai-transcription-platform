@@ -1203,14 +1203,25 @@ body.mobile-mode .map-focus-card { left: 8px !important; right: 8px !important; 
 .dashboard-container {
   padding-top: 64px;
 }
+.top-nav,
+.hero__eyebrow,
+.hero__title,
+.hero__sub {
+  user-select: none;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+}
+
 .top-nav .logo {
   display: flex;
   align-items: center;
   gap: var(--s-2);
-  font-size: 14px;
+  font-size: 17px;
   font-weight: 600;
   letter-spacing: -0.01em;
   color: var(--text-primary);
+  cursor: pointer;
 }
 .nav-links-desktop {
   display: flex;
