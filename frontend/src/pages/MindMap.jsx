@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import ForceGraph2D from 'react-force-graph-2d';
 
@@ -178,12 +179,8 @@ const MindMap = ({ data, onNavigateToTopic }) => {
         }
     };
 
-    return (
-        <>
-            {isImmersive && (
-                <div className="mindmap-placeholder" style={{ height: '700px', width: '100%' }} />
-            )}
-            
+    const renderContent = () => {
+        return (
             <div 
                 ref={wrapperRef}
                 className={`mindmap-wrapper ${isImmersive ? 'immersive' : ''}`} 
@@ -427,8 +424,22 @@ const MindMap = ({ data, onNavigateToTopic }) => {
                     </div>
                 )}
             </div>
-        </>
-    );
+        );
+    };
+
+    if (isImmersive) {
+        return (
+            <>
+                <div className="mindmap-placeholder" style={{ height: '700px', width: '100%', background: 'rgba(0,0,0,0.1)', borderRadius: '12px' }} />
+                {createPortal(
+                    renderContent(),
+                    document.body
+                )}
+            </>
+        );
+    }
+
+    return renderContent();
 };
 
 export default MindMap;
