@@ -172,8 +172,9 @@ export default function Profile() {
 
     const handleUpdateUsername = async (e) => {
         e.preventDefault();
-        if (!newUsername || newUsername.trim() === '') {
-            alert(t('fill_fields_alert', 'Заполните поля'));
+        const usernameRegex = /^[a-zA-Z0-9\-_@]+$/;
+        if (!newUsername || !usernameRegex.test(newUsername)) {
+            alert('Имя пользователя должно быть одним словом на латинице и может содержать только буквы, цифры и символы: -, _, @');
             return;
         }
         setIsUpdatingUsername(true);

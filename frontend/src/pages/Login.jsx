@@ -130,6 +130,13 @@ export default function Login() {
                 }
             } else {
                 // Register logic
+                const usernameRegex = /^[a-zA-Z0-9\-_@]+$/;
+                if (!usernameRegex.test(username)) {
+                    setIsError(true);
+                    setMessage('Имя пользователя должно быть одним словом на латинице и может содержать только буквы, цифры и символы: -, _, @');
+                    return;
+                }
+
                 let recaptchaToken = null;
                 const siteKey = recaptchaSiteKey;
                 
