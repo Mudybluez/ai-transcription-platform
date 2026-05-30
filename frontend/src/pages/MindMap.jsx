@@ -91,7 +91,7 @@ const MindMap = ({ data, onNavigateToTopic }) => {
                 
                 setDimensions({ 
                     width: isImmersive ? window.innerWidth : (width || 800), 
-                    height: isImmersive ? (window.innerHeight - 60) : (height || 700) 
+                    height: isImmersive ? window.innerHeight : (height || 700) 
                 });
             }
         });
@@ -100,28 +100,26 @@ const MindMap = ({ data, onNavigateToTopic }) => {
         return () => resizeObserver.disconnect();
     }, [isImmersive]);
 
-    // Handle scroll auto-immersive mode
+    // Lock body scroll in immersive mode to prevent background scroll and misalignment
     useEffect(() => {
-        const handleScroll = () => {
-            if (!wrapperRef.current) return;
-            
-            const rect = wrapperRef.current.getBoundingClientRect();
-            
-            if (!isImmersive) {
-                const deltaScroll = window.scrollY - initialScrollYRef.current;
-                if (deltaScroll > 40 && rect.top <= 150 && rect.bottom > 200) {
-                    originalTopRef.current = window.scrollY;
-                    setIsImmersive(true);
-                }
-            } else {
-                if (originalTopRef.current !== null && window.scrollY < originalTopRef.current - 80) {
-                    handleCloseImmersive();
-                }
-            }
+        if (isImmersive) {
+            document.body.style.overflow = 'hidden';
+        } else {
+            document.body.style.overflow = '';
+        }
+        return () => {
+            document.body.style.overflow = '';
         };
+    }, [isImmersive]);
 
-        window.addEventListener('scroll', handleScroll);
-        return () => window.removeEventListener('scroll', handleScroll);
+    // Auto-fit graph when toggling fullscreen
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            if (fgRef.current) {
+                fgRef.current.zoomToFit(600, 100);
+            }
+        }, 150);
+        return () => clearTimeout(timer);
     }, [isImmersive]);
 
     // Close immersive on Escape
