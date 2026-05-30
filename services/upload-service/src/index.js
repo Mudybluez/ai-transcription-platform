@@ -136,6 +136,15 @@ const checkRateLimit = async (req, res, next) => {
     };
 
     try {
+        // Автоматическое разжалование просроченных подписок (Lazy subscription demotion)
+        await db.query(`
+            UPDATE users 
+            SET role = 'Standard', subscription_status = 'expired' 
+            WHERE role IN ('Lite', 'Pro') 
+              AND subscription_status = 'active' 
+              AND subscription_expires_at < NOW()
+        `);
+
         // 1. Получаем актуальную роль и кастомные запросы пользователя из базы данных
         const userRes = await db.query('SELECT role, custom_requests FROM users WHERE id = $1', [userId]);
         if (userRes.rows.length === 0) {

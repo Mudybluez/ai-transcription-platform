@@ -294,6 +294,15 @@ app.get('/recaptcha-site-key', (req, res) => {
 
 app.get('/profile/:id', async (req, res) => {
     try {
+        // Автоматическое разжалование просроченных подписок (Lazy subscription demotion)
+        await db.query(`
+            UPDATE users 
+            SET role = 'Standard', subscription_status = 'expired' 
+            WHERE role IN ('Lite', 'Pro') 
+              AND subscription_status = 'active' 
+              AND subscription_expires_at < NOW()
+        `);
+
         const queryText = `
             SELECT 
                 u.id, 
@@ -302,6 +311,8 @@ app.get('/profile/:id', async (req, res) => {
                 u.role, 
                 u.created_at,
                 u.custom_requests,
+                u.subscription_status,
+                u.subscription_expires_at,
                 (
                     SELECT COUNT(*)::integer 
                     FROM jobs j 
@@ -337,6 +348,89 @@ app.get('/profile/:id', async (req, res) => {
     } catch (error) {
         console.error('Ошибка в GET /profile/:id:', error);
         res.status(500).json({ message: 'Ошибка сервера' });
+    }
+});
+
+// Симуляция успешного списания Direct Card / Google Pay / PayPal и подписки
+app.post('/billing/subscribe', async (req, res) => {
+    const { userId, plan } = req.body;
+    if (!userId || !['Lite', 'Pro'].includes(plan)) {
+        return res.status(400).json({ message: 'Неверные параметры запроса' });
+    }
+    try {
+        const expiresAt = new Date();
+        expiresAt.setMonth(expiresAt.getMonth() + 1); // подписка на месяц
+        
+        await db.query(
+            `UPDATE users 
+             SET role = $1, subscription_status = 'active', subscription_expires_at = $2 
+             WHERE id = $3`,
+            [plan, expiresAt, userId]
+        );
+        
+        console.log(`💳 [Billing Service] Пользователь ${userId} подписался на тариф ${plan}`);
+        
+        // Уведомление
+        const notifData = {
+            message_ru: `Ваша подписка на тариф ${plan} успешно активирована!`,
+            message_en: `Your ${plan} subscription has been successfully activated!`,
+            message_kk: `Сіздің ${plan} тарифіне жазылымыңыз сәтті белсендірілді!`,
+            plan: plan
+        };
+        await db.query(
+            "INSERT INTO notifications (user_id, type, data) VALUES ($1, $2, $3)",
+            [userId, 'SUBSCRIPTION_ACTIVATED', JSON.stringify(notifData)]
+        );
+        
+        res.json({ 
+            success: true, 
+            message: `Подписка на тариф ${plan} успешно оформлена!`,
+            role: plan,
+            subscription_status: 'active',
+            subscription_expires_at: expiresAt
+        });
+    } catch (err) {
+        console.error('Ошибка в POST /billing/subscribe:', err);
+        res.status(500).json({ message: 'Внутренняя ошибка сервера' });
+    }
+});
+
+// Симуляция покупки индивидуальных токенов Pay-per-Request ($0.25)
+app.post('/billing/buy-tokens', async (req, res) => {
+    const { userId, tokenCount } = req.body;
+    if (!userId || !tokenCount || typeof tokenCount !== 'number' || tokenCount <= 0) {
+        return res.status(400).json({ message: 'Неверные параметры запроса' });
+    }
+    try {
+        await db.query(
+            `UPDATE users 
+             SET custom_requests = COALESCE(custom_requests, 0) + $1 
+             WHERE id = $2`,
+            [tokenCount, userId]
+        );
+        
+        console.log(`💳 [Billing Service] Пользователь ${userId} купил ${tokenCount} токенов`);
+        
+        // Уведомление
+        const notifData = {
+            message_ru: `Баланс успешно пополнен на ${tokenCount} токенов!`,
+            message_en: `Your balance was successfully refilled with ${tokenCount} tokens!`,
+            message_kk: `Балансыңыз ${tokenCount} токенге сәтті толтырылды!`,
+            tokenCount: tokenCount
+        };
+        await db.query(
+            "INSERT INTO notifications (user_id, type, data) VALUES ($1, $2, $3)",
+            [userId, 'TOKENS_PURCHASED', JSON.stringify(notifData)]
+        );
+        
+        res.json({ 
+            success: true, 
+            message: `Успешно куплено токенов: ${tokenCount}!`,
+            tokens: tokenCount
+        });
+    } catch (err) {
+        console.error('Ошибка в POST /billing/buy-tokens:', err);
+        res.status(500).json({ message: 'Внутренняя ошибка сервера' });
     }
 });
 app.get('/all', requireAdmin, async (req, res) => {
