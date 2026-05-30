@@ -13,7 +13,7 @@ const initDB = async () => {
     const queryText = `
       CREATE TABLE IF NOT EXISTS users (
         id SERIAL PRIMARY KEY,
-        username VARCHAR(100) UNIQUE NOT NULL,
+        username VARCHAR(100) NOT NULL,
         email VARCHAR(100) UNIQUE NOT NULL,
         password VARCHAR(255) NOT NULL,
         role VARCHAR(50) DEFAULT 'user',
@@ -135,6 +135,9 @@ const initDB = async () => {
           AFTER INSERT ON notifications
           FOR EACH ROW
           EXECUTE FUNCTION notify_new_notification();
+
+          -- 12. Удаление ограничения уникальности для username
+          ALTER TABLE users DROP CONSTRAINT IF EXISTS users_username_key;
         `;
         await pool.query(migrations);
         console.log('✅ Схема базы данных пользователей успешно обновлена');
