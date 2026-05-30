@@ -38,6 +38,18 @@ export default function Login() {
     };
 
     useEffect(() => {
+        // Redirect to dashboard/admin if already logged in
+        const token = localStorage.getItem('token');
+        const role = localStorage.getItem('role');
+        if (token) {
+            if (role === 'admin') {
+                navigate('/admin');
+            } else {
+                navigate('/');
+            }
+            return;
+        }
+
         // Check for ?verified=true parameter in URL
         const queryParams = new URLSearchParams(window.location.search);
         if (queryParams.get('verified') === 'true') {
