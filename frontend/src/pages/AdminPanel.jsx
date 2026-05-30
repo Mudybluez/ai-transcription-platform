@@ -92,6 +92,16 @@ export default function AdminPanel() {
     const [hoverLangBar, setHoverLangBar] = useState(null);
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
+    // Pagination States
+    const [usersCurrentPage, setUsersCurrentPage] = useState(1);
+    const usersPerPage = 10;
+
+    const [analysesCurrentPage, setAnalysesCurrentPage] = useState(1);
+    const analysesPerPage = 10;
+
+    const [feedbacksCurrentPage, setFeedbacksCurrentPage] = useState(1);
+    const feedbacksPerPage = 10;
+
     const fetchAdminFeedbacks = async () => {
         try {
             const response = await api.get('/feedbacks');
@@ -301,6 +311,67 @@ export default function AdminPanel() {
         if (userFilter === 'pro') return matchesSearch && (u.role === 'Pro' || u.role === 'admin');
         return matchesSearch;
     });
+
+    const totalUsersPages = Math.ceil(filteredUsers.length / usersPerPage) || 1;
+    const activeUsersPage = Math.min(usersCurrentPage, totalUsersPages);
+    const paginatedUsers = filteredUsers.slice(
+        (activeUsersPage - 1) * usersPerPage,
+        activeUsersPage * usersPerPage
+    );
+
+    const totalAnalysesPages = Math.ceil(analyses.length / analysesPerPage) || 1;
+    const activeAnalysesPage = Math.min(analysesCurrentPage, totalAnalysesPages);
+    const paginatedAnalyses = analyses.slice(
+        (activeAnalysesPage - 1) * analysesPerPage,
+        activeAnalysesPage * analysesPerPage
+    );
+
+    const totalFeedbacksPages = Math.ceil(feedbacks.length / feedbacksPerPage) || 1;
+    const activeFeedbacksPage = Math.min(feedbacksCurrentPage, totalFeedbacksPages);
+    const paginatedFeedbacks = feedbacks.slice(
+        (activeFeedbacksPage - 1) * feedbacksPerPage,
+        activeFeedbacksPage * feedbacksPerPage
+    );
+
+    const renderPagination = (currentPage, totalPages, onPageChange) => {
+        if (totalPages <= 1) return null;
+
+        const pages = [];
+        for (let i = 1; i <= totalPages; i++) {
+            pages.push(i);
+        }
+
+        return (
+            <div className="pagination-container">
+                <button 
+                    type="button"
+                    className="pagination-btn"
+                    disabled={currentPage === 1}
+                    onClick={() => onPageChange(currentPage - 1)}
+                >
+                    &larr; {t('prev_page', 'Назад')}
+                </button>
+                {pages.map(p => (
+                    <button
+                        key={p}
+                        type="button"
+                        className={`pagination-btn ${currentPage === p ? 'active' : ''}`}
+                        onClick={() => onPageChange(p)}
+                    >
+                        {p}
+                    </button>
+                ))}
+                <button
+                    type="button"
+                    className="pagination-btn"
+                    disabled={currentPage === totalPages}
+                    onClick={() => onPageChange(currentPage + 1)}
+                >
+                    {t('next_page', 'Вперед')} &rarr;
+                </button>
+            </div>
+        );
+    };
 
     const maxActivity = stats.dailyActivity.length > 0 ? Math.max(...stats.dailyActivity.map(d => d.count), 1) : 1;
     const maxLangs = stats.langDistribution.length > 0 ? Math.max(...stats.langDistribution.map(d => d.count), 1) : 1;
@@ -560,7 +631,7 @@ export default function AdminPanel() {
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {filteredUsers.map(user => {
+                                    {paginatedUsers.map(user => {
                                         const isBanned = user.is_permanently_banned || (user.banned_until && new Date(user.banned_until) > new Date());
                                         const avatarChar = user.username ? user.username.charAt(0).toUpperCase() : 'U';
 
@@ -643,6 +714,7 @@ export default function AdminPanel() {
                                 </tbody>
                             </table>
                         </div>
+                        {renderPagination(activeUsersPage, totalUsersPages, setUsersCurrentPage)}
                     </div>
                 )}
 
@@ -681,7 +753,7 @@ export default function AdminPanel() {
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {analyses.map(item => {
+                                    {paginatedAnalyses.map(item => {
                                         const analysis = typeof item.structured_analysis === 'string'
                                             ? JSON.parse(item.structured_analysis)
                                             : item.structured_analysis;
@@ -722,6 +794,7 @@ export default function AdminPanel() {
                                 </tbody>
                             </table>
                         </div>
+                        {renderPagination(activeAnalysesPage, totalAnalysesPages, setAnalysesCurrentPage)}
                     </div>
                 )}
 
@@ -740,7 +813,7 @@ export default function AdminPanel() {
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {feedbacks.map(fb => (
+                                    {paginatedFeedbacks.map(fb => (
                                         <tr key={fb.id} style={{ borderBottom: '1px solid var(--border-subtle)' }}>
                                             <td>
                                                 <span className={`chip ${
@@ -777,6 +850,7 @@ export default function AdminPanel() {
                                 </tbody>
                             </table>
                         </div>
+                        {renderPagination(activeFeedbacksPage, totalFeedbacksPages, setFeedbacksCurrentPage)}
                     </div>
                 )}
             </div>
