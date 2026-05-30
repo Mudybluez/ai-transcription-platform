@@ -1183,9 +1183,11 @@ body.mobile-mode .map-focus-card { left: 8px !important; right: 8px !important; 
 
 /* Legacy Header Mappings */
 .top-nav {
-  position: sticky;
+  position: fixed;
   top: 0;
-  z-index: 40;
+  left: 0;
+  right: 0;
+  z-index: 100;
   background: rgba(11, 11, 15, 0.72);
   backdrop-filter: saturate(140%) blur(12px);
   -webkit-backdrop-filter: saturate(140%) blur(12px);
@@ -1196,6 +1198,10 @@ body.mobile-mode .map-focus-card { left: 8px !important; right: 8px !important; 
   justify-content: space-between;
   padding: 0 var(--s-6);
   max-width: 100%;
+}
+
+.dashboard-container {
+  padding-top: 64px;
 }
 .top-nav .logo {
   display: flex;
@@ -1358,7 +1364,7 @@ body.mobile-mode .map-focus-card { left: 8px !important; right: 8px !important; 
   background: rgba(0, 0, 0, 0.6);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
-  z-index: 100;
+  z-index: 1000;
   opacity: 0;
   pointer-events: none;
   transition: opacity var(--dur-base) var(--ease-out);
@@ -1376,7 +1382,7 @@ body.mobile-mode .map-focus-card { left: 8px !important; right: 8px !important; 
   width: 280px;
   background: var(--bg-surface);
   border-left: 1px solid var(--border-subtle);
-  z-index: 101;
+  z-index: 1001;
   padding: var(--s-6);
   display: flex;
   flex-direction: column;
