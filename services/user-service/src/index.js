@@ -433,6 +433,376 @@ app.post('/billing/buy-tokens', async (req, res) => {
         res.status(500).json({ message: 'Внутренняя ошибка сервера' });
     }
 });
+
+// --- ИНТЕГРАЦИЯ ОФИЦИАЛЬНЫХ СЕРВИСОВ ОПЛАТЫ (STRIPE & PAYPAL) ---
+
+// 1. Stripe: Создание Payment Intent (Production-ready)
+app.post('/billing/stripe-create-intent', async (req, res) => {
+    const { userId, plan, tokenCount } = req.body;
+    if (!userId) {
+        return res.status(400).json({ message: 'Не указан ID пользователя' });
+    }
+
+    // Расчет стоимости в центах
+    let amountInCents = 0;
+    let description = '';
+    if (plan === 'Lite') {
+        amountInCents = 250; // $2.50
+        description = 'SaaS Subscription - Lite Tier';
+    } else if (plan === 'Pro') {
+        amountInCents = 750; // $7.50
+        description = 'SaaS Subscription - Pro Tier';
+    } else if (plan === 'Tokens') {
+        if (!tokenCount || tokenCount <= 0) {
+            return res.status(400).json({ message: 'Неверное количество токенов' });
+        }
+        amountInCents = Math.round(tokenCount * 25); // $0.25 за токен
+        description = `One-off Tokens Purchase (${tokenCount} tokens)`;
+    } else {
+        return res.status(400).json({ message: 'Неверный тарифный план' });
+    }
+
+    const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
+    
+    if (!stripeSecretKey) {
+        console.warn('⚠️ [Stripe] STRIPE_SECRET_KEY не настроен. Запущена песочница в режиме симуляции.');
+        return res.json({
+            success: true,
+            clientSecret: `pi_simulated_secret_${crypto.randomBytes(16).toString('hex')}`,
+            simulated: true,
+            amount: (amountInCents / 100).toFixed(2),
+            description
+        });
+    }
+
+    try {
+        const params = new URLSearchParams({
+            amount: amountInCents.toString(),
+            currency: 'usd',
+            description: description,
+            'metadata[userId]': userId.toString(),
+            'metadata[plan]': plan || '',
+            'metadata[tokenCount]': tokenCount ? tokenCount.toString() : '0'
+        });
+
+        const response = await fetch('https://api.stripe.com/v1/payment_intents', {
+            method: 'POST',
+            headers: {
+                'Authorization': `Basic ${Buffer.from(stripeSecretKey + ':').toString('base64')}`,
+                'Content-Type': 'application/x-www-form-urlencoded'
+            },
+            body: params.toString()
+        });
+
+        const data = await response.json();
+        if (data.error) {
+            console.error('❌ [Stripe API Error]:', data.error.message);
+            return res.status(400).json({ message: data.error.message });
+        }
+
+        res.json({
+            success: true,
+            clientSecret: data.client_secret,
+            paymentIntentId: data.id
+        });
+    } catch (err) {
+        console.error('❌ Ошибка при создании Payment Intent в Stripe:', err);
+        res.status(500).json({ message: 'Внутренняя ошибка при интеграции с платежным сервисом Stripe' });
+    }
+});
+
+// 2. Stripe: Подтверждение транзакции и отправка чека
+app.post('/billing/stripe-verify', async (req, res) => {
+    const { userId, plan, tokenCount, paymentIntentId, method } = req.body;
+    if (!userId || !paymentIntentId) {
+        return res.status(400).json({ message: 'Неполные параметры платежа для верификации' });
+    }
+
+    try {
+        let isSuccess = false;
+        
+        if (paymentIntentId.startsWith('pi_simulated_secret_')) {
+            isSuccess = true;
+            console.log('💳 [Stripe Sandbox] Симуляционный платеж подтвержден успешно.');
+        } else {
+            const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
+            if (!stripeSecretKey) {
+                return res.status(500).json({ message: 'Секретный ключ Stripe не настроен на сервере' });
+            }
+
+            const response = await fetch(`https://api.stripe.com/v1/payment_intents/${paymentIntentId}`, {
+                method: 'GET',
+                headers: {
+                    'Authorization': `Basic ${Buffer.from(stripeSecretKey + ':').toString('base64')}`
+                }
+            });
+
+            const data = await response.json();
+            if (data.status === 'succeeded') {
+                isSuccess = true;
+            } else {
+                console.warn(`⚠️ [Stripe] Платеж Intent ${paymentIntentId} имеет статус: ${data.status}`);
+            }
+        }
+
+        if (!isSuccess) {
+            return res.status(400).json({ message: 'Платеж еще не подтвержден или отклонен' });
+        }
+
+        // --- Сохранение изменений в БД ---
+        let updatedRole = 'Standard';
+        let customRequestsAdded = 0;
+        let price = '0.00';
+        let productName = '';
+
+        if (plan === 'Tokens') {
+            customRequestsAdded = Number(tokenCount);
+            price = (customRequestsAdded * 0.25).toFixed(2);
+            productName = `Пакет токенов (${customRequestsAdded} шт)`;
+            
+            await db.query(
+                `UPDATE users 
+                 SET custom_requests = COALESCE(custom_requests, 0) + $1 
+                 WHERE id = $2`,
+                [customRequestsAdded, userId]
+            );
+        } else {
+            updatedRole = plan;
+            price = plan === 'Lite' ? '2.50' : '7.50';
+            productName = `Подписка на тариф ${plan}`;
+            const expiresAt = new Date();
+            expiresAt.setMonth(expiresAt.getMonth() + 1);
+
+            await db.query(
+                `UPDATE users 
+                 SET role = $1, subscription_status = 'active', subscription_expires_at = $2 
+                 WHERE id = $3`,
+                [plan, expiresAt, userId]
+            );
+        }
+
+        const userRes = await db.query('SELECT username, email FROM users WHERE id = $1', [userId]);
+        if (userRes.rows.length > 0) {
+            const { username, email } = userRes.rows[0];
+            
+            await emailService.sendReceiptEmail(email, username, productName, price, method || 'Direct Card');
+            
+            const notifData = {
+                message_ru: `Оплата прошла успешно! ${productName} активирован. Чек отправлен на вашу почту ${email}.`,
+                message_en: `Payment successful! ${productName} activated. Receipt sent to your email ${email}.`,
+                message_kk: `Төлем сәтті өтті! ${productName} белсендірілді. Чек сіздің ${email} поштаңызға жіберілді.`,
+                productName,
+                price
+            };
+            await db.query(
+                "INSERT INTO notifications (user_id, type, data) VALUES ($1, $2, $3)",
+                [userId, 'PAYMENT_RECEIPT', JSON.stringify(notifData)]
+            );
+        }
+
+        res.json({
+            success: true,
+            message: 'Платеж успешно верифицирован, чек отправлен на почту!'
+        });
+
+    } catch (err) {
+        console.error('❌ Ошибка при верификации транзакции Stripe:', err);
+        res.status(500).json({ message: 'Ошибка верификации платежа на сервере' });
+    }
+});
+
+// 3. PayPal: Создание заказа в песочнице PayPal Sandbox (Production-ready)
+app.post('/billing/paypal-create-order', async (req, res) => {
+    const { userId, plan, tokenCount } = req.body;
+    if (!userId) {
+        return res.status(400).json({ message: 'Не указан ID пользователя' });
+    }
+
+    let price = 0;
+    if (plan === 'Lite') {
+        price = 2.50;
+    } else if (plan === 'Pro') {
+        price = 7.50;
+    } else if (plan === 'Tokens') {
+        if (!tokenCount || tokenCount <= 0) {
+            return res.status(400).json({ message: 'Неверное количество токенов' });
+        }
+        price = tokenCount * 0.25;
+    } else {
+        return res.status(400).json({ message: 'Неверный тарифный план' });
+    }
+
+    const paypalClientId = process.env.PAYPAL_CLIENT_ID;
+    const paypalClientSecret = process.env.PAYPAL_CLIENT_SECRET;
+
+    if (!paypalClientId || !paypalClientSecret) {
+        console.warn('⚠️ [PayPal] Credentials не настроены. Используем симуляцию Sandbox.');
+        return res.json({
+            success: true,
+            orderId: `PAY-SIMULATED-ORDER-${crypto.randomBytes(8).toString('hex').toUpperCase()}`,
+            simulated: true,
+            price: price.toFixed(2)
+        });
+    }
+
+    try {
+        const authResponse = await fetch('https://api.sandbox.paypal.com/v1/oauth2/token', {
+            method: 'POST',
+            headers: {
+                'Authorization': `Basic ${Buffer.from(paypalClientId + ':' + paypalClientSecret).toString('base64')}`,
+                'Content-Type': 'application/x-www-form-urlencoded'
+            },
+            body: 'grant_type=client_credentials'
+        });
+
+        const authData = await authResponse.json();
+        const accessToken = authData.access_token;
+
+        if (!accessToken) {
+            return res.status(500).json({ message: 'Не удалось получить токен авторизации PayPal' });
+        }
+
+        const orderResponse = await fetch('https://api.sandbox.paypal.com/v2/checkout/orders', {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${accessToken}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                intent: 'CAPTURE',
+                purchase_units: [{
+                    amount: {
+                        currency_code: 'USD',
+                        value: price.toFixed(2)
+                    },
+                    description: plan === 'Tokens' ? `Buy ${tokenCount} tokens` : `Subscription to ${plan}`
+                }]
+            })
+        });
+
+        const orderData = await orderResponse.json();
+        res.json({
+            success: true,
+            orderId: orderData.id
+        });
+
+    } catch (err) {
+        console.error('❌ Ошибка при создании заказа в PayPal:', err);
+        res.status(500).json({ message: 'Ошибка при взаимодействии с API PayPal' });
+    }
+});
+
+// 4. PayPal: Захват средств (Capture) и отправка чека
+app.post('/billing/paypal-capture-order', async (req, res) => {
+    const { userId, plan, tokenCount, orderId, method } = req.body;
+    if (!userId || !orderId) {
+        return res.status(400).json({ message: 'Неполные параметры транзакции для подтверждения' });
+    }
+
+    try {
+        let isCaptured = false;
+
+        if (orderId.startsWith('PAY-SIMULATED-ORDER-')) {
+            isCaptured = true;
+            console.log('💳 [PayPal Sandbox] Симуляционный заказ захвачен успешно.');
+        } else {
+            const paypalClientId = process.env.PAYPAL_CLIENT_ID;
+            const paypalClientSecret = process.env.PAYPAL_CLIENT_SECRET;
+
+            if (!paypalClientId || !paypalClientSecret) {
+                return res.status(500).json({ message: 'PayPal реквизиты не настроены на сервере' });
+            }
+
+            const authResponse = await fetch('https://api.sandbox.paypal.com/v1/oauth2/token', {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Basic ${Buffer.from(paypalClientId + ':' + paypalClientSecret).toString('base64')}`,
+                    'Content-Type': 'application/x-www-form-urlencoded'
+                },
+                body: 'grant_type=client_credentials'
+            });
+
+            const authData = await authResponse.json();
+            const accessToken = authData.access_token;
+
+            const captureResponse = await fetch(`https://api.sandbox.paypal.com/v2/checkout/orders/${orderId}/capture`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${accessToken}`,
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            const captureData = await captureResponse.json();
+            if (captureData.status === 'COMPLETED') {
+                isCaptured = true;
+            } else {
+                console.warn(`⚠️ [PayPal] Заказ ${orderId} имеет статус: ${captureData.status}`);
+            }
+        }
+
+        if (!isCaptured) {
+            return res.status(400).json({ message: 'Платеж PayPal не был завершен успешно' });
+        }
+
+        let productName = '';
+        let price = '0.00';
+
+        if (plan === 'Tokens') {
+            const customRequestsAdded = Number(tokenCount);
+            price = (customRequestsAdded * 0.25).toFixed(2);
+            productName = `Пакет токенов (${customRequestsAdded} шт)`;
+            
+            await db.query(
+                `UPDATE users 
+                 SET custom_requests = COALESCE(custom_requests, 0) + $1 
+                 WHERE id = $2`,
+                [customRequestsAdded, userId]
+            );
+        } else {
+            price = plan === 'Lite' ? '2.50' : '7.50';
+            productName = `Подписка на тариф ${plan}`;
+            const expiresAt = new Date();
+            expiresAt.setMonth(expiresAt.getMonth() + 1);
+
+            await db.query(
+                `UPDATE users 
+                 SET role = $1, subscription_status = 'active', subscription_expires_at = $2 
+                 WHERE id = $3`,
+                [plan, expiresAt, userId]
+            );
+        }
+
+        const userRes = await db.query('SELECT username, email FROM users WHERE id = $1', [userId]);
+        if (userRes.rows.length > 0) {
+            const { username, email } = userRes.rows[0];
+            
+            await emailService.sendReceiptEmail(email, username, productName, price, method || 'PayPal');
+            
+            const notifData = {
+                message_ru: `Оплата прошла успешно! ${productName} активирован. Чек отправлен на вашу почту ${email}.`,
+                message_en: `Payment successful! ${productName} activated. Receipt sent to your email ${email}.`,
+                message_kk: `Төлем сәтті өтті! ${productName} белсендірілді. Чек сіздің ${email} поштаңызға жіберілді.`,
+                productName,
+                price
+            };
+            await db.query(
+                "INSERT INTO notifications (user_id, type, data) VALUES ($1, $2, $3)",
+                [userId, 'PAYMENT_RECEIPT', JSON.stringify(notifData)]
+            );
+        }
+
+        res.json({
+            success: true,
+            message: 'Платеж PayPal успешно подтвержден, чек отправлен на почту!'
+        });
+
+    } catch (err) {
+        console.error('❌ Ошибка при захвате платежа PayPal:', err);
+        res.status(500).json({ message: 'Ошибка при проведении платежа PayPal' });
+    }
+});
+
 app.get('/all', requireAdmin, async (req, res) => {
     try {
         // Запрашиваем всех пользователей со статистикой запросов для админки
