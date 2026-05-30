@@ -112,7 +112,7 @@ export default function Footer() {
                         {t('footer_copyright', '© 2026 ZenScribe. Все права защищены.')}
                     </span>
                     <span style={{ fontSize: '11.5px', color: 'var(--text-tertiary)', fontFamily: 'var(--font-mono)' }}>
-                        v1.2.0 · Powered by Gemini & Antigravity
+                        v1.2.0
                     </span>
                 </div>
             </div>
