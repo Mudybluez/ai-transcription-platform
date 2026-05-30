@@ -6,6 +6,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import Icon from '../components/Icon';
 import NotificationsBell from '../components/NotificationsBell';
+import Footer from '../components/Footer';
 
 const NavItems = ({
     userRole,
@@ -927,6 +928,7 @@ export default function AdminPanel() {
                     </div>
                 </div>
             )}
+            <Footer />
         </div>
     );
 }

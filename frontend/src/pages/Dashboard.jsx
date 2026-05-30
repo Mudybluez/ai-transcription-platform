@@ -10,6 +10,7 @@ import HeroParticles from './HeroParticles';
 import NotificationsBell from '../components/NotificationsBell';
 import { addSocketListener, sendSocketMessage } from '../utils/sharedSocket';
 import Icon from '../components/Icon';
+import Footer from '../components/Footer';
 
 const NavItems = ({
     userRole,
@@ -1807,6 +1808,7 @@ ${detailed}`;
                         )}
                     </main>
                 )}
+                <Footer />
             </div>
 
             {/* Scroll to Top floating action button */}

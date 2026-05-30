@@ -4,6 +4,7 @@ import api from '../api';
 import { useTranslation } from 'react-i18next';
 import Icon from '../components/Icon';
 import NotificationsBell from '../components/NotificationsBell';
+import Footer from '../components/Footer';
 
 const NavItems = ({
     userRole,
@@ -841,6 +842,7 @@ export default function Profile() {
                     </div>
                 </div>
             )}
+            <Footer />
         </div>
     );
 }
