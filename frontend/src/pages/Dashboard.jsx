@@ -153,49 +153,58 @@ export default function Dashboard() {
             return;
         }
 
-        // Prefer English title for better Wikipedia coverage, or fallback
-        const searchTitle = activeItem.analysis.title?.en ||
-                            activeItem.analysis.title?.ru ||
-                            activeItem.file_name || '';
-        if (!searchTitle) return;
-
         setAnalysisImageUrl(null);
 
-        // Generic meta-words that describe the analysis type/format rather than the actual topic
-        const GENERIC_WORDS = new Set([
-            'analysis', 'review', 'overview', 'assessment', 'study', 'report',
-            'summary', 'lecture', 'presentation', 'introduction', 'impact',
-            'effects', 'influence', 'role', 'exploration', 'examination',
-            'discussion', 'comparison', 'evaluation', 'understanding', 'exploring',
-            'content', 'video', 'audio', 'file', 'document', 'about', 'the', 'and', 
-            'for', 'with', 'from', 'into', 'within', 'across', 'basics', 'gameplay',
-            'walkthrough', 'guide', 'tutorial', 'game', 'play', 'video',
-            'анализ', 'обзор', 'исследование', 'изучение', 'тема', 'введение', 
-            'лекция', 'презентация', 'оценка', 'содержание', 'видео', 'аудио', 
-            'документ', 'файл', 'как', 'что', 'для', 'на', 'по', 'из', 'от', 
-            'до', 'про', 'об', 'игры', 'игра', 'геймплей', 'прохождение', 
-            'руководство', 'инструкция', 'урок', 'класс', 'курс',
-            'талдау', 'шолу', 'зерттеу', 'бейне', 'аудио', 'файл', 'құжат', 
-            'туралы', 'үшін', 'ойын', 'сабақ', 'класс'
-        ]);
+        // 1. Determine search query. If AI provided explicit image_query, use it! Otherwise fallback to title extraction.
+        let searchQuery = '';
+        if (activeItem.analysis?.image_query && typeof activeItem.analysis.image_query === 'string' && activeItem.analysis.image_query.trim()) {
+            searchQuery = activeItem.analysis.image_query.trim();
+            console.log('[ZenScribe] Using AI-provided image_query:', searchQuery);
+        } else {
+            // Prefer English title for better Wikipedia coverage, or fallback
+            const searchTitle = activeItem.analysis.title?.en ||
+                                activeItem.analysis.title?.ru ||
+                                activeItem.file_name || '';
+            if (!searchTitle) return;
 
-        // Clean title: keep Unicode letters, numbers and spaces, replacing punctuation/symbols with spaces
-        const cleanTitle = searchTitle
-            .replace(/[^\p{L}\p{N}\s]/gu, ' ')
-            .trim();
+            // Generic meta-words that describe the analysis type/format rather than the actual topic
+            const GENERIC_WORDS = new Set([
+                'analysis', 'review', 'overview', 'assessment', 'study', 'report',
+                'summary', 'lecture', 'presentation', 'introduction', 'impact',
+                'effects', 'influence', 'role', 'exploration', 'examination',
+                'discussion', 'comparison', 'evaluation', 'understanding', 'exploring',
+                'content', 'video', 'audio', 'file', 'document', 'about', 'the', 'and', 
+                'for', 'with', 'from', 'into', 'within', 'across', 'basics', 'gameplay',
+                'walkthrough', 'guide', 'tutorial', 'game', 'play', 'video',
+                'анализ', 'обзор', 'исследование', 'изучение', 'тема', 'введение', 
+                'лекция', 'презентация', 'оценка', 'содержание', 'видео', 'аудио', 
+                'документ', 'файл', 'как', 'что', 'для', 'на', 'по', 'из', 'от', 
+                'до', 'про', 'об', 'игры', 'игра', 'геймплей', 'прохождение', 
+                'руководство', 'инструкция', 'урок', 'класс', 'курс',
+                'талдау', 'шолу', 'зерттеу', 'бейне', 'аудио', 'файл', 'құжат', 
+                'туралы', 'үшін', 'ойын', 'сабақ', 'класс'
+            ]);
 
-        // Split into words of length > 2
-        const allKeywords = cleanTitle
-            .split(/\s+/)
-            .filter(w => w.length > 2);
+            // Clean title: keep Unicode letters, numbers and spaces, replacing punctuation/symbols with spaces
+            const cleanTitle = searchTitle
+                .replace(/[^\p{L}\p{N}\s]/gu, ' ')
+                .trim();
 
-        // Core keywords: exclude noise words to isolate the real subject
-        const coreWords = allKeywords
-            .filter(w => !GENERIC_WORDS.has(w.toLowerCase()))
-            .slice(0, 3)
-            .join(' ');
+            // Split into words of length > 2
+            const allKeywords = cleanTitle
+                .split(/\s+/)
+                .filter(w => w.length > 2);
 
-        const searchQuery = coreWords || allKeywords.slice(0, 3).join(' ');
+            // Core keywords: exclude noise words to isolate the real subject
+            const coreWords = allKeywords
+                .filter(w => !GENERIC_WORDS.has(w.toLowerCase()))
+                .slice(0, 3)
+                .join(' ');
+
+            searchQuery = coreWords || allKeywords.slice(0, 3).join(' ');
+            console.log('[ZenScribe] Extracted fallback image search query:', searchQuery);
+        }
+
         if (!searchQuery) return;
 
         console.log('[ZenScribe] Cleaned image search query:', searchQuery);
