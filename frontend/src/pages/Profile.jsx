@@ -69,6 +69,26 @@ export default function Profile() {
     const [pushNotifs, setPushNotifs] = useState(true);
     const [marketingNotifs, setMarketingNotifs] = useState(false);
 
+    // SaaS Billing & Subscriptions states
+    const [profileData, setProfileData] = useState({
+        custom_requests: 0,
+        subscription_status: 'inactive',
+        subscription_expires_at: null,
+        remaining_requests: 0
+    });
+    const [checkoutPlan, setCheckoutPlan] = useState(null); // 'Lite', 'Pro', 'Tokens'
+    const [checkoutMethod, setCheckoutMethod] = useState(null); // 'card', 'gpay', 'paypal'
+    const [tokenCount, setTokenCount] = useState(10);
+    const [paymentStatus, setPaymentStatus] = useState('idle'); // 'idle', 'processing', 'success', 'error'
+    
+    // Payment inputs
+    const [cardNumber, setCardNumber] = useState('');
+    const [cardHolder, setCardHolder] = useState('');
+    const [cardExpiry, setCardExpiry] = useState('');
+    const [cardCvc, setCardCvc] = useState('');
+    const [paypalEmail, setPaypalEmail] = useState('');
+    const [paypalPassword, setPaypalPassword] = useState('');
+
     const changeLanguage = (lng) => {
         i18n.changeLanguage(lng);
     };
@@ -92,9 +112,17 @@ export default function Profile() {
             const statsRes = await api.get(`/user/stats/${user.id}`);
             
             const profileRes = await api.get(`/users/profile/${user.id}`);
-            if (profileRes.data && profileRes.data.role) {
-                localStorage.setItem('role', profileRes.data.role);
-                setUserRole(profileRes.data.role);
+            if (profileRes.data) {
+                if (profileRes.data.role) {
+                    localStorage.setItem('role', profileRes.data.role);
+                    setUserRole(profileRes.data.role);
+                }
+                setProfileData({
+                    custom_requests: profileRes.data.custom_requests || 0,
+                    subscription_status: profileRes.data.subscription_status || 'inactive',
+                    subscription_expires_at: profileRes.data.subscription_expires_at || null,
+                    remaining_requests: profileRes.data.remaining_requests || 0
+                });
             }
             
             const lastDate = historyRes.data.length > 0 
@@ -159,6 +187,69 @@ export default function Profile() {
         } finally {
             setIsUpdatingUsername(false);
         }
+    };
+
+    const handlePay = async (e) => {
+        if (e) e.preventDefault();
+        
+        if (checkoutMethod === 'card') {
+            if (!cardNumber || !cardExpiry || !cardCvc || !cardHolder) {
+                alert(t('fill_fields_alert', 'Заполните все поля'));
+                return;
+            }
+        } else if (checkoutMethod === 'paypal') {
+            if (!paypalEmail || !paypalPassword) {
+                alert(t('fill_fields_alert', 'Заполните все поля'));
+                return;
+            }
+        }
+
+        setPaymentStatus('processing');
+        
+        setTimeout(async () => {
+            try {
+                if (checkoutPlan === 'Tokens') {
+                    const response = await api.post('/users/billing/buy-tokens', {
+                        userId: user.id,
+                        tokenCount: Number(tokenCount)
+                    });
+                    if (response.data.success) {
+                        setPaymentStatus('success');
+                        fetchStats();
+                        // Reset forms
+                        setCardNumber('');
+                        setCardHolder('');
+                        setCardExpiry('');
+                        setCardCvc('');
+                        setPaypalEmail('');
+                        setPaypalPassword('');
+                    } else {
+                        setPaymentStatus('error');
+                    }
+                } else {
+                    const response = await api.post('/users/billing/subscribe', {
+                        userId: user.id,
+                        plan: checkoutPlan
+                    });
+                    if (response.data.success) {
+                        setPaymentStatus('success');
+                        fetchStats();
+                        // Reset forms
+                        setCardNumber('');
+                        setCardHolder('');
+                        setCardExpiry('');
+                        setCardCvc('');
+                        setPaypalEmail('');
+                        setPaypalPassword('');
+                    } else {
+                        setPaymentStatus('error');
+                    }
+                }
+            } catch (err) {
+                console.error('Ошибка при оплате:', err);
+                setPaymentStatus('error');
+            }
+        }, 2200);
     };
 
     return (
@@ -252,6 +343,140 @@ export default function Profile() {
 
                     {/* Right Column: Settings & Forms */}
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+                        {/* Billing & Subscriptions Card */}
+                        <div className="profile-card">
+                            <h3 style={{ margin: '0 0 4px', fontSize: 15, fontWeight: 600 }}>
+                                {t('billing_title', 'Тарифы и оплата')}
+                            </h3>
+                            <p style={{ color: 'var(--text-secondary)', fontSize: 13, margin: '0 0 20px' }}>
+                                {t('billing_hint', 'Управляйте своим тарифным планом и токенами.')}
+                            </p>
+
+                            {/* Current Billing Status Summary */}
+                            <div className="billing-status-block">
+                                <div className="billing-status-item">
+                                    <div className="billing-status-label">{t('billing_current_plan', 'Текущий тариф')}</div>
+                                    <div className="billing-status-value">
+                                        {userRole === 'admin' ? 'Admin' : (userRole === 'Standard' ? t('role_standard', 'Standard') : userRole)}
+                                        {userRole !== 'Standard' && userRole !== 'admin' && (
+                                            <span className={`billing-badge billing-badge--${profileData.subscription_status === 'active' ? 'active' : 'expired'}`}>
+                                                {profileData.subscription_status === 'active' 
+                                                    ? t('billing_status_active', 'Активен') 
+                                                    : t('billing_status_expired', 'Истек')}
+                                            </span>
+                                        )}
+                                    </div>
+                                </div>
+
+                                {userRole !== 'Standard' && userRole !== 'admin' && profileData.subscription_expires_at && (
+                                    <div className="billing-status-item">
+                                        <div className="billing-status-label">{t('billing_expires_at', 'Истекает')}</div>
+                                        <div className="billing-status-value" style={{ fontSize: 14 }}>
+                                            {new Date(profileData.subscription_expires_at).toLocaleDateString()}
+                                        </div>
+                                    </div>
+                                )}
+
+                                <div className="billing-status-item">
+                                    <div className="billing-status-label">{t('billing_tokens_balance', 'Доступные токены')}</div>
+                                    <div className="billing-status-value" style={{ color: 'var(--accent-primary)', fontSize: 18 }}>
+                                        {profileData.custom_requests}
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Tiers Selection Grid */}
+                            <div className="billing-tiers-grid">
+                                {/* LITE TIER */}
+                                <div className="billing-tier-card">
+                                    <div className="billing-tier-header">
+                                        <div className="billing-tier-title">{t('billing_tier_lite_title', 'Тариф Lite')}</div>
+                                        <div className="billing-tier-price">{t('billing_tier_lite_price', '$2.50 / месяц')}</div>
+                                        <div className="billing-tier-desc">{t('billing_tier_lite_desc', 'Идеально для студентов и базовых задач.')}</div>
+                                    </div>
+                                    <div className="billing-tier-features">
+                                        <div className="billing-feature-item">
+                                            <Icon name="check" size={13} className="billing-feature-icon" />
+                                            <span>{t('billing_tier_lite_features', '10 запросов каждые 12ч · Лимит 5 ч/мес · Базовый ИИ-конспект')}</span>
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <div className="billing-methods-title">{t('pay_methods', 'Способы оплаты')}</div>
+                                        <div className="billing-pay-buttons">
+                                            <button className="billing-pay-btn billing-pay-btn--card" onClick={() => { setCheckoutPlan('Lite'); setCheckoutMethod('card'); setPaymentStatus('idle'); }}>
+                                                <Icon name="credit_card" size={13} /> {t('billing_pay_card', 'Банковская карта')}
+                                            </button>
+                                            <button className="billing-pay-btn billing-pay-btn--gpay" onClick={() => { setCheckoutPlan('Lite'); setCheckoutMethod('gpay'); setPaymentStatus('idle'); }}>
+                                                <Icon name="google" size={13} /> {t('billing_pay_gpay', 'Google Pay')}
+                                            </button>
+                                            <button className="billing-pay-btn billing-pay-btn--paypal" onClick={() => { setCheckoutPlan('Lite'); setCheckoutMethod('paypal'); setPaymentStatus('idle'); }}>
+                                                <Icon name="paypal" size={13} /> {t('billing_pay_paypal', 'PayPal')}
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* PRO TIER */}
+                                <div className="billing-tier-card billing-tier-card--pro">
+                                    <div className="billing-tier-popular-badge">POPULAR</div>
+                                    <div className="billing-tier-header">
+                                        <div className="billing-tier-title">{t('billing_tier_pro_title', 'Тариф Pro')}</div>
+                                        <div className="billing-tier-price">{t('billing_tier_pro_price', '$7.50 / месяц')}</div>
+                                        <div className="billing-tier-desc">{t('billing_tier_pro_desc', 'Для исследователей и профессионалов.')}</div>
+                                    </div>
+                                    <div className="billing-tier-features">
+                                        <div className="billing-feature-item">
+                                            <Icon name="check" size={13} className="billing-feature-icon" />
+                                            <span>{t('billing_tier_pro_features', 'Приоритетная очередь ИИ · Безлимитные запросы · Глубокие интеллект-карты · Массовая загрузка')}</span>
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <div className="billing-methods-title">{t('pay_methods', 'Способы оплаты')}</div>
+                                        <div className="billing-pay-buttons">
+                                            <button className="billing-pay-btn billing-pay-btn--card" onClick={() => { setCheckoutPlan('Pro'); setCheckoutMethod('card'); setPaymentStatus('idle'); }}>
+                                                <Icon name="credit_card" size={13} /> {t('billing_pay_card', 'Банковская карта')}
+                                            </button>
+                                            <button className="billing-pay-btn billing-pay-btn--gpay" onClick={() => { setCheckoutPlan('Pro'); setCheckoutMethod('gpay'); setPaymentStatus('idle'); }}>
+                                                <Icon name="google" size={13} /> {t('billing_pay_gpay', 'Google Pay')}
+                                            </button>
+                                            <button className="billing-pay-btn billing-pay-btn--paypal" onClick={() => { setCheckoutPlan('Pro'); setCheckoutMethod('paypal'); setPaymentStatus('idle'); }}>
+                                                <Icon name="paypal" size={13} /> {t('billing_pay_paypal', 'PayPal')}
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* ONE-OFF TOKENS TIER */}
+                                <div className="billing-tier-card">
+                                    <div className="billing-tier-header">
+                                        <div className="billing-tier-title">{t('billing_tier_tokens_title', 'Разовые токены')}</div>
+                                        <div className="billing-tier-price">{t('billing_tier_tokens_price', '$0.25 / запрос')}</div>
+                                        <div className="billing-tier-desc">{t('billing_tier_tokens_desc', 'Гибкая оплата по факту использования.')}</div>
+                                    </div>
+                                    <div className="billing-tier-features">
+                                        <div className="billing-feature-item">
+                                            <Icon name="check" size={13} className="billing-feature-icon" />
+                                            <span>{t('billing_tier_tokens_features', 'Обработка 1 видео или аудиофайла · Купленные токены не сгорают')}</span>
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <div className="billing-methods-title">{t('pay_methods', 'Способы оплаты')}</div>
+                                        <div className="billing-pay-buttons">
+                                            <button className="billing-pay-btn billing-pay-btn--card" onClick={() => { setCheckoutPlan('Tokens'); setCheckoutMethod('card'); setPaymentStatus('idle'); }}>
+                                                <Icon name="credit_card" size={13} /> {t('billing_pay_card', 'Банковская карта')}
+                                            </button>
+                                            <button className="billing-pay-btn billing-pay-btn--gpay" onClick={() => { setCheckoutPlan('Tokens'); setCheckoutMethod('gpay'); setPaymentStatus('idle'); }}>
+                                                <Icon name="google" size={13} /> {t('billing_pay_gpay', 'Google Pay')}
+                                            </button>
+                                            <button className="billing-pay-btn billing-pay-btn--paypal" onClick={() => { setCheckoutPlan('Tokens'); setCheckoutMethod('paypal'); setPaymentStatus('idle'); }}>
+                                                <Icon name="paypal" size={13} /> {t('billing_pay_paypal', 'PayPal')}
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
                         {/* Settings card */}
                         <div className="profile-card">
                             <h3 style={{ margin: '0 0 4px', fontSize: 15, fontWeight: 600 }}>
@@ -344,6 +569,230 @@ export default function Profile() {
                     </div>
                 </div>
             </main>
+
+            {/* Simulated Checkout Modals Overlay */}
+            {checkoutPlan && (
+                <div className="checkout-modal-overlay">
+                    <div className="checkout-modal-content">
+                        <button className="checkout-modal-close" onClick={() => setCheckoutPlan(null)}>×</button>
+                        
+                        {paymentStatus === 'idle' && (
+                            <>
+                                <div className="checkout-header">
+                                    <h3 style={{ margin: '0 0 4px', fontSize: 18, fontWeight: 700 }}>
+                                        {t('billing_checkout_title', 'Оформление оплаты')}
+                                    </h3>
+                                    <span className={`checkout-method-badge checkout-method-badge--${checkoutMethod}`}>
+                                        <Icon name={checkoutMethod === 'card' ? 'credit_card' : (checkoutMethod === 'gpay' ? 'google' : 'paypal')} size={12} />
+                                        {checkoutMethod === 'card' ? t('billing_pay_card', 'Банковская карта') : (checkoutMethod === 'gpay' ? 'Google Pay' : 'PayPal')}
+                                    </span>
+                                </div>
+
+                                {/* Order Summary */}
+                                <div className="checkout-summary">
+                                    <div className="checkout-summary-row">
+                                        <span className="checkout-summary-label">{t('billing_current_plan', 'Тариф')}</span>
+                                        <span className="checkout-summary-value">
+                                            {checkoutPlan === 'Tokens' ? `${t('billing_tier_tokens_title', 'Разовые токены')} (${tokenCount} шт)` : (checkoutPlan === 'Lite' ? t('billing_tier_lite_title', 'Тариф Lite') : t('billing_tier_pro_title', 'Тариф Pro'))}
+                                        </span>
+                                    </div>
+                                    {checkoutPlan === 'Tokens' && (
+                                        <div style={{ padding: '8px 0 var(--s-3)' }}>
+                                            <div style={{ fontSize: 12, color: 'var(--text-secondary)', textAlign: 'center', marginBottom: 8 }}>
+                                                {t('token_quantity', 'Количество токенов')}
+                                            </div>
+                                            <div className="token-counter">
+                                                <button className="token-counter-btn" onClick={() => setTokenCount(prev => Math.max(10, prev - 10))}>-10</button>
+                                                <button className="token-counter-btn" onClick={() => setTokenCount(prev => Math.max(1, prev - 1))}>-1</button>
+                                                <span className="token-counter-value">{tokenCount}</span>
+                                                <button className="token-counter-btn" onClick={() => setTokenCount(prev => prev + 1)}>+1</button>
+                                                <button className="token-counter-btn" onClick={() => setTokenCount(prev => prev + 10)}>+10</button>
+                                            </div>
+                                        </div>
+                                    )}
+                                    <div className="checkout-summary-row">
+                                        <span className="checkout-summary-label">{t('order_total', 'Итого к оплате')}</span>
+                                        <span className="checkout-summary-value checkout-summary-total">
+                                            {checkoutPlan === 'Lite' ? '$2.50' : (checkoutPlan === 'Pro' ? '$7.50' : `$${(tokenCount * 0.25).toFixed(2)}`)}
+                                        </span>
+                                    </div>
+                                </div>
+
+                                {/* Payment Fields based on method */}
+                                <form onSubmit={handlePay}>
+                                    {checkoutMethod === 'card' && (
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                                            <div>
+                                                <label className="label">{t('billing_checkout_card_num', 'Номер карты')}</label>
+                                                <input 
+                                                    className="field" 
+                                                    placeholder="XXXX XXXX XXXX XXXX" 
+                                                    maxLength="19" 
+                                                    value={cardNumber}
+                                                    onChange={e => {
+                                                        const val = e.target.value.replace(/\D/g, '');
+                                                        const formatted = val.match(/.{1,4}/g)?.join(' ') || '';
+                                                        setCardNumber(formatted);
+                                                    }}
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="label">{t('billing_checkout_card_holder', 'Имя владельца')}</label>
+                                                <input 
+                                                    className="field" 
+                                                    placeholder="IVAN IVANOV" 
+                                                    style={{ textTransform: 'uppercase' }}
+                                                    value={cardHolder}
+                                                    onChange={e => setCardHolder(e.target.value)}
+                                                />
+                                            </div>
+                                            <div className="card-input-grid">
+                                                <div>
+                                                    <label className="label">{t('billing_checkout_expiry', 'Срок действия')}</label>
+                                                    <input 
+                                                        className="field" 
+                                                        placeholder="MM/YY" 
+                                                        maxLength="5" 
+                                                        value={cardExpiry}
+                                                        onChange={e => {
+                                                            let val = e.target.value.replace(/\D/g, '');
+                                                            if (val.length > 2) {
+                                                                val = val.substring(0, 2) + '/' + val.substring(2, 4);
+                                                            }
+                                                            setCardExpiry(val);
+                                                        }}
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label className="label">{t('billing_checkout_cvc', 'CVC-код')}</label>
+                                                    <input 
+                                                        className="field" 
+                                                        type="password" 
+                                                        placeholder="•••" 
+                                                        maxLength="3" 
+                                                        value={cardCvc}
+                                                        onChange={e => setCardCvc(e.target.value.replace(/\D/g, ''))}
+                                                    />
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {checkoutMethod === 'gpay' && (
+                                        <div className="gpay-sheet">
+                                            <div className="gpay-sim-card">
+                                                <div className="gpay-sim-logo">
+                                                    <Icon name="google" size={16} /> Pay
+                                                </div>
+                                                <div className="gpay-sim-chip"></div>
+                                                <div className="gpay-sim-number">•••• •••• •••• 4242</div>
+                                                <div className="gpay-sim-footer">
+                                                    <span>Google Account Card</span>
+                                                    <span>12 / 28</span>
+                                                </div>
+                                            </div>
+                                            <p style={{ fontSize: 13, color: 'var(--text-secondary)', textAlign: 'center', margin: '0 0 16px' }}>
+                                                {t('gpay_prompt', 'Оплатить с помощью карты по умолчанию в вашем Google аккаунте')}
+                                            </p>
+                                        </div>
+                                    )}
+
+                                    {checkoutMethod === 'paypal' && (
+                                        <div className="paypal-dialog">
+                                            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 16 }}>
+                                                <div style={{ fontSize: 24, fontWeight: 800, italic: 'true', color: '#003087', display: 'flex', alignItems: 'center', gap: 2 }}>
+                                                    <Icon name="paypal" size={24} style={{ color: '#0079C1' }} />
+                                                    <span style={{ color: '#003087' }}>Pay</span><span style={{ color: '#0079C1' }}>Pal</span>
+                                                </div>
+                                            </div>
+                                            <div className="paypal-input-group">
+                                                <label className="label">{t('email_label', 'Электронная почта')}</label>
+                                                <input 
+                                                    className="field" 
+                                                    type="email" 
+                                                    placeholder="paypal-buyer@turbo.ai" 
+                                                    value={paypalEmail}
+                                                    onChange={e => setPaypalEmail(e.target.value)}
+                                                />
+                                            </div>
+                                            <div className="paypal-input-group">
+                                                <label className="label">{t('password_label', 'Пароль')}</label>
+                                                <input 
+                                                    className="field" 
+                                                    type="password" 
+                                                    placeholder="••••••••" 
+                                                    value={paypalPassword}
+                                                    onChange={e => setPaypalPassword(e.target.value)}
+                                                />
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    <div style={{ display: 'flex', gap: 12, marginTop: 24 }}>
+                                        <button type="button" className="btn btn--sm" style={{ flex: 1, background: 'var(--bg-surface-hover)', border: '1px solid var(--border-subtle)' }} onClick={() => setCheckoutPlan(null)}>
+                                            {t('billing_checkout_btn_cancel', 'Отмена')}
+                                        </button>
+                                        <button type="submit" className="btn btn--primary btn--sm" style={{ flex: 1 }}>
+                                            {t('billing_checkout_btn_pay', 'Оплатить')}
+                                        </button>
+                                    </div>
+                                </form>
+                            </>
+                        )}
+
+                        {paymentStatus === 'processing' && (
+                            <div style={{ textAlign: 'center', padding: '40px 0' }}>
+                                <div className="billing-spinner"></div>
+                                <h3 style={{ margin: '0 0 8px', fontSize: 16, fontWeight: 600 }}>{t('processing_payment', 'Обработка транзакции...')}</h3>
+                                <p style={{ color: 'var(--text-secondary)', fontSize: 13, margin: 0 }}>
+                                    {t('do_not_close_window', 'Пожалуйста, не закрывайте это окно')}
+                                </p>
+                            </div>
+                        )}
+
+                        {paymentStatus === 'success' && (
+                            <div className="success-checkmark-wrapper">
+                                <div className="checkmark-circle">
+                                    <svg className="checkmark-svg" viewBox="0 0 52 52">
+                                        <path className="checkmark-path" fill="none" stroke="currentColor" strokeWidth="4" strokeLinecap="round" d="M14.1 27.2l7.1 7.2 16.7-16.8" />
+                                    </svg>
+                                </div>
+                                <h3 style={{ margin: '0 0 12px', fontSize: 20, fontWeight: 700, color: 'var(--accent-success)' }}>
+                                    {t('payment_successful', 'Оплата прошла успешно!')}
+                                </h3>
+                                <p style={{ color: 'var(--text-secondary)', fontSize: 14, textAlign: 'center', margin: '0 0 24px', padding: '0 16px' }}>
+                                    {checkoutPlan === 'Tokens' 
+                                        ? t('billing_success_tokens', { count: tokenCount })
+                                        : t('billing_success_sub', { plan: checkoutPlan })}
+                                </p>
+                                <button className="btn btn--primary btn--sm" style={{ minWidth: 140 }} onClick={() => setCheckoutPlan(null)}>
+                                    {t('done_btn', 'Готово')}
+                                </button>
+                            </div>
+                        )}
+
+                        {paymentStatus === 'error' && (
+                            <div style={{ textAlign: 'center', padding: '30px 0' }}>
+                                <Icon name="alert_circle" size={48} style={{ color: 'var(--accent-error)', marginBottom: 16 }} />
+                                <h3 style={{ margin: '0 0 8px', fontSize: 18, fontWeight: 700, color: 'var(--accent-error)' }}>
+                                    {t('payment_error_title', 'Ошибка оплаты')}
+                                </h3>
+                                <p style={{ color: 'var(--text-secondary)', fontSize: 13.5, margin: '0 0 24px' }}>
+                                    {t('payment_error_desc', 'Произошла непредвиденная ошибка при списании средств. Попробуйте еще раз.')}
+                                </p>
+                                <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
+                                    <button className="btn btn--sm" style={{ background: 'var(--bg-surface-hover)', border: '1px solid var(--border-subtle)' }} onClick={() => setCheckoutPlan(null)}>
+                                        {t('close_btn', 'Закрыть')}
+                                    </button>
+                                    <button className="btn btn--primary btn--sm" onClick={() => setPaymentStatus('idle')}>
+                                        {t('retry_btn', 'Повторить')}
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
