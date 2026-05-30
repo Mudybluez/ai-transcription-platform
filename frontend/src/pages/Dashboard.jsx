@@ -115,6 +115,67 @@ export default function Dashboard() {
     const [feedbackMessage, setFeedbackMessage] = useState('');
     const [isSubmittingFeedback, setIsSubmittingFeedback] = useState(false);
 
+    // Pagination States & Setup
+    const [historyCurrentPage, setHistoryCurrentPage] = useState(1);
+    const historyPerPage = 6;
+
+    const [feedbacksCurrentPage, setFeedbacksCurrentPage] = useState(1);
+    const feedbacksPerPage = 3;
+
+    const totalHistoryPages = Math.ceil(history.length / historyPerPage) || 1;
+    const activeHistoryPage = Math.min(historyCurrentPage, totalHistoryPages);
+    const paginatedHistory = history.slice(
+        (activeHistoryPage - 1) * historyPerPage,
+        activeHistoryPage * historyPerPage
+    );
+
+    const totalFeedbacksPages = Math.ceil(feedbacks.length / feedbacksPerPage) || 1;
+    const activeFeedbacksPage = Math.min(feedbacksCurrentPage, totalFeedbacksPages);
+    const paginatedFeedbacks = feedbacks.slice(
+        (activeFeedbacksPage - 1) * feedbacksPerPage,
+        activeFeedbacksPage * feedbacksPerPage
+    );
+
+    const renderPagination = (currentPage, totalPages, onPageChange) => {
+        if (totalPages <= 1) return null;
+
+        const pages = [];
+        for (let i = 1; i <= totalPages; i++) {
+            pages.push(i);
+        }
+
+        return (
+            <div className="pagination-container">
+                <button 
+                    type="button"
+                    className="pagination-btn"
+                    disabled={currentPage === 1}
+                    onClick={() => onPageChange(currentPage - 1)}
+                >
+                    &larr; {t('prev_page', 'Назад')}
+                </button>
+                {pages.map(p => (
+                    <button
+                        key={p}
+                        type="button"
+                        className={`pagination-btn ${currentPage === p ? 'active' : ''}`}
+                        onClick={() => onPageChange(p)}
+                    >
+                        {p}
+                    </button>
+                ))}
+                <button
+                    type="button"
+                    className="pagination-btn"
+                    disabled={currentPage === totalPages}
+                    onClick={() => onPageChange(currentPage + 1)}
+                >
+                    {t('next_page', 'Вперед')} &rarr;
+                </button>
+            </div>
+        );
+    };
+
     // Refs
     const heroTriggerRef = useRef(null);
     const modeListRef = useRef(null);
@@ -1402,7 +1463,7 @@ ${detailed}`;
                             </div>
 
                             <div className="grid">
-                                {history.map((item) => {
+                                {paginatedHistory.map((item) => {
                                     const analysis = typeof item.structured_analysis === 'string' 
                                         ? JSON.parse(item.structured_analysis) 
                                         : item.structured_analysis;
@@ -1452,6 +1513,7 @@ ${detailed}`;
                                     );
                                 })}
                             </div>
+                            {renderPagination(activeHistoryPage, totalHistoryPages, setHistoryCurrentPage)}
                         </section>
                     </div>
                 ) : (
@@ -1838,18 +1900,21 @@ ${detailed}`;
                                 </div>
                             </form>
                         ) : (
-                            <div style={{ maxHeight: 250, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 12 }}>
-                                {feedbacks.length === 0 ? (
-                                    <p style={{ color: 'var(--text-tertiary)', fontSize: 13, textAlign: 'center', margin: '20px 0' }}>{t('feedback_empty', 'Еще нет оставленных отзывов.')}</p>
-                                ) : feedbacks.map((fb, idx) => (
-                                    <div key={idx} style={{ padding: 12, background: 'var(--bg-base)', border: '1px solid var(--border-subtle)', borderRadius: 8 }}>
-                                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6, fontSize: 11 }}>
-                                            <span style={{ color: 'var(--accent-primary)', fontWeight: 600 }}>{fb.rating}</span>
-                                            <span style={{ color: 'var(--text-tertiary)' }}>{new Date(fb.created_at || fb.createdAt || Date.now()).toLocaleDateString()}</span>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                                <div style={{ maxHeight: 250, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 12 }}>
+                                    {feedbacks.length === 0 ? (
+                                        <p style={{ color: 'var(--text-tertiary)', fontSize: 13, textAlign: 'center', margin: '20px 0' }}>{t('feedback_empty', 'Еще нет оставленных отзывов.')}</p>
+                                    ) : paginatedFeedbacks.map((fb, idx) => (
+                                        <div key={idx} style={{ padding: 12, background: 'var(--bg-base)', border: '1px solid var(--border-subtle)', borderRadius: 8 }}>
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6, fontSize: 11 }}>
+                                                <span style={{ color: 'var(--accent-primary)', fontWeight: 600 }}>{fb.rating}</span>
+                                                <span style={{ color: 'var(--text-tertiary)' }}>{new Date(fb.created_at || fb.createdAt || Date.now()).toLocaleDateString()}</span>
+                                            </div>
+                                            <p style={{ margin: 0, fontSize: 13, color: 'var(--text-primary)', wordBreak: 'break-word' }}>{fb.message}</p>
                                         </div>
-                                        <p style={{ margin: 0, fontSize: 13, color: 'var(--text-primary)', wordBreak: 'break-word' }}>{fb.message}</p>
-                                    </div>
-                                ))}
+                                    ))}
+                                </div>
+                                {renderPagination(activeFeedbacksPage, totalFeedbacksPages, setFeedbacksCurrentPage)}
                             </div>
                         )}
                     </div>
