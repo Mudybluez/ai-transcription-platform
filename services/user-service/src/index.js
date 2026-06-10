@@ -1204,6 +1204,70 @@ const sendNotificationToGateway = async (userId, notification) => {
     }
 };
 
+// Прослушивание уведомлений из базы данных в реальном времени (PG LISTEN/NOTIFY)
+const startNotificationListener = () => {
+    const { Client } = require('pg');
+    let client;
+    
+    const connect = async () => {
+        client = new Client({
+            user: process.env.POSTGRES_USER || 'admin',
+            host: process.env.POSTGRES_HOST || 'postgres',
+            database: process.env.POSTGRES_DB || 'transcription_db',
+            password: process.env.POSTGRES_PASSWORD || 'secretpassword',
+            port: 5432,
+        });
+
+        try {
+            await client.connect();
+            console.log('📡 Подключен к PostgreSQL для прослушивания new_notification');
+            await client.query('LISTEN new_notification');
+
+            client.on('notification', async (msg) => {
+                try {
+                    const payload = JSON.parse(msg.payload);
+                    console.log(`🔔 Получено PG уведомление для пользователя ${payload.user_id}`);
+                    await sendNotificationToGateway(payload.user_id, payload);
+                } catch (err) {
+                    console.error('Ошибка обработки PG уведомления:', err);
+                }
+            });
+
+            client.on('error', async (err) => {
+                console.error('Ошибка PG клиента прослушивания:', err.message);
+                reconnect();
+            });
+            
+            client.on('end', () => {
+                console.warn('PG клиент прослушивания закрыл соединение');
+                reconnect();
+            });
+
+        } catch (error) {
+            console.error('Ошибка подключения PG клиента прослушивания:', error.message);
+            reconnect();
+        }
+    };
+
+    let reconnectTimer = null;
+    const reconnect = () => {
+        if (reconnectTimer) return;
+        reconnectTimer = setTimeout(async () => {
+            reconnectTimer = null;
+            try {
+                if (client) {
+                    await client.end().catch(() => {});
+                }
+            } catch (e) {}
+            connect();
+        }, 5000);
+    };
+
+    connect();
+};
+
+startNotificationListener();
+
 const authenticateToken = (req, res, next) => {
     const authHeader = req.headers['authorization'];
     if (!authHeader) {
