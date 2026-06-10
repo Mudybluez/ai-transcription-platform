@@ -450,7 +450,7 @@ export default function Profile() {
                                     <div className="billing-tier-features">
                                         <div className="billing-feature-item">
                                             <Icon name="check" size={13} className="billing-feature-icon" />
-                                            <span>{t('billing_tier_lite_features', '10 запросов каждые 12ч · Лимит 5 ч/мес · Базовый ИИ-конспект')}</span>
+                                            <span>{t('billing_tier_lite_features', '20 запросов в месяц · Лимит 5 ч/мес · Базовый ИИ-конспект')}</span>
                                         </div>
                                     </div>
                                     <div>
@@ -480,7 +480,7 @@ export default function Profile() {
                                     <div className="billing-tier-features">
                                         <div className="billing-feature-item">
                                             <Icon name="check" size={13} className="billing-feature-icon" />
-                                            <span>{t('billing_tier_pro_features', 'Приоритетная очередь ИИ · Безлимитные запросы · Глубокие интеллект-карты · Массовая загрузка')}</span>
+                                            <span>{t('billing_tier_pro_features', 'Приоритетная очередь ИИ · 100 запросов в месяц · Глубокие интеллект-карты · Массовая загрузка')}</span>
                                         </div>
                                     </div>
                                     <div>
