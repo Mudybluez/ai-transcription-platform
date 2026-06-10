@@ -381,6 +381,22 @@ app.post('/billing/subscribe', async (req, res) => {
         return res.status(400).json({ message: 'Неверные параметры запроса' });
     }
     try {
+        const ROLE_RANKS = {
+            'Standard': 0,
+            'Lite': 1,
+            'Pro': 2,
+            'admin': 3
+        };
+
+        const userRes = await db.query('SELECT role FROM users WHERE id = $1', [userId]);
+        if (userRes.rows.length === 0) {
+            return res.status(404).json({ message: 'Пользователь не найден' });
+        }
+        const currentRole = userRes.rows[0].role;
+        if ((ROLE_RANKS[plan] || 0) < (ROLE_RANKS[currentRole] || 0)) {
+            return res.status(400).json({ message: 'Нельзя оформить подписку более низкого ранга, чем ваш текущий тариф' });
+        }
+
         const expiresAt = new Date();
         expiresAt.setMonth(expiresAt.getMonth() + 1); // подписка на месяц
         
@@ -464,6 +480,26 @@ app.post('/billing/stripe-create-intent', async (req, res) => {
     const { userId, plan, tokenCount } = req.body;
     if (!userId) {
         return res.status(400).json({ message: 'Не указан ID пользователя' });
+    }
+
+    try {
+        const ROLE_RANKS = {
+            'Standard': 0,
+            'Lite': 1,
+            'Pro': 2,
+            'admin': 3
+        };
+        const userRes = await db.query('SELECT role FROM users WHERE id = $1', [userId]);
+        if (userRes.rows.length === 0) {
+            return res.status(404).json({ message: 'Пользователь не найден' });
+        }
+        const currentRole = userRes.rows[0].role;
+        if (plan !== 'Tokens' && (ROLE_RANKS[plan] || 0) < (ROLE_RANKS[currentRole] || 0)) {
+            return res.status(400).json({ message: 'Нельзя оформить подписку более низкого ранга, чем ваш текущий тариф' });
+        }
+    } catch (err) {
+        console.error('Ошибка проверки роли при создании Stripe Intent:', err);
+        return res.status(500).json({ message: 'Ошибка сервера при проверке прав подписки' });
     }
 
     // Расчет стоимости в центах
@@ -639,6 +675,26 @@ app.post('/billing/paypal-create-order', async (req, res) => {
     const { userId, plan, tokenCount } = req.body;
     if (!userId) {
         return res.status(400).json({ message: 'Не указан ID пользователя' });
+    }
+
+    try {
+        const ROLE_RANKS = {
+            'Standard': 0,
+            'Lite': 1,
+            'Pro': 2,
+            'admin': 3
+        };
+        const userRes = await db.query('SELECT role FROM users WHERE id = $1', [userId]);
+        if (userRes.rows.length === 0) {
+            return res.status(404).json({ message: 'Пользователь не найден' });
+        }
+        const currentRole = userRes.rows[0].role;
+        if (plan !== 'Tokens' && (ROLE_RANKS[plan] || 0) < (ROLE_RANKS[currentRole] || 0)) {
+            return res.status(400).json({ message: 'Нельзя оформить подписку более низкого ранга, чем ваш текущий тариф' });
+        }
+    } catch (err) {
+        console.error('Ошибка проверки роли при создании PayPal заказа:', err);
+        return res.status(500).json({ message: 'Ошибка сервера при проверке прав подписки' });
     }
 
     let price = 0;

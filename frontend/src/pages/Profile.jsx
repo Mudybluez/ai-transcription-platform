@@ -90,6 +90,71 @@ export default function Profile() {
     const [paypalEmail, setPaypalEmail] = useState('');
     const [paypalPassword, setPaypalPassword] = useState('');
 
+    const renderPricingFooter = (planName) => {
+        const ROLE_RANKS = {
+            'Standard': 0,
+            'Lite': 1,
+            'Pro': 2,
+            'admin': 3
+        };
+
+        const currentRank = ROLE_RANKS[userRole] || 0;
+        const targetRank = ROLE_RANKS[planName] || 0;
+
+        if (userRole === planName && profileData.subscription_status === 'active') {
+            return (
+                <div style={{
+                    textAlign: 'center',
+                    padding: '12px',
+                    borderRadius: '8px',
+                    background: 'rgba(138, 180, 248, 0.15)',
+                    color: 'var(--accent-primary)',
+                    fontWeight: 600,
+                    fontSize: 14,
+                    border: '1px solid rgba(138, 180, 248, 0.3)',
+                    marginTop: '16px'
+                }}>
+                    {t('billing_current_plan_btn', 'Ваш текущий тариф')}
+                </div>
+            );
+        }
+
+        if (targetRank < currentRank && profileData.subscription_status === 'active') {
+            return (
+                <div style={{
+                    textAlign: 'center',
+                    padding: '12px',
+                    borderRadius: '8px',
+                    background: 'rgba(255, 255, 255, 0.05)',
+                    color: 'var(--text-secondary)',
+                    fontWeight: 500,
+                    fontSize: 14,
+                    border: '1px solid rgba(255, 255, 255, 0.1)',
+                    marginTop: '16px'
+                }}>
+                    {t('billing_downgrade_disabled', 'Недоступно для перехода')}
+                </div>
+            );
+        }
+
+        return (
+            <div>
+                <div className="billing-methods-title">{t('pay_methods', 'Способы оплаты')}</div>
+                <div className="billing-pay-buttons">
+                    <button className="billing-pay-btn billing-pay-btn--card" onClick={() => { setCheckoutPlan(planName); setCheckoutMethod('card'); setPaymentStatus('idle'); }}>
+                        <Icon name="credit_card" size={13} /> {t('billing_pay_card', 'Банковская карта')}
+                    </button>
+                    <button className="billing-pay-btn billing-pay-btn--gpay" onClick={() => { setCheckoutPlan(planName); setCheckoutMethod('gpay'); setPaymentStatus('idle'); }}>
+                        <Icon name="google" size={13} /> {t('billing_pay_gpay', 'Google Pay')}
+                    </button>
+                    <button className="billing-pay-btn billing-pay-btn--paypal" onClick={() => { setCheckoutPlan(planName); setCheckoutMethod('paypal'); setPaymentStatus('idle'); }}>
+                        <Icon name="paypal" size={13} /> {t('billing_pay_paypal', 'PayPal')}
+                    </button>
+                </div>
+            </div>
+        );
+    };
+
     const changeLanguage = (lng) => {
         i18n.changeLanguage(lng);
     };
@@ -453,20 +518,7 @@ export default function Profile() {
                                             <span>{t('billing_tier_lite_features', '20 запросов в месяц · Лимит 5 ч/мес · Базовый ИИ-конспект')}</span>
                                         </div>
                                     </div>
-                                    <div>
-                                        <div className="billing-methods-title">{t('pay_methods', 'Способы оплаты')}</div>
-                                        <div className="billing-pay-buttons">
-                                            <button className="billing-pay-btn billing-pay-btn--card" onClick={() => { setCheckoutPlan('Lite'); setCheckoutMethod('card'); setPaymentStatus('idle'); }}>
-                                                <Icon name="credit_card" size={13} /> {t('billing_pay_card', 'Банковская карта')}
-                                            </button>
-                                            <button className="billing-pay-btn billing-pay-btn--gpay" onClick={() => { setCheckoutPlan('Lite'); setCheckoutMethod('gpay'); setPaymentStatus('idle'); }}>
-                                                <Icon name="google" size={13} /> {t('billing_pay_gpay', 'Google Pay')}
-                                            </button>
-                                            <button className="billing-pay-btn billing-pay-btn--paypal" onClick={() => { setCheckoutPlan('Lite'); setCheckoutMethod('paypal'); setPaymentStatus('idle'); }}>
-                                                <Icon name="paypal" size={13} /> {t('billing_pay_paypal', 'PayPal')}
-                                            </button>
-                                        </div>
-                                    </div>
+                                    {renderPricingFooter('Lite')}
                                 </div>
 
                                 {/* PRO TIER */}
@@ -483,20 +535,7 @@ export default function Profile() {
                                             <span>{t('billing_tier_pro_features', 'Приоритетная очередь ИИ · 100 запросов в месяц · Глубокие интеллект-карты · Массовая загрузка')}</span>
                                         </div>
                                     </div>
-                                    <div>
-                                        <div className="billing-methods-title">{t('pay_methods', 'Способы оплаты')}</div>
-                                        <div className="billing-pay-buttons">
-                                            <button className="billing-pay-btn billing-pay-btn--card" onClick={() => { setCheckoutPlan('Pro'); setCheckoutMethod('card'); setPaymentStatus('idle'); }}>
-                                                <Icon name="credit_card" size={13} /> {t('billing_pay_card', 'Банковская карта')}
-                                            </button>
-                                            <button className="billing-pay-btn billing-pay-btn--gpay" onClick={() => { setCheckoutPlan('Pro'); setCheckoutMethod('gpay'); setPaymentStatus('idle'); }}>
-                                                <Icon name="google" size={13} /> {t('billing_pay_gpay', 'Google Pay')}
-                                            </button>
-                                            <button className="billing-pay-btn billing-pay-btn--paypal" onClick={() => { setCheckoutPlan('Pro'); setCheckoutMethod('paypal'); setPaymentStatus('idle'); }}>
-                                                <Icon name="paypal" size={13} /> {t('billing_pay_paypal', 'PayPal')}
-                                            </button>
-                                        </div>
-                                    </div>
+                                    {renderPricingFooter('Pro')}
                                 </div>
 
                                 {/* ONE-OFF TOKENS TIER */}
