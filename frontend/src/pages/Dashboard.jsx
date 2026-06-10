@@ -902,6 +902,143 @@ export default function Dashboard() {
         return () => clearTimeout(timer);
     }, [highlightText, activeItem, currentTab]);
 
+    // 1. Highlight matches in text when query/tab changes
+    useEffect(() => {
+        if (!activeItem) return;
+
+        // Clear previous highlight marks
+        const clearPrevHighlights = () => {
+            const prevMarks = document.querySelectorAll('mark.detail-highlight-mark');
+            prevMarks.forEach(mark => {
+                const parent = mark.parentNode;
+                if (parent) {
+                    parent.replaceChild(document.createTextNode(mark.textContent), mark);
+                    parent.normalize();
+                }
+            });
+        };
+
+        const query = detailSearchQuery.trim();
+        if (!query || query.length < 2) {
+            clearPrevHighlights();
+            setMatchCount(0);
+            setActiveMatchIndex(-1);
+            return;
+        }
+
+        let attempts = 0;
+        const maxAttempts = 5;
+
+        const tryDetailHighlight = () => {
+            clearPrevHighlights();
+
+            const containers = document.querySelectorAll('.analysis-summary, .prose, .takeaways-box');
+            if (containers.length === 0) {
+                attempts++;
+                if (attempts < maxAttempts) {
+                    setTimeout(tryDetailHighlight, 100);
+                }
+                return;
+            }
+
+            const findMatchIndex = (text, q) => {
+                return text.toLowerCase().indexOf(q.toLowerCase());
+            };
+
+            const matchedNodes = [];
+            containers.forEach(container => {
+                const walk = document.createTreeWalker(container, NodeFilter.SHOW_TEXT, null, false);
+                let node;
+                while (node = walk.nextNode()) {
+                    const text = node.nodeValue;
+                    const parent = node.parentNode;
+                    if (!parent || parent.tagName === 'MARK' || parent.tagName === 'SCRIPT' || parent.tagName === 'STYLE') continue;
+
+                    let matchResultIdx = findMatchIndex(text, query);
+                    if (matchResultIdx >= 0) {
+                        matchedNodes.push({ node, text });
+                    }
+                }
+            });
+
+            const createdMarks = [];
+            matchedNodes.forEach(({ node, text }) => {
+                const parent = node.parentNode;
+                if (!parent) return;
+
+                let remainingText = text;
+                const fragment = document.createDocumentFragment();
+                
+                while (true) {
+                    let matchResultIdx = findMatchIndex(remainingText, query);
+                    if (matchResultIdx < 0) {
+                        fragment.appendChild(document.createTextNode(remainingText));
+                        break;
+                    }
+                    
+                    const before = remainingText.substring(0, matchResultIdx);
+                    const match = remainingText.substring(matchResultIdx, matchResultIdx + query.length);
+                    remainingText = remainingText.substring(matchResultIdx + query.length);
+                    
+                    if (before) {
+                        fragment.appendChild(document.createTextNode(before));
+                    }
+                    
+                    const mark = document.createElement('mark');
+                    mark.className = 'detail-highlight-mark';
+                    mark.textContent = match;
+                    fragment.appendChild(mark);
+                    createdMarks.push(mark);
+                }
+                
+                parent.replaceChild(fragment, node);
+            });
+
+            setMatchCount(createdMarks.length);
+            
+            // Set first mark as active if we found matches
+            if (createdMarks.length > 0) {
+                setActiveMatchIndex(0);
+                createdMarks[0].classList.add('is-active');
+                createdMarks[0].scrollIntoView({ behavior: 'smooth', block: 'center' });
+            } else {
+                setActiveMatchIndex(-1);
+            }
+        };
+
+        const timer = setTimeout(tryDetailHighlight, 120);
+        return () => {
+            clearTimeout(timer);
+        };
+    }, [detailSearchQuery, activeItem, currentTab]);
+
+    // 2. Focus and scroll to active match when index changes
+    useEffect(() => {
+        const marks = document.querySelectorAll('mark.detail-highlight-mark');
+        if (marks.length === 0) return;
+
+        let activeIdx = activeMatchIndex;
+        if (activeIdx < 0 || activeIdx >= marks.length) {
+            activeIdx = 0;
+        }
+
+        marks.forEach((mark, i) => {
+            if (i === activeIdx) {
+                mark.classList.add('is-active');
+                mark.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            } else {
+                mark.classList.remove('is-active');
+            }
+        });
+    }, [activeMatchIndex]);
+
+    // 3. Reset detail search on activeItem change
+    useEffect(() => {
+        setDetailSearchQuery('');
+        setActiveMatchIndex(-1);
+        setMatchCount(0);
+    }, [activeItem]);
+
     // WebSocket auto-polling with fallback HTTP checks
     useEffect(() => {
         if (!pollingJobId) return;
@@ -1634,6 +1771,62 @@ ${detailed}`;
                                 </button>
                             </div>
                         </div>
+
+                        {/* Smart Detail Search Panel (visible in Summary and Transcript tabs) */}
+                        {(currentTab === 'summary' || currentTab === 'transcript') && (
+                            <div className="detail-search-panel">
+                                <div className="detail-search-box">
+                                    <Icon name="search" size={15} className="detail-search-icon" />
+                                    <input
+                                        type="text"
+                                        className="detail-search-input"
+                                        placeholder={currentTab === 'transcript' 
+                                            ? t('search_transcript_placeholder', 'Поиск по тексту транскрибации...') 
+                                            : t('search_summary_placeholder', 'Поиск по разбору анализа...')}
+                                        value={detailSearchQuery}
+                                        onChange={(e) => {
+                                            setDetailSearchQuery(e.target.value);
+                                            setActiveMatchIndex(0);
+                                        }}
+                                    />
+                                    {detailSearchQuery && (
+                                        <button 
+                                            className="detail-search-clear"
+                                            onClick={() => {
+                                                setDetailSearchQuery('');
+                                                setActiveMatchIndex(-1);
+                                                setMatchCount(0);
+                                            }}
+                                            aria-label={t('clear_search', 'Очистить')}
+                                        >
+                                            <Icon name="x" size={13} />
+                                        </button>
+                                    )}
+                                </div>
+                                
+                                {matchCount > 0 && (
+                                    <div className="detail-search-nav">
+                                        <span className="detail-search-counter">
+                                            {activeMatchIndex + 1} / {matchCount}
+                                        </span>
+                                        <button 
+                                            className="detail-search-btn"
+                                            onClick={() => setActiveMatchIndex(prev => (prev - 1 + matchCount) % matchCount)}
+                                            title={t('prev_match', 'Предыдущее совпадение')}
+                                        >
+                                            <Icon name="chevron_up" size={15} />
+                                        </button>
+                                        <button 
+                                            className="detail-search-btn"
+                                            onClick={() => setActiveMatchIndex(prev => (prev + 1) % matchCount)}
+                                            title={t('next_match', 'Следующее совпадение')}
+                                        >
+                                            <Icon name="chevron_down" size={15} />
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+                        )}
 
                         {/* Sliding Tabs selection underline */}
                         <div className="tabs" ref={detailTabsRef}>
