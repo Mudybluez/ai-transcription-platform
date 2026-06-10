@@ -88,10 +88,10 @@ const texts = {
             },
             {
                 name: "Lite",
-                price: "9.99",
+                price: "2.5",
                 popular: true,
                 features: [
-                    "10 запросов каждые 12 часов",
+                    "20 запросов в месяц",
                     "Локальная транскрибация Whisper",
                     "ИИ конспект на 3 языках",
                     "Генерация флеш-карт и тестов",
@@ -100,9 +100,9 @@ const texts = {
             },
             {
                 name: "Pro",
-                price: "24.99",
+                price: "7.5",
                 features: [
-                    "Безлимитные запросы к ИИ",
+                    "100 запросов в месяц",
                     "Нарезка кадров видео (FFmpeg)",
                     "Доступ к 2D/3D интерактивной карте",
                     "Уведомления в реальном времени",
@@ -192,10 +192,10 @@ const texts = {
             },
             {
                 name: "Lite",
-                price: "9.99",
+                price: "2.5",
                 popular: true,
                 features: [
-                    "10 requests every 12 hours",
+                    "20 requests per month",
                     "Local Whisper transcription",
                     "AI summary in 3 languages",
                     "Quizzes & Flashcards generation",
@@ -204,9 +204,9 @@ const texts = {
             },
             {
                 name: "Pro",
-                price: "24.99",
+                price: "7.5",
                 features: [
-                    "Unlimited AI requests",
+                    "100 requests per month",
                     "Video timeline frame cutting",
                     "2D/3D Interactive Mind Map access",
                     "Real-time live notifications",
@@ -247,7 +247,7 @@ const texts = {
             },
             {
                 icon: "layers",
-                title: "Белсенді жаттау және оқу",
+                title: "Белсенді жаттау и оқу",
                 desc: "Жүктелген медиа негізінде интерактивті тесттер мен екі жақты 3D жаттау карточкаларын автоматты түрде жасау."
             },
             {
@@ -296,10 +296,10 @@ const texts = {
             },
             {
                 name: "Lite",
-                price: "9.99",
+                price: "2.5",
                 popular: true,
                 features: [
-                    "Әр 12 сағат сайын 10 сұраныс",
+                    "Айына 20 сұраныс",
                     "Whisper жергілікті транскрипциясы",
                     "3 тілдегі ЖИ конспектісі",
                     "Тесттер мен карточкаларды жасау",
@@ -308,9 +308,9 @@ const texts = {
             },
             {
                 name: "Pro",
-                price: "24.99",
+                price: "7.5",
                 features: [
-                    "Шексіз ЖИ сұраныстары",
+                    "Айына 100 сұраныс",
                     "Бейнебаян кадрларын кесу (FFmpeg)",
                     "2D/3D интерактивті картасына рұқсат",
                     "Нақты уақыттағы хабарландырулар",
@@ -351,10 +351,8 @@ export default function LandingPage() {
             <header className="landing-header">
                 <div className="landing-header__inner">
                     <div className="landing-header__left">
-                        <Link to="/" className="brand">
-                            <span className="brand__mark">
-                                <Icon name="sparkles" size={20} />
-                            </span>
+                        <Link to="/" className="brand" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <img src="/logo.webp" alt="Logo" style={{ width: '32px', height: '32px', objectFit: 'contain' }} />
                             ZenScribe
                         </Link>
                     </div>
@@ -499,10 +497,8 @@ export default function LandingPage() {
             {/* Footer */}
             <footer className="landing-footer">
                 <div className="landing-footer__inner">
-                    <div className="landing-footer__logo">
-                        <span className="landing-footer__logo-mark">
-                            <Icon name="sparkles" size={16} />
-                        </span>
+                    <div className="landing-footer__logo" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <img src="/logo.webp" alt="Logo" style={{ width: '24px', height: '24px', objectFit: 'contain' }} />
                         ZenScribe
                     </div>
                     <p className="landing-footer__text">{tLang.footer_desc}</p>
