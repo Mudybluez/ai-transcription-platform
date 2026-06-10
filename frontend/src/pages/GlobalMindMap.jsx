@@ -5,6 +5,7 @@ import './Dashboard.css';
 import { useTranslation } from 'react-i18next';
 import NotificationsBell from '../components/NotificationsBell';
 import Icon from '../components/Icon';
+import { forceSimulation, forceLink, forceManyBody, forceCenter, forceCollide } from 'd3-force';
 
 const NavItems = ({
     userRole,
@@ -87,6 +88,9 @@ export default function GlobalMindMap() {
 
     const graphWrapperRef = useRef(null);
     const stageRef = useRef(null);
+    const [simulationNodes, setSimulationNodes] = useState([]);
+    const [simulationLinks, setSimulationLinks] = useState([]);
+    const simulationRef = useRef(null);
 
     // Zoom on wheel towards mouse cursor
     const handleWheel = (e) => {
@@ -141,6 +145,10 @@ export default function GlobalMindMap() {
             x: localX - node.x,
             y: localY - node.y
         };
+
+        node.fx = node.x;
+        node.fy = node.y;
+        simulationRef.current?.alphaTarget(0.3).restart();
     };
 
     // Stage Mouse Move (handles panning and node dragging)
@@ -157,10 +165,11 @@ export default function GlobalMindMap() {
             const targetX = localX - dragStartOffsetRef.current.x;
             const targetY = localY - dragStartOffsetRef.current.y;
 
-            setCustomNodePositions(prev => ({
-                ...prev,
-                [draggingNodeIdRef.current]: { x: targetX, y: targetY }
-            }));
+            const matchedNode = simulationNodes.find(n => n.id === draggingNodeIdRef.current);
+            if (matchedNode) {
+                matchedNode.fx = targetX;
+                matchedNode.fy = targetY;
+            }
             return;
         }
 
@@ -176,7 +185,15 @@ export default function GlobalMindMap() {
     // Stage Mouse Up
     const handleStageMouseUp = () => {
         setPanStart(null);
-        draggingNodeIdRef.current = null;
+        if (draggingNodeIdRef.current) {
+            const matchedNode = simulationNodes.find(n => n.id === draggingNodeIdRef.current);
+            if (matchedNode) {
+                matchedNode.fx = null;
+                matchedNode.fy = null;
+            }
+            draggingNodeIdRef.current = null;
+            simulationRef.current?.alphaTarget(0);
+        }
     };
 
     // Stage Touch Start: Pan Start
@@ -211,6 +228,10 @@ export default function GlobalMindMap() {
             x: localX - node.x,
             y: localY - node.y
         };
+
+        node.fx = node.x;
+        node.fy = node.y;
+        simulationRef.current?.alphaTarget(0.3).restart();
     };
 
     // Stage Touch Move (handles panning and node dragging on mobile)
@@ -230,10 +251,11 @@ export default function GlobalMindMap() {
             const targetX = localX - dragStartOffsetRef.current.x;
             const targetY = localY - dragStartOffsetRef.current.y;
 
-            setCustomNodePositions(prev => ({
-                ...prev,
-                [draggingNodeIdRef.current]: { x: targetX, y: targetY }
-            }));
+            const matchedNode = simulationNodes.find(n => n.id === draggingNodeIdRef.current);
+            if (matchedNode) {
+                matchedNode.fx = targetX;
+                matchedNode.fy = targetY;
+            }
             return;
         }
 
@@ -249,7 +271,15 @@ export default function GlobalMindMap() {
     // Stage Touch End
     const handleStageTouchEnd = () => {
         setPanStart(null);
-        draggingNodeIdRef.current = null;
+        if (draggingNodeIdRef.current) {
+            const matchedNode = simulationNodes.find(n => n.id === draggingNodeIdRef.current);
+            if (matchedNode) {
+                matchedNode.fx = null;
+                matchedNode.fy = null;
+            }
+            draggingNodeIdRef.current = null;
+            simulationRef.current?.alphaTarget(0);
+        }
     };
 
     // Direct zoom controls
@@ -349,8 +379,8 @@ export default function GlobalMindMap() {
         return () => ro.disconnect();
     }, [loading]);
 
-    // Radial graph builder from actual history items with custom draggable override support
-    const { nodes, links } = React.useMemo(() => {
+    // Raw graph nodes and links builder
+    const { nodes: rawNodes, links: rawLinks } = React.useMemo(() => {
         const resultNodes = [];
         const resultLinks = [];
 
@@ -364,8 +394,8 @@ export default function GlobalMindMap() {
         resultNodes.push({
             id: 'root',
             label: userName,
-            x: customNodePositions['root']?.x ?? cx,
-            y: customNodePositions['root']?.y ?? cy,
+            x: cx,
+            y: cy,
             type: 'root',
             meta: t('mindmap_meta_count', { count: history.length })
         });
@@ -392,13 +422,10 @@ export default function GlobalMindMap() {
             const analysisTitle = getLangText(analysis.title) || `Analysis #${item.job_id}`;
             const summary = getLangText(analysis.summary);
 
-            // Compute radial position around root
+            // Compute radial position around root as initial coordinates
             const angle = (index / itemsCount) * Math.PI * 2 - Math.PI / 2;
             const computedIx = cx + Math.cos(angle) * clusterRadius;
             const computedIy = cy + Math.sin(angle) * clusterRadius;
-
-            const ix = customNodePositions[analysisId]?.x ?? computedIx;
-            const iy = customNodePositions[analysisId]?.y ?? computedIy;
 
             // Language category mapping
             const lang = (item.language || 'ru').toLowerCase();
@@ -408,8 +435,8 @@ export default function GlobalMindMap() {
                 id: analysisId,
                 label: analysisTitle,
                 short: analysisTitle.length > 30 ? analysisTitle.substring(0, 30) + '...' : analysisTitle,
-                x: ix,
-                y: iy,
+                x: computedIx,
+                y: computedIy,
                 type: 'item',
                 color: colorType,
                 lang: lang.toUpperCase(),
@@ -429,17 +456,14 @@ export default function GlobalMindMap() {
 
                 const spreadAngle = topicsCount === 1 ? 0 : ((j / (topicsCount - 1 || 1)) - 0.5) * 1.2;
                 const ta = angle + spreadAngle;
-                const computedTx = ix + Math.cos(ta) * subRadius;
-                const computedTy = iy + Math.sin(ta) * subRadius;
-
-                const tx = customNodePositions[topicId]?.x ?? computedTx;
-                const ty = customNodePositions[topicId]?.y ?? computedTy;
+                const computedTx = computedIx + Math.cos(ta) * subRadius;
+                const computedTy = computedIy + Math.sin(ta) * subRadius;
 
                 resultNodes.push({
                     id: topicId,
                     label: topicTitle,
-                    x: tx,
-                    y: ty,
+                    x: computedTx,
+                    y: computedTy,
                     type: 'topic',
                     meta: getLangText(topic.relevance),
                     analysisId
@@ -449,8 +473,124 @@ export default function GlobalMindMap() {
             });
         });
 
+        // 4. Similarity links between analyses if they share common context or topics
+        const getNormalizedWords = (text) => {
+            if (!text) return new Set();
+            return new Set(
+                text.toLowerCase()
+                    .replace(/[^\w\sа-яа-әіңғүұқөһя]/gi, ' ')
+                    .split(/\s+/)
+                    .filter(w => w.length > 3)
+            );
+        };
+
+        const stopWords = new Set([
+            'этот', 'быть', 'хотя', 'если', 'когда', 'чтобы', 'with', 'this', 'that', 'from',
+            'have', 'about', 'имеет', 'было', 'были', 'была', 'будет', 'будут', 'для', 'или',
+            'все', 'всех', 'всеми', 'всему', 'всем', 'очень', 'просто', 'также', 'этого', 'этом'
+        ]);
+
+        const activeAnalysesProfiles = activeAnalyses.map(item => {
+            const analysis = typeof item.structured_analysis === 'string'
+                ? JSON.parse(item.structured_analysis)
+                : item.structured_analysis;
+            
+            const titleText = getLangText(analysis.title);
+            const summaryText = getLangText(analysis.summary);
+            const topicsText = (analysis.key_topics || []).map(t => getLangText(t.title) + ' ' + getLangText(t.text)).join(' ');
+            
+            const words = getNormalizedWords(`${titleText} ${summaryText} ${topicsText}`);
+            for (const sw of stopWords) {
+                words.delete(sw);
+            }
+
+            return {
+                id: `item-${item.id}`,
+                words
+            };
+        });
+
+        for (let i = 0; i < activeAnalysesProfiles.length; i++) {
+            for (let j = i + 1; j < activeAnalysesProfiles.length; j++) {
+                const profileA = activeAnalysesProfiles[i];
+                const profileB = activeAnalysesProfiles[j];
+                
+                const intersection = [...profileA.words].filter(w => profileB.words.has(w));
+                if (intersection.length >= 3) {
+                    resultLinks.push({
+                        s: profileA.id,
+                        e: profileB.id,
+                        type: 'similarity',
+                        label: intersection.slice(0, 3).join(', ')
+                    });
+                }
+            }
+        }
+
         return { nodes: resultNodes, links: resultLinks };
-    }, [history, graphSize, customNodePositions]);
+    }, [history, graphSize.w, graphSize.h, i18n.language]);
+
+    // D3 Force Simulation Setup for weight, gravity, collisions and dragging inertia
+    useEffect(() => {
+        if (rawNodes.length === 0) {
+            setSimulationNodes([]);
+            setSimulationLinks([]);
+            return;
+        }
+
+        const nodeMap = new Map(simulationNodes.map(n => [n.id, n]));
+
+        const nodesData = rawNodes.map(n => {
+            const existing = nodeMap.get(n.id);
+            return {
+                ...n,
+                x: existing ? existing.x : n.x,
+                y: existing ? existing.y : n.y,
+                vx: existing ? existing.vx : 0,
+                vy: existing ? existing.vy : 0,
+                fx: existing ? existing.fx : null,
+                fy: existing ? existing.fy : null
+            };
+        });
+
+        const linksData = rawLinks.map(l => ({
+            ...l,
+            source: l.s,
+            target: l.e
+        }));
+
+        const simulation = forceSimulation(nodesData)
+            .force('link', forceLink(linksData).id(d => d.id).distance(d => {
+                if (d.type === 'similarity') return 165;
+                if (d.source === 'root' || d.target === 'root' || d.source.id === 'root' || d.target.id === 'root') return 105;
+                return 50;
+            }).strength(0.85))
+            .force('charge', forceManyBody().strength(d => {
+                if (d.id === 'root') return -800;
+                if (d.type === 'item') return -300;
+                return -100;
+            }))
+            .force('collide', forceCollide().radius(d => {
+                if (d.id === 'root') return 60;
+                if (d.type === 'item') return 35;
+                return 20;
+            }))
+            .force('center', forceCenter(graphSize.w / 2, graphSize.h / 2).strength(0.04));
+
+        simulation.on('tick', () => {
+            setSimulationNodes([...nodesData]);
+            setSimulationLinks([...linksData]);
+        });
+
+        simulationRef.current = simulation;
+
+        return () => {
+            simulation.stop();
+        };
+    }, [rawNodes, rawLinks, graphSize.w, graphSize.h]);
+
+    const nodes = simulationNodes;
+    const links = simulationLinks;
 
     const idMap = React.useMemo(() => Object.fromEntries(nodes.map(n => [n.id, n])), [nodes]);
 
@@ -461,10 +601,12 @@ export default function GlobalMindMap() {
         if (!activeFocusedId) return null;
         const set = new Set([activeFocusedId]);
         
-        // Find direct neighbors
+        // Find direct neighbors supporting both string IDs and D3 node objects
         links.forEach(l => {
-            if (l.s === activeFocusedId) set.add(l.e);
-            if (l.e === activeFocusedId) set.add(l.s);
+            const sourceId = typeof l.source === 'object' ? l.source.id : (l.source || l.s);
+            const targetId = typeof l.target === 'object' ? l.target.id : (l.target || l.e);
+            if (sourceId === activeFocusedId) set.add(targetId);
+            if (targetId === activeFocusedId) set.add(sourceId);
         });
 
         // Add parent connections to root
@@ -508,13 +650,15 @@ export default function GlobalMindMap() {
     };
 
     const isLinkDim = (l) => {
-        const ns = idMap[l.s], ne = idMap[l.e];
+        const sourceId = typeof l.source === 'object' ? l.source.id : (l.source || l.s);
+        const targetId = typeof l.target === 'object' ? l.target.id : (l.target || l.e);
+        const ns = idMap[sourceId], ne = idMap[targetId];
         if (!ns || !ne) return true;
         
         if (selectedCategoryFilter !== 'all') {
             if (isCategoryFiltered(ns) || isCategoryFiltered(ne)) return true;
         }
-        if (connectedNodeIds && !(connectedNodeIds.has(l.s) && connectedNodeIds.has(l.e))) return true;
+        if (connectedNodeIds && !(connectedNodeIds.has(sourceId) && connectedNodeIds.has(targetId))) return true;
         return false;
     };
 
@@ -670,16 +814,18 @@ export default function GlobalMindMap() {
                                 <g transform={`translate(${transform.x}, ${transform.y}) scale(${transform.scale})`}>
                                     {/* Link paths */}
                                     {links.map((l, i) => {
-                                        const A = idMap[l.s], B = idMap[l.e];
-                                        if (!A || !B) return null;
+                                        const sourceNode = typeof l.source === 'object' ? l.source : idMap[l.source || l.s];
+                                        const targetNode = typeof l.target === 'object' ? l.target : idMap[l.target || l.e];
+                                        if (!sourceNode || !targetNode) return null;
                                         const dim = isLinkDim(l);
                                         return (
                                             <line 
                                                 key={i}
-                                                x1={A.x} y1={A.y}
-                                                x2={B.x} y2={B.y}
-                                                stroke="rgba(255,255,255,0.08)"
-                                                strokeWidth={0.7}
+                                                x1={sourceNode.x} y1={sourceNode.y}
+                                                x2={targetNode.x} y2={targetNode.y}
+                                                stroke={l.type === 'similarity' ? 'rgba(196, 198, 255, 0.22)' : 'rgba(255,255,255,0.08)'}
+                                                strokeWidth={l.type === 'similarity' ? 1.2 : 0.7}
+                                                strokeDasharray={l.type === 'similarity' ? '3,3' : 'none'}
                                                 opacity={dim ? 0.12 : 1}
                                                 style={{ transition: 'opacity .25s' }}
                                             />
