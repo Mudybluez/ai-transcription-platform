@@ -106,6 +106,8 @@ export default function Dashboard() {
     const [revealedAnswers, setRevealedAnswers] = useState({}); 
     const [showScrollTop, setShowScrollTop] = useState(false);
     const [highlightText, setHighlightText] = useState(null);
+    const searchPanelRef = useRef(null);
+    const [isSearchPanelFloating, setIsSearchPanelFloating] = useState(false);
 
     // Featured image fetched from Wikimedia Commons based on analysis title
     const [analysisImageUrl, setAnalysisImageUrl] = useState(null);
@@ -1037,7 +1039,35 @@ export default function Dashboard() {
         setDetailSearchQuery('');
         setActiveMatchIndex(-1);
         setMatchCount(0);
+        setIsSearchPanelFloating(false);
     }, [activeItem]);
+
+    // 4. Observe search panel intersection to toggle floating navigation widget
+    useEffect(() => {
+        if (!activeItem || !detailSearchQuery) {
+            setIsSearchPanelFloating(false);
+            return;
+        }
+
+        const observer = new IntersectionObserver(
+            ([entry]) => {
+                // If search panel is not intersecting, it is out of screen viewport (scrolled past)
+                setIsSearchPanelFloating(!entry.isIntersecting);
+            },
+            { threshold: 0 }
+        );
+
+        const currentRef = searchPanelRef.current;
+        if (currentRef) {
+            observer.observe(currentRef);
+        }
+
+        return () => {
+            if (currentRef) {
+                observer.unobserve(currentRef);
+            }
+        };
+    }, [activeItem, detailSearchQuery, currentTab]);
 
     // WebSocket auto-polling with fallback HTTP checks
     useEffect(() => {
@@ -1774,7 +1804,7 @@ ${detailed}`;
 
                         {/* Smart Detail Search Panel (visible in Summary and Transcript tabs) */}
                         {(currentTab === 'summary' || currentTab === 'transcript') && (
-                            <div className="detail-search-panel">
+                            <div ref={searchPanelRef} className="detail-search-panel">
                                 <div className="detail-search-box">
                                     <Icon name="search" size={15} className="detail-search-icon" />
                                     <input
@@ -1825,6 +1855,32 @@ ${detailed}`;
                                         </button>
                                     </div>
                                 )}
+                            </div>
+                        )}
+
+                        {/* Floating Search Navigation Widget when scrolled past */}
+                        {isSearchPanelFloating && matchCount > 0 && (
+                            <div className="floating-search-nav">
+                                <span className="floating-search-word" title={detailSearchQuery}>
+                                    «{detailSearchQuery}»
+                                </span>
+                                <span className="floating-search-counter">
+                                    {activeMatchIndex + 1} / {matchCount}
+                                </span>
+                                <button 
+                                    className="floating-search-btn"
+                                    onClick={() => setActiveMatchIndex(prev => (prev - 1 + matchCount) % matchCount)}
+                                    title={t('prev_match', 'Предыдущее совпадение')}
+                                >
+                                    <Icon name="chevron_up" size={14} />
+                                </button>
+                                <button 
+                                    className="floating-search-btn"
+                                    onClick={() => setActiveMatchIndex(prev => (prev + 1) % matchCount)}
+                                    title={t('next_match', 'Следующее совпадение')}
+                                >
+                                    <Icon name="chevron_down" size={14} />
+                                </button>
                             </div>
                         )}
 
