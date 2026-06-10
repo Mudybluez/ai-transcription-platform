@@ -55,6 +55,13 @@ export default function GlobalMindMap() {
     const { t, i18n } = useTranslation();
     const currentLang = (i18n.language || 'ru').split('-')[0].toLowerCase();
     
+    useEffect(() => {
+        const role = localStorage.getItem('role') || 'Standard';
+        if (role !== 'Pro' && role !== 'admin') {
+            navigate('/profile');
+        }
+    }, [navigate]);
+
     // States
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
     const [history, setHistory] = useState([]);

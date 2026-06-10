@@ -45,10 +45,12 @@ const NavItems = ({
                     {t('admin_panel', 'Админка')}
                 </Link>
             )}
-            <Link to="/mindmap" className="nav-link" onClick={() => setIsMobileMenuOpen(false)}>
-                <Icon name="network" size={14} style={{ marginRight: 4 }} />
-                {t('tab_mindmap', 'Карта знаний')}
-            </Link>
+            {(localStorage.getItem('role') === 'Pro' || localStorage.getItem('role') === 'admin') && (
+                <Link to="/mindmap" className="nav-link" onClick={() => setIsMobileMenuOpen(false)}>
+                    <Icon name="network" size={14} style={{ marginRight: 4 }} />
+                    {t('tab_mindmap', 'Карта знаний')}
+                </Link>
+            )}
             
             <span className="nav-link" onClick={() => { setIsFeedbackModalOpen(true); setIsMobileMenuOpen(false); }} style={{ cursor: 'pointer', display: 'inline-flex', alignItems: 'center' }}>
                 <Icon name="message_circle" size={14} style={{ marginRight: 4 }} />
@@ -398,10 +400,11 @@ export default function Dashboard() {
         img: () => null  // Remove any embedded images — featured image shown separately above
     });
 
+    const isProOrAdmin = userRole === 'Pro' || userRole === 'admin';
     const DETAIL_TABS = [
         { id: 'summary', label: t('tab_summary', 'Анализ'), icon: 'file_text' },
         ...(isYoutubeVideo ? [{ id: 'video', label: t('tab_video', 'Видео'), icon: 'youtube' }] : []),
-        { id: 'mindmap', label: t('tab_mindmap', 'Карта'), icon: 'network' },
+        ...(isProOrAdmin ? [{ id: 'mindmap', label: t('tab_mindmap', 'Карта'), icon: 'network' }] : []),
         { id: 'flashcards', label: t('tab_flashcards', 'Карточки'), icon: 'layers' },
         { id: 'quiz', label: t('tab_quiz', 'Тест'), icon: 'help_circle' },
         { id: 'transcript', label: t('tab_text', 'Текст'), icon: 'text_align' }
@@ -1241,7 +1244,7 @@ ${detailed}`;
                             <div className="hero__wrap">
                                 <span className="hero__eyebrow">
                                     <span className="dot" />
-                                    {t('hero_eyebrow', 'ИИ-генератор · {{count}} кредита сегодня', { count: (userRole.toLowerCase() === 'pro' || userRole.toLowerCase() === 'admin') ? '∞' : (remainingRequests !== null ? remainingRequests : 2) })}
+                                    {t('hero_eyebrow', 'ИИ-генератор · {{count}} кредита сегодня', { count: (userRole.toLowerCase() === 'admin') ? '∞' : (remainingRequests !== null ? remainingRequests : (userRole === 'Pro' ? 100 : (userRole === 'Lite' ? 20 : 2))) })}
                                 </span>
                                 <div ref={heroTriggerRef} className="hero__trigger">
                                     <h1 className="hero__title">{t('hero_title', 'Преврати видео в знания')}</h1>

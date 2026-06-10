@@ -7,7 +7,7 @@ import Profile from './pages/Profile';
 import GlobalMindMap from './pages/GlobalMindMap';
 
 // Простой защищенный роут
-const ProtectedRoute = ({ children, requireAdmin = false }) => {
+const ProtectedRoute = ({ children, requireAdmin = false, requirePro = false }) => {
     const token = localStorage.getItem('token');
     const userRole = localStorage.getItem('role');
 
@@ -17,6 +17,10 @@ const ProtectedRoute = ({ children, requireAdmin = false }) => {
 
     if (requireAdmin && userRole !== 'admin') {
         return <Navigate to="/" />; // Если не админ, кидаем на главную
+    }
+
+    if (requirePro && userRole !== 'Pro' && userRole !== 'admin') {
+        return <Navigate to="/profile" />; // Если не Pro+, кидаем в профиль/биллинг
     }
 
     return children;
@@ -35,7 +39,7 @@ function App() {
                     </ProtectedRoute>
                 } />
                 <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
-                <Route path="/mindmap" element={<ProtectedRoute><GlobalMindMap /></ProtectedRoute>} />
+                <Route path="/mindmap" element={<ProtectedRoute requirePro={true}><GlobalMindMap /></ProtectedRoute>} />
                 {/* Админ панель */}
                 <Route path="/admin" element={
                     <ProtectedRoute requireAdmin={true}>

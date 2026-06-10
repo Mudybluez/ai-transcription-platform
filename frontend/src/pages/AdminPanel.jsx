@@ -206,10 +206,17 @@ export default function AdminPanel() {
             setUsers(prev => prev.map(u => {
                 if (u.id === userId) {
                     const requestsLast12h = u.requests_last_12h || 0;
-                    const baseLimit = u.role === 'Lite' ? 10 : 2;
-                    const remaining = u.role === 'Pro' || u.role === 'admin' 
-                        ? 'Unlimited' 
-                        : Math.max(0, baseLimit - requestsLast12h) + value;
+                    const requestsThisMonth = u.requests_this_month || 0;
+                    let remaining = 0;
+                    if (u.role === 'admin') {
+                        remaining = 'Unlimited';
+                    } else if (u.role === 'Pro') {
+                        remaining = Math.max(0, 100 - requestsThisMonth) + value;
+                    } else if (u.role === 'Lite') {
+                        remaining = Math.max(0, 20 - requestsThisMonth) + value;
+                    } else {
+                        remaining = Math.max(0, 2 - requestsLast12h) + value;
+                    }
 
                     return { ...u, custom_requests: value, remaining_requests: remaining };
                 }
