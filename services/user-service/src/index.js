@@ -330,7 +330,13 @@ app.get('/profile/:id', async (req, res) => {
                     SELECT COUNT(*)::integer 
                     FROM jobs j 
                     WHERE j.user_id = u.id AND j.created_at >= NOW() - INTERVAL '12 hours'
-                ) as requests_last_12h
+                ) as requests_last_12h,
+                (
+                    SELECT COUNT(*)::integer 
+                    FROM jobs j 
+                    WHERE j.user_id = u.id 
+                      AND j.created_at >= COALESCE(u.subscription_expires_at, NOW()) - INTERVAL '1 month'
+                ) as requests_this_month
             FROM users u
             WHERE u.id = $1
         `;
@@ -340,16 +346,20 @@ app.get('/profile/:id', async (req, res) => {
         }
         
         const user = userResult.rows[0];
-        const limits = {
-            'Standard': 2,
-            'Lite': 10
-        };
         
         let remaining = 0;
-        if (user.role === 'Pro' || user.role === 'admin') {
+        if (user.role === 'admin') {
             remaining = 'Unlimited';
+        } else if (user.role === 'Pro') {
+            const baseLimit = 100;
+            const used = user.requests_this_month || 0;
+            remaining = Math.max(0, baseLimit - used) + (user.custom_requests || 0);
+        } else if (user.role === 'Lite') {
+            const baseLimit = 20;
+            const used = user.requests_this_month || 0;
+            remaining = Math.max(0, baseLimit - used) + (user.custom_requests || 0);
         } else {
-            const baseLimit = limits[user.role] !== undefined ? limits[user.role] : 2;
+            const baseLimit = 2;
             const used = user.requests_last_12h || 0;
             remaining = Math.max(0, baseLimit - used) + (user.custom_requests || 0);
         }
@@ -829,27 +839,38 @@ app.get('/all', requireAdmin, async (req, res) => {
                 u.custom_requests, 
                 u.banned_until, 
                 u.is_permanently_banned,
+                u.subscription_status,
+                u.subscription_expires_at,
                 (
                     SELECT COUNT(*)::integer 
                     FROM jobs j 
                     WHERE j.user_id = u.id AND j.created_at >= NOW() - INTERVAL '12 hours'
-                ) as requests_last_12h
+                ) as requests_last_12h,
+                (
+                    SELECT COUNT(*)::integer 
+                    FROM jobs j 
+                    WHERE j.user_id = u.id 
+                      AND j.created_at >= COALESCE(u.subscription_expires_at, NOW()) - INTERVAL '1 month'
+                ) as requests_this_month
             FROM users u 
             ORDER BY u.created_at DESC
         `;
         const usersResult = await db.query(queryText);
 
-        const limits = {
-            'Standard': 2,
-            'Lite': 10
-        };
-
         const usersWithRequests = usersResult.rows.map(user => {
             let remaining = 0;
-            if (user.role === 'Pro' || user.role === 'admin') {
+            if (user.role === 'admin') {
                 remaining = 'Unlimited';
+            } else if (user.role === 'Pro') {
+                const baseLimit = 100;
+                const used = user.requests_this_month || 0;
+                remaining = Math.max(0, baseLimit - used) + (user.custom_requests || 0);
+            } else if (user.role === 'Lite') {
+                const baseLimit = 20;
+                const used = user.requests_this_month || 0;
+                remaining = Math.max(0, baseLimit - used) + (user.custom_requests || 0);
             } else {
-                const baseLimit = limits[user.role] !== undefined ? limits[user.role] : 2;
+                const baseLimit = 2;
                 const used = user.requests_last_12h || 0;
                 remaining = Math.max(0, baseLimit - used) + (user.custom_requests || 0);
             }
