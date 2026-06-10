@@ -84,6 +84,7 @@ export default function GlobalMindMap() {
 
     const draggingNodeIdRef = useRef(null);
     const dragStartOffsetRef = useRef({ x: 0, y: 0 });
+    const dragTargetRef = useRef(null);
     const hasDraggedRef = useRef(false);
 
     const graphWrapperRef = useRef(null);
@@ -146,8 +147,19 @@ export default function GlobalMindMap() {
             y: localY - node.y
         };
 
-        node.fx = node.x;
-        node.fy = node.y;
+        dragTargetRef.current = {
+            x: localX - dragStartOffsetRef.current.x,
+            y: localY - dragStartOffsetRef.current.y
+        };
+
+        const simNode = simulationRef.current?.nodes().find(n => n.id === node.id);
+        if (simNode) {
+            simNode.fx = node.x;
+            simNode.fy = node.y;
+        } else {
+            node.fx = node.x;
+            node.fy = node.y;
+        }
         simulationRef.current?.alphaTarget(0.3).restart();
     };
 
@@ -165,11 +177,7 @@ export default function GlobalMindMap() {
             const targetX = localX - dragStartOffsetRef.current.x;
             const targetY = localY - dragStartOffsetRef.current.y;
 
-            const matchedNode = simulationNodes.find(n => n.id === draggingNodeIdRef.current);
-            if (matchedNode) {
-                matchedNode.fx = targetX;
-                matchedNode.fy = targetY;
-            }
+            dragTargetRef.current = { x: targetX, y: targetY };
             return;
         }
 
@@ -191,7 +199,15 @@ export default function GlobalMindMap() {
                 matchedNode.fx = null;
                 matchedNode.fy = null;
             }
+            if (simulationRef.current) {
+                const simNode = simulationRef.current.nodes().find(n => n.id === draggingNodeIdRef.current);
+                if (simNode) {
+                    simNode.fx = null;
+                    simNode.fy = null;
+                }
+            }
             draggingNodeIdRef.current = null;
+            dragTargetRef.current = null;
             simulationRef.current?.alphaTarget(0);
         }
     };
@@ -229,8 +245,19 @@ export default function GlobalMindMap() {
             y: localY - node.y
         };
 
-        node.fx = node.x;
-        node.fy = node.y;
+        dragTargetRef.current = {
+            x: localX - dragStartOffsetRef.current.x,
+            y: localY - dragStartOffsetRef.current.y
+        };
+
+        const simNode = simulationRef.current?.nodes().find(n => n.id === node.id);
+        if (simNode) {
+            simNode.fx = node.x;
+            simNode.fy = node.y;
+        } else {
+            node.fx = node.x;
+            node.fy = node.y;
+        }
         simulationRef.current?.alphaTarget(0.3).restart();
     };
 
@@ -251,11 +278,7 @@ export default function GlobalMindMap() {
             const targetX = localX - dragStartOffsetRef.current.x;
             const targetY = localY - dragStartOffsetRef.current.y;
 
-            const matchedNode = simulationNodes.find(n => n.id === draggingNodeIdRef.current);
-            if (matchedNode) {
-                matchedNode.fx = targetX;
-                matchedNode.fy = targetY;
-            }
+            dragTargetRef.current = { x: targetX, y: targetY };
             return;
         }
 
@@ -277,7 +300,15 @@ export default function GlobalMindMap() {
                 matchedNode.fx = null;
                 matchedNode.fy = null;
             }
+            if (simulationRef.current) {
+                const simNode = simulationRef.current.nodes().find(n => n.id === draggingNodeIdRef.current);
+                if (simNode) {
+                    simNode.fx = null;
+                    simNode.fy = null;
+                }
+            }
             draggingNodeIdRef.current = null;
+            dragTargetRef.current = null;
             simulationRef.current?.alphaTarget(0);
         }
     };
@@ -487,41 +518,57 @@ export default function GlobalMindMap() {
         const stopWords = new Set([
             'этот', 'быть', 'хотя', 'если', 'когда', 'чтобы', 'with', 'this', 'that', 'from',
             'have', 'about', 'имеет', 'было', 'были', 'была', 'будет', 'будут', 'для', 'или',
-            'все', 'всех', 'всеми', 'всему', 'всем', 'очень', 'просто', 'также', 'этого', 'этом'
+            'все', 'всех', 'всеми', 'всему', 'всем', 'очень', 'просто', 'также', 'этого', 'этом',
+            'как', 'что', 'это', 'меня', 'тебя', 'себя', 'своих', 'свои', 'своим', 'своей', 'свое',
+            'через', 'после', 'около', 'между', 'перед', 'может', 'могут', 'какой', 'какие', 'такой',
+            'такие', 'какая', 'такая', 'один', 'одна', 'одно', 'более', 'менее', 'всего', 'после', 'через'
         ]);
 
-        const activeAnalysesProfiles = activeAnalyses.map(item => {
-            const analysis = typeof item.structured_analysis === 'string'
-                ? JSON.parse(item.structured_analysis)
-                : item.structured_analysis;
-            
-            const titleText = getLangText(analysis.title);
-            const summaryText = getLangText(analysis.summary);
-            const topicsText = (analysis.key_topics || []).map(t => getLangText(t.title) + ' ' + getLangText(t.text)).join(' ');
-            
-            const words = getNormalizedWords(`${titleText} ${summaryText} ${topicsText}`);
-            for (const sw of stopWords) {
-                words.delete(sw);
-            }
+        for (let i = 0; i < activeAnalyses.length; i++) {
+            for (let j = i + 1; j < activeAnalyses.length; j++) {
+                const analysisA = typeof activeAnalyses[i].structured_analysis === 'string'
+                    ? JSON.parse(activeAnalyses[i].structured_analysis)
+                    : activeAnalyses[i].structured_analysis;
+                const analysisB = typeof activeAnalyses[j].structured_analysis === 'string'
+                    ? JSON.parse(activeAnalyses[j].structured_analysis)
+                    : activeAnalyses[j].structured_analysis;
 
-            return {
-                id: `item-${item.id}`,
-                words
-            };
-        });
-
-        for (let i = 0; i < activeAnalysesProfiles.length; i++) {
-            for (let j = i + 1; j < activeAnalysesProfiles.length; j++) {
-                const profileA = activeAnalysesProfiles[i];
-                const profileB = activeAnalysesProfiles[j];
+                // 1. Topic Similarity Check
+                const topicTitlesA = (analysisA.key_topics || []).map(t => getLangText(t.title).toLowerCase().trim()).filter(t => t.length > 3);
+                const topicTitlesB = (analysisB.key_topics || []).map(t => getLangText(t.title).toLowerCase().trim()).filter(t => t.length > 3);
                 
-                const intersection = [...profileA.words].filter(w => profileB.words.has(w));
-                if (intersection.length >= 3) {
+                const hasExactSharedTopic = topicTitlesA.some(t => topicTitlesB.includes(t));
+                
+                // Get words from the topic titles and the analysis title
+                const topicWordsA = getNormalizedWords(getLangText(analysisA.title) + ' ' + (analysisA.key_topics || []).map(t => getLangText(t.title)).join(' '));
+                const topicWordsB = getNormalizedWords(getLangText(analysisB.title) + ' ' + (analysisB.key_topics || []).map(t => getLangText(t.title)).join(' '));
+                
+                for (const sw of stopWords) {
+                    topicWordsA.delete(sw);
+                    topicWordsB.delete(sw);
+                }
+                const topicIntersection = [...topicWordsA].filter(w => topicWordsB.has(w));
+                const hasSimilarTopic = hasExactSharedTopic || topicIntersection.length >= 1;
+
+                // 2. Content Similarity Check (the actual analysis details/summary)
+                const contentWordsA = getNormalizedWords(getLangText(analysisA.summary) + ' ' + (analysisA.key_topics || []).map(t => getLangText(t.text)).join(' '));
+                const contentWordsB = getNormalizedWords(getLangText(analysisB.summary) + ' ' + (analysisB.key_topics || []).map(t => getLangText(t.text)).join(' '));
+                
+                for (const sw of stopWords) {
+                    contentWordsA.delete(sw);
+                    contentWordsB.delete(sw);
+                }
+                const contentIntersection = [...contentWordsA].filter(w => contentWordsB.has(w));
+                const hasSimilarContent = contentIntersection.length >= 5;
+
+                // Connection requires BOTH roughly similar topic AND similar analysis details (at least 5 shared content words)
+                if (hasSimilarTopic && hasSimilarContent) {
+                    const labelWords = [...new Set([...topicIntersection.slice(0, 1), ...contentIntersection.slice(0, 2)])];
                     resultLinks.push({
-                        s: profileA.id,
-                        e: profileB.id,
+                        s: `item-${activeAnalyses[i].id}`,
+                        e: `item-${activeAnalyses[j].id}`,
                         type: 'similarity',
-                        label: intersection.slice(0, 3).join(', ')
+                        label: labelWords.join(', ')
                     });
                 }
             }
@@ -560,24 +607,42 @@ export default function GlobalMindMap() {
         }));
 
         const simulation = forceSimulation(nodesData)
+            .velocityDecay(0.82) // High friction (liquid/water resistance feel)
+            .alphaDecay(0.012)   // Gentler cooling for long-lasting fluid drift
             .force('link', forceLink(linksData).id(d => d.id).distance(d => {
-                if (d.type === 'similarity') return 165;
-                if (d.source === 'root' || d.target === 'root' || d.source.id === 'root' || d.target.id === 'root') return 105;
-                return 50;
-            }).strength(0.85))
+                if (d.type === 'similarity') return 220;
+                if (d.source === 'root' || d.target === 'root' || d.source.id === 'root' || d.target.id === 'root') return 130;
+                return 60;
+            }).strength(d => {
+                // Weak similarity pull for independent floating look
+                if (d.type === 'similarity' || d.source?.type === 'similarity' || d.target?.type === 'similarity') return 0.08;
+                return 0.25;
+            }))
             .force('charge', forceManyBody().strength(d => {
-                if (d.id === 'root') return -800;
-                if (d.type === 'item') return -300;
-                return -100;
+                // Softened repulsion to avoid high-acceleration explosive pushes
+                if (d.id === 'root') return -250;
+                if (d.type === 'item') return -100;
+                return -35;
             }))
             .force('collide', forceCollide().radius(d => {
+                // Softer collisions for gentle bounces
                 if (d.id === 'root') return 60;
-                if (d.type === 'item') return 35;
-                return 20;
-            }))
-            .force('center', forceCenter(graphSize.w / 2, graphSize.h / 2).strength(0.04));
+                if (d.type === 'item') return 40;
+                return 22;
+            }).iterations(1))
+            .force('center', forceCenter(graphSize.w / 2, graphSize.h / 2).strength(0.005));
 
         simulation.on('tick', () => {
+            if (draggingNodeIdRef.current && dragTargetRef.current) {
+                const node = nodesData.find(n => n.id === draggingNodeIdRef.current);
+                if (node) {
+                    if (node.fx === null) node.fx = node.x;
+                    if (node.fy === null) node.fy = node.y;
+                    // Smooth lerping towards target to simulate moving in water
+                    node.fx += (dragTargetRef.current.x - node.fx) * 0.08;
+                    node.fy += (dragTargetRef.current.y - node.fy) * 0.08;
+                }
+            }
             setSimulationNodes([...nodesData]);
             setSimulationLinks([...linksData]);
         });
