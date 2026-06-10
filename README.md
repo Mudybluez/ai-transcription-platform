@@ -5,12 +5,16 @@ A robust microservices-based platform for transcribing audio/video content and g
 ## 🚀 Key Features
 
 - **Multi-Source Upload:** Support for direct file uploads and YouTube URL processing.
-- **AI Analysis:** Automated transcription and structured analysis (summary, detailed insights, key topics, takeaways).
+- **AI Analysis:** Automated transcription and structured analysis (summary, detailed insights, key topics, takeaways) immediately in Russian, English, and Kazakh.
 - **Interactive Learning:** Procedurally generated flashcards and quizzes based on content.
+- **Interactive Mind Maps:** Dynamic visualization of content concepts and relations using interactive force-directed graphs (react-force-graph-2d).
+- **Payment & Billing:** Commercial subscriptions (Standard, Lite, Pro) and token purchase integrated with Stripe and PayPal.
+- **Real-Time Push Notifications:** WebSocket-based instant notifications on report readiness and job status updates.
+- **Video Timeline Extraction:** Automated video frames cutting using FFmpeg to illustrate transcription summaries.
 - **Global Search:** Full-text search across all transcriptions with Redis caching.
 - **Unified Entry Point:** Nginx reverse-proxy routes both frontend and API traffic through a single port.
-- **Admin Dashboard:** System-wide statistics, user activity monitoring, and language distribution.
-- **Security:** JWT-based authentication and secure API Gateway (internal network).
+- **Admin Dashboard:** System-wide statistics, user activity monitoring, feedback moderation, and proxy status monitoring.
+- **Security:** JWT-based stateless authentication, CSRF protection, Google reCAPTCHA v3 protection, DNS MX check for emails, and secure API Gateway.
 
 ## ✨ Premium UI/UX & High-Performance Core
 
@@ -35,19 +39,21 @@ The platform features a state-of-the-art, high-end interactive user experience c
 The project is built on a distributed microservices architecture:
 
 - **Nginx (Frontend Container):** Acts as the single entry point. Serves the React SPA and proxies `/api` requests to the Gateway.
-- **API Gateway:** Internal router (Node.js/Express) handling service orchestration, security, and authentication.
-- **User Service:** Manages user registration, profiles, and password security.
+- **API Gateway:** Internal router (Node.js/Express) handling service orchestration, security, authentication, and WebSockets connection management.
+- **User Service:** Manages user registration, profiles, email DNS verification, feedback moderation, reCAPTCHA, and Stripe/PayPal billing.
 - **Upload Service:** Handles multi-part file uploads and YouTube link processing via RabbitMQ.
-- **AI Processing Service:** Python-based worker using Google Generative AI (Gemini 2.5 Flash).
-- **Search Service:** High-performance search and history management with Redis caching.
+- **AI Processing Service:** Python-based worker using Google Generative AI (Gemini 3.1 Flash Lite), FFmpeg screenshotting, and OpenAI Whisper.
+- **Search Service:** High-performance search, history management, and proxy status calculations with Redis caching.
+- **MindMap Service:** FastAPI-based service storing and searching hierarchical mind maps.
 
 ## 🛠 Tech Stack
 
-- **Backend:** Node.js (Express), Python (Psycopg2, Google Generative AI).
-- **Frontend:** React, Vite, Nginx.
+- **Backend:** Node.js (Express), Python (FastAPI, Psycopg2, Google Generative AI, OpenAI Whisper, FFmpeg, Uvicorn, Pydantic).
+- **Frontend:** React, Vite, react-force-graph-2d, D3, react-markdown, Nginx.
 - **Database:** PostgreSQL.
 - **Cache:** Redis.
 - **Messaging:** RabbitMQ.
+- **Billing & Security:** Stripe, PayPal, Google reCAPTCHA v3.
 - **Containerization:** Docker & Docker Compose.
 
 ## 🚦 Getting Started
@@ -71,6 +77,12 @@ The project is built on a distributed microservices architecture:
     ```env
     GEMINI_API_KEY=your_google_gemini_api_key_here
     JWT_SECRET=your_custom_secret_key
+    # Optional payment keys (fallbacks are used if not provided)
+    STRIPE_SECRET_KEY=your_stripe_secret_key
+    PAYPAL_CLIENT_ID=your_paypal_client_id
+    PAYPAL_CLIENT_SECRET=your_paypal_client_secret
+    # Optional security keys
+    RECAPTCHA_SECRET_KEY=your_recaptcha_secret
     ```
 
 3.  **Launch the platform:**
@@ -90,10 +102,19 @@ All requests should be sent to port **8000**.
 | Endpoint | Method | Description |
 | :--- | :--- | :--- |
 | `/api/users/login` | POST | Authentication |
-| `/api/upload` | POST | Media file upload |
-| `/api/upload/youtube` | POST | YouTube link processing |
-| `/api/search?q=query` | GET | Search transcriptions |
-| `/api/history` | GET | Get user history |
+| `/api/users/register` | POST | User registration (reCAPTCHA and DNS MX checks) |
+| `/api/users/verify-email` | GET | Verify email link confirmation |
+| `/api/users/profile/:id` | GET | Retrieve user profile data |
+| `/api/csrf-token` | GET | Get short-lived CSRF token |
+| `/api/feedbacks` | POST / GET | Submit feedback / View feedbacks history |
+| `/api/notifications` | GET / DELETE | Retrieve / Delete notifications |
+| `/api/upload` | POST | Media file upload (generates job, queued in RabbitMQ) |
+| `/api/upload/youtube` | POST | YouTube link processing (tries subtitles first, then downloads audio) |
+| `/api/search?q=query` | GET | Search transcriptions with Redis caching |
+| `/api/history` | GET | Get user history and analyses reports |
+| `/api/mindmap/:id` | GET | Get interactive mindmap nodes and links |
+| `/api/search/admin/proxy-stats` | GET | Retrieve AstroProxy billing statistics (Admin only) |
+| `/api/users/change-password` | POST | Update user password |
 
 ## 🛡 Security
 
