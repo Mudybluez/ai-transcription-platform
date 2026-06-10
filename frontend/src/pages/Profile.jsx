@@ -81,6 +81,7 @@ export default function Profile() {
     const [checkoutMethod, setCheckoutMethod] = useState(null); // 'card', 'gpay', 'paypal'
     const [tokenCount, setTokenCount] = useState(10);
     const [paymentStatus, setPaymentStatus] = useState('idle'); // 'idle', 'processing', 'success', 'error'
+    const [errorMessage, setErrorMessage] = useState(null);
     
     // Payment inputs
     const [cardNumber, setCardNumber] = useState('');
@@ -276,6 +277,7 @@ export default function Profile() {
         }
 
         setPaymentStatus('processing');
+        setErrorMessage(null);
         
         try {
             if (checkoutMethod === 'card' || checkoutMethod === 'gpay') {
@@ -287,6 +289,7 @@ export default function Profile() {
                 });
 
                 if (!intentRes.data.success) {
+                    setErrorMessage(intentRes.data.message || null);
                     setPaymentStatus('error');
                     return;
                 }
@@ -314,10 +317,12 @@ export default function Profile() {
                             setCardExpiry('');
                             setCardCvc('');
                         } else {
+                            setErrorMessage(verifyRes.data.message || null);
                             setPaymentStatus('error');
                         }
                     } catch (err) {
                         console.error('Ошибка верификации Stripe:', err);
+                        setErrorMessage(err.response?.data?.message || err.message);
                         setPaymentStatus('error');
                     }
                 }, 2000);
@@ -331,6 +336,7 @@ export default function Profile() {
                 });
 
                 if (!orderRes.data.success) {
+                    setErrorMessage(orderRes.data.message || null);
                     setPaymentStatus('error');
                     return;
                 }
@@ -356,16 +362,20 @@ export default function Profile() {
                             setPaypalEmail('');
                             setPaypalPassword('');
                         } else {
+                            setErrorMessage(captureRes.data.message || null);
                             setPaymentStatus('error');
                         }
                     } catch (err) {
                         console.error('Ошибка захвата PayPal:', err);
+                        setErrorMessage(err.response?.data?.message || err.message);
                         setPaymentStatus('error');
                     }
                 }, 2000);
             }
         } catch (err) {
             console.error('Критическая ошибка платежного шлюза:', err);
+            const serverMessage = err.response?.data?.message || err.message;
+            setErrorMessage(serverMessage);
             setPaymentStatus('error');
         }
     };
@@ -869,14 +879,14 @@ export default function Profile() {
                                 <h3 style={{ margin: '0 0 8px', fontSize: 18, fontWeight: 700, color: 'var(--accent-error)' }}>
                                     {t('payment_error_title', 'Ошибка оплаты')}
                                 </h3>
-                                <p style={{ color: 'var(--text-secondary)', fontSize: 13.5, margin: '0 0 24px' }}>
-                                    {t('payment_error_desc', 'Произошла непредвиденная ошибка при списании средств. Попробуйте еще раз.')}
+                                <p style={{ color: 'var(--text-secondary)', fontSize: 13.5, margin: '0 0 24px', whiteSpace: 'pre-line' }}>
+                                    {errorMessage || t('payment_error_desc', 'Произошла непредвиденная ошибка при списании средств. Попробуйте еще раз.')}
                                 </p>
                                 <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
-                                    <button className="btn btn--sm" style={{ background: 'var(--bg-surface-hover)', border: '1px solid var(--border-subtle)' }} onClick={() => setCheckoutPlan(null)}>
+                                    <button className="btn btn--sm" style={{ background: 'var(--bg-surface-hover)', border: '1px solid var(--border-subtle)' }} onClick={() => { setCheckoutPlan(null); setErrorMessage(null); }}>
                                         {t('close_btn', 'Закрыть')}
                                     </button>
-                                    <button className="btn btn--primary btn--sm" onClick={() => setPaymentStatus('idle')}>
+                                    <button className="btn btn--primary btn--sm" onClick={() => { setPaymentStatus('idle'); setErrorMessage(null); }}>
                                         {t('retry_btn', 'Повторить')}
                                     </button>
                                 </div>
