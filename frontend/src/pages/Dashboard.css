@@ -203,3 +203,272 @@
     50% { background-color: rgba(138, 180, 248, 0.95); box-shadow: 0 0 10px rgba(138, 180, 248, 0.7); }
     100% { background-color: rgba(138, 180, 248, 0.3); }
 }
+
+/* Premium Glow and Hover animation for cards */
+.card {
+    transition: background var(--dur-fast) var(--ease-out),
+                border-color var(--dur-fast) var(--ease-out),
+                transform 0.4s cubic-bezier(0.16, 1, 0.3, 1),
+                box-shadow 0.4s cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+
+.card:hover {
+    transform: translateY(-6px) scale(1.015);
+    border-color: rgba(138, 180, 248, 0.45) !important;
+    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.4), 
+                0 0 20px rgba(138, 180, 248, 0.18) !important;
+}
+
+/* Card hover radial glow effect */
+.card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: radial-gradient(
+        350px circle at var(--mouse-x, 0px) var(--mouse-y, 0px),
+        rgba(138, 180, 248, 0.07),
+        transparent 60%
+    );
+    z-index: 1;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.4s ease;
+}
+
+.card:hover::before {
+    opacity: 1;
+}
+
+/* Ensure card content sits above hover effect */
+.card__head, .card__sub, .card__foot {
+    position: relative;
+    z-index: 2;
+}
+
+/* Staggered cascading entrance for cards */
+.card.fade-in {
+    opacity: 0;
+    animation: cardEntrance 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes cardEntrance {
+    from {
+        opacity: 0;
+        transform: translateY(20px) scale(0.96);
+        filter: blur(4px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+        filter: blur(0);
+    }
+}
+
+/* Library Search Bar Styles */
+.library-search-container {
+    position: relative;
+    display: flex;
+    align-items: center;
+    background: rgba(15, 23, 42, 0.35);
+    border: 1px solid var(--border-subtle);
+    border-radius: 20px;
+    padding: 0 14px;
+    width: 100%;
+    max-width: 320px;
+    height: 38px;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.library-search-container:hover {
+    border-color: rgba(138, 180, 248, 0.35);
+}
+
+.library-search-container:focus-within {
+    border-color: var(--accent-primary);
+    background: rgba(15, 23, 42, 0.65);
+    box-shadow: 0 0 15px rgba(138, 180, 248, 0.25), 0 2px 12px rgba(0, 0, 0, 0.2);
+}
+
+.library-search-icon {
+    color: var(--text-tertiary);
+    margin-right: 8px;
+    transition: color 0.3s;
+}
+
+.library-search-container:focus-within .library-search-icon {
+    color: var(--accent-primary);
+}
+
+.library-search-input {
+    background: transparent;
+    border: none;
+    outline: none;
+    color: var(--text-primary);
+    font-size: 13.5px;
+    width: 100%;
+    padding: 0;
+    height: 100%;
+}
+
+.library-search-input::placeholder {
+    color: var(--text-tertiary);
+}
+
+.library-search-clear {
+    background: transparent;
+    border: none;
+    color: var(--text-tertiary);
+    cursor: pointer;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: color 0.2s;
+    margin-left: 6px;
+}
+
+.library-search-clear:hover {
+    color: var(--text-primary);
+}
+
+/* Detail Search Panel */
+.detail-search-panel {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: rgba(15, 23, 42, 0.65);
+    border: 1px solid var(--border-subtle);
+    backdrop-filter: blur(12px);
+    border-radius: 12px;
+    padding: 8px 16px;
+    margin-bottom: 24px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
+    animation: slideInDown 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    position: sticky;
+    top: 10px;
+    z-index: 100;
+    border-color: rgba(196, 198, 255, 0.15);
+}
+
+@keyframes slideInDown {
+    from { opacity: 0; transform: translateY(-10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.detail-search-box {
+    position: relative;
+    display: flex;
+    align-items: center;
+    background: rgba(0, 0, 0, 0.2);
+    border: 1px solid var(--border-subtle);
+    border-radius: 8px;
+    padding: 0 10px;
+    flex: 1;
+    height: 38px;
+    transition: all 0.3s;
+}
+
+.detail-search-box:focus-within {
+    border-color: var(--accent-primary);
+    background: rgba(0, 0, 0, 0.4);
+    box-shadow: 0 0 10px rgba(138, 180, 248, 0.2);
+}
+
+.detail-search-icon {
+    color: var(--text-tertiary);
+    margin-right: 8px;
+}
+
+.detail-search-box:focus-within .detail-search-icon {
+    color: var(--accent-primary);
+}
+
+.detail-search-input {
+    background: transparent;
+    border: none;
+    outline: none;
+    color: var(--text-primary);
+    font-size: 13.5px;
+    width: 100%;
+}
+
+.detail-search-input::placeholder {
+    color: var(--text-tertiary);
+}
+
+.detail-search-clear {
+    background: transparent;
+    border: none;
+    color: var(--text-tertiary);
+    cursor: pointer;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: color 0.2s;
+}
+
+.detail-search-clear:hover {
+    color: var(--text-primary);
+}
+
+.detail-search-nav {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    border-left: 1px solid var(--border-subtle);
+    padding-left: 12px;
+}
+
+.detail-search-counter {
+    font-size: 12.5px;
+    color: var(--text-secondary);
+    font-family: monospace;
+    min-width: 45px;
+    text-align: center;
+}
+
+.detail-search-btn {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--border-subtle);
+    color: var(--text-secondary);
+    border-radius: 6px;
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.detail-search-btn:hover {
+    background: var(--accent-primary);
+    color: var(--accent-primary-ink);
+    border-color: var(--accent-primary);
+    box-shadow: 0 0 8px rgba(138, 180, 248, 0.4);
+}
+
+/* Detail Match Highlights */
+.detail-highlight-mark {
+    background: rgba(196, 198, 255, 0.2);
+    color: #ffffff;
+    border-radius: 4px;
+    padding: 1px 3px;
+    transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    border: 1px solid rgba(196, 198, 255, 0.35);
+    box-shadow: 0 0 6px rgba(196, 198, 255, 0.15);
+}
+
+.detail-highlight-mark.is-active {
+    background: rgba(138, 180, 248, 0.85);
+    color: var(--accent-primary-ink);
+    border-color: var(--accent-primary);
+    box-shadow: 0 0 15px var(--accent-primary), 0 0 5px rgba(255,255,255,0.5);
+    transform: scale(1.05);
+    font-weight: 600;
+}
