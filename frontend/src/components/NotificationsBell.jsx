@@ -22,14 +22,62 @@ export default function NotificationsBell() {
         }
     };
 
+    const showDesktopNotification = (notif) => {
+        if (!('Notification' in window) || Notification.permission !== 'granted') {
+            return;
+        }
+
+        const lang = i18n.language || 'ru';
+        const msgKey = `message_${lang.substring(0, 2)}`;
+        let body = '';
+        
+        let notifData = notif.data;
+        if (typeof notifData === 'string') {
+            try {
+                notifData = JSON.parse(notifData);
+            } catch (e) {
+                // not JSON
+            }
+        }
+
+        if (notifData && typeof notifData === 'object' && notifData[msgKey]) {
+            body = notifData[msgKey];
+        } else if (notifData && typeof notifData === 'object' && notifData.message) {
+            body = notifData.message;
+        } else if (typeof notifData === 'string') {
+            body = notifData;
+        } else {
+            body = t('new_notification', 'Новое уведомление');
+        }
+
+        const title = t('notification_title', 'ZenScribe');
+        const options = {
+            body: body,
+            icon: '/logo.webp',
+            tag: notif.id ? `notif-${notif.id}` : undefined,
+            renotify: true
+        };
+
+        try {
+            new Notification(title, options);
+        } catch (err) {
+            console.error('Ошибка показа десктопного уведомления:', err);
+        }
+    };
+
     useEffect(() => {
         fetchNotifications();
+
+        if ('Notification' in window && Notification.permission === 'default') {
+            Notification.requestPermission();
+        }
 
         // Подписка на общий WebSocket для получения живых уведомлений
         const unsubscribe = addSocketListener((message) => {
             if (message.type === 'notification') {
                 console.log('🔔 Получено живое уведомление:', message.notification);
                 setNotifications(prev => [message.notification, ...prev]);
+                showDesktopNotification(message.notification);
             }
         });
 
