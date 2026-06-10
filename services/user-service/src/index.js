@@ -525,9 +525,11 @@ app.post('/billing/stripe-create-intent', async (req, res) => {
     
     if (!stripeSecretKey) {
         console.warn('⚠️ [Stripe] STRIPE_SECRET_KEY не настроен. Запущена песочница в режиме симуляции.');
+        const simulatedIntentId = `pi_simulated_secret_${crypto.randomBytes(16).toString('hex')}`;
         return res.json({
             success: true,
-            clientSecret: `pi_simulated_secret_${crypto.randomBytes(16).toString('hex')}`,
+            clientSecret: simulatedIntentId,
+            paymentIntentId: simulatedIntentId,
             simulated: true,
             amount: (amountInCents / 100).toFixed(2),
             description
