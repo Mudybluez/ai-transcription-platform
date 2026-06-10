@@ -416,10 +416,11 @@ app.post('/billing/subscribe', async (req, res) => {
             message_kk: `Сіздің ${plan} тарифіне жазылымыңыз сәтті белсендірілді!`,
             plan: plan
         };
-        await db.query(
-            "INSERT INTO notifications (user_id, type, data) VALUES ($1, $2, $3)",
+        const notifResult = await db.query(
+            "INSERT INTO notifications (user_id, type, data) VALUES ($1, $2, $3) RETURNING *",
             [userId, 'SUBSCRIPTION_ACTIVATED', JSON.stringify(notifData)]
         );
+        sendNotificationToGateway(userId, notifResult.rows[0]);
         
         res.json({ 
             success: true, 
@@ -457,10 +458,11 @@ app.post('/billing/buy-tokens', async (req, res) => {
             message_kk: `Балансыңыз ${tokenCount} токенге сәтті толтырылды!`,
             tokenCount: tokenCount
         };
-        await db.query(
-            "INSERT INTO notifications (user_id, type, data) VALUES ($1, $2, $3)",
+        const notifResult = await db.query(
+            "INSERT INTO notifications (user_id, type, data) VALUES ($1, $2, $3) RETURNING *",
             [userId, 'TOKENS_PURCHASED', JSON.stringify(notifData)]
         );
+        sendNotificationToGateway(userId, notifResult.rows[0]);
         
         res.json({ 
             success: true, 
@@ -655,10 +657,11 @@ app.post('/billing/stripe-verify', async (req, res) => {
                 productName,
                 price
             };
-            await db.query(
-                "INSERT INTO notifications (user_id, type, data) VALUES ($1, $2, $3)",
+            const notifResult = await db.query(
+                "INSERT INTO notifications (user_id, type, data) VALUES ($1, $2, $3) RETURNING *",
                 [userId, 'PAYMENT_RECEIPT', JSON.stringify(notifData)]
             );
+            sendNotificationToGateway(userId, notifResult.rows[0]);
         }
 
         res.json({
@@ -867,10 +870,11 @@ app.post('/billing/paypal-capture-order', async (req, res) => {
                 productName,
                 price
             };
-            await db.query(
-                "INSERT INTO notifications (user_id, type, data) VALUES ($1, $2, $3)",
+            const notifResult = await db.query(
+                "INSERT INTO notifications (user_id, type, data) VALUES ($1, $2, $3) RETURNING *",
                 [userId, 'PAYMENT_RECEIPT', JSON.stringify(notifData)]
             );
+            sendNotificationToGateway(userId, notifResult.rows[0]);
         }
 
         res.json({
