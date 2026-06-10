@@ -5,6 +5,7 @@ import Dashboard from './pages/Dashboard';
 import AdminPanel from './pages/AdminPanel';
 import Profile from './pages/Profile';
 import GlobalMindMap from './pages/GlobalMindMap';
+import LandingPage from './pages/LandingPage';
 
 // Простой защищенный роут
 const ProtectedRoute = ({ children, requireAdmin = false, requirePro = false }) => {
@@ -16,7 +17,7 @@ const ProtectedRoute = ({ children, requireAdmin = false, requirePro = false }) 
     }
 
     if (requireAdmin && userRole !== 'admin') {
-        return <Navigate to="/" />; // Если не админ, кидаем на главную
+        return <Navigate to="/dashboard" />; // Если не админ, кидаем в кабинет
     }
 
     if (requirePro && userRole !== 'Pro' && userRole !== 'admin') {
@@ -30,16 +31,20 @@ function App() {
     return (
         <BrowserRouter>
             <Routes>
+                {/* Публичный Лендинг */}
+                <Route path="/" element={<LandingPage />} />
+                
                 <Route path="/login" element={<Login />} />
                 
                 {/* Кабинет обычного пользователя */}
-                <Route path="/" element={
+                <Route path="/dashboard" element={
                     <ProtectedRoute>
                         <Dashboard />
                     </ProtectedRoute>
                 } />
                 <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
                 <Route path="/mindmap" element={<ProtectedRoute requirePro={true}><GlobalMindMap /></ProtectedRoute>} />
+                
                 {/* Админ панель */}
                 <Route path="/admin" element={
                     <ProtectedRoute requireAdmin={true}>

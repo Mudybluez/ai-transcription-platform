@@ -45,16 +45,19 @@ export default function Login() {
             if (role === 'admin') {
                 navigate('/admin');
             } else {
-                navigate('/');
+                navigate('/dashboard');
             }
             return;
         }
 
-        // Check for ?verified=true parameter in URL
+        // Check for parameters in URL
         const queryParams = new URLSearchParams(window.location.search);
         if (queryParams.get('verified') === 'true') {
             setIsError(false);
             setMessage('Email успешно подтвержден! Теперь вы можете войти в свой аккаунт.');
+        }
+        if (queryParams.get('register') === 'true') {
+            setIsLoginMode(false);
         }
 
         // Fetch reCAPTCHA public key in runtime
