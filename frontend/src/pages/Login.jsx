@@ -219,7 +219,7 @@ export default function Login() {
                     {isLoginMode ? t('login_title', 'С возвращением') : t('register_title', 'Создать аккаунт')}
                 </h1>
                 <p className="auth-sub">
-                    {isLoginMode ? 'Войди в аккаунт, чтобы продолжить.' : 'Зарегистрируйся, чтобы начать работу.'}
+                    {isLoginMode ? t('login_subtitle', 'Войди в аккаунт, чтобы продолжить.') : t('register_subtitle', 'Зарегистрируйся, чтобы начать работу.')}
                 </p>
 
                 {message && (
