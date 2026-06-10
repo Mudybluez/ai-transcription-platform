@@ -94,17 +94,24 @@ const checkRateLimit = async (req, res, next) => {
         return res.status(401).json({ message: 'Доступ запрещен. Пользователь не аутентифицирован.' });
     }
 
-    const createLimitsExceededNotification = async (uid) => {
+    const createLimitsExceededNotification = async (uid, userRole) => {
         try {
             const checkRes = await db.query(
                 "SELECT 1 FROM notifications WHERE user_id = $1 AND type = 'LIMITS_EXCEEDED' AND created_at >= NOW() - INTERVAL '12 hours'",
                 [uid]
             );
             if (checkRes.rows.length === 0) {
+                const isPro = userRole === 'Pro';
                 const notifData = {
-                    message_en: 'You have reached your analysis limit (0 requests remaining). Upgrade to PRO for unlimited access!',
-                    message_ru: 'Вы исчерпали доступный лимит анализов (осталось 0 запросов). Перейдите на PRO для безлимитного доступа!',
-                    message_kk: 'Талдаудың қолжетімді лимиті таусылды (0 сұраныс қалды). Шектеусіз кіру үшін PRO-ға өтіңіз!'
+                    message_en: isPro 
+                        ? 'You have reached your analysis limit (0 requests remaining). Buy more tokens or wait for subscription renewal!'
+                        : 'You have reached your analysis limit (0 requests remaining). Upgrade to PRO for more requests!',
+                    message_ru: isPro
+                        ? 'Вы исчерпали доступный лимит анализов (осталось 0 запросов). Купите токены или дождитесь продления подписки!'
+                        : 'Вы исчерпали доступный лимит анализов (осталось 0 запросов). Перейдите на PRO для увеличения лимитов!',
+                    message_kk: isPro
+                        ? 'Талдаудың қолжетімді лимиті таусылды (0 сұраныс қалды). Токендерді сатып алыңыз немесе жазылымның жаңаруын күтіңіз!'
+                        : 'Талдаудың қолжетімді лимиті таусылды (0 сұраныс қалды). Лимиттерді көбейту үшін PRO-ға өтіңіз!'
                 };
                 const notifResult = await db.query(
                     'INSERT INTO notifications (user_id, type, data) VALUES ($1, $2, $3) RETURNING *',
@@ -145,31 +152,45 @@ const checkRateLimit = async (req, res, next) => {
               AND subscription_expires_at < NOW()
         `);
 
-        // 1. Получаем актуальную роль и кастомные запросы пользователя из базы данных
-        const userRes = await db.query('SELECT role, custom_requests FROM users WHERE id = $1', [userId]);
+        // 1. Получаем актуальную роль, кастомные запросы и дату окончания подписки из базы данных
+        const userRes = await db.query('SELECT role, custom_requests, subscription_expires_at FROM users WHERE id = $1', [userId]);
         if (userRes.rows.length === 0) {
             return res.status(404).json({ message: 'Пользователь не найден.' });
         }
-        const { role, custom_requests } = userRes.rows[0];
+        const { role, custom_requests, subscription_expires_at } = userRes.rows[0];
 
-        // Pro и admin имеют безлимитный доступ
-        if (role === 'Pro' || role === 'admin') {
+        // admin имеет безлимитный доступ
+        if (role === 'admin') {
             return next();
         }
 
-        // 2. Считаем количество анализов за последние 12 часов
-        const jobsCountRes = await db.query(
-            "SELECT COUNT(*) FROM jobs WHERE user_id = $1 AND created_at >= NOW() - INTERVAL '12 hours'",
-            [userId]
-        );
-        const requestCount = parseInt(jobsCountRes.rows[0].count, 10);
+        // 2. Считаем количество анализов за соответствующий интервал
+        let requestCount = 0;
+        let limit = 2;
+        let periodText = '12 часов';
 
-        // 3. Лимиты по ролям
-        const limits = {
-            'Standard': 2,
-            'Lite': 10
-        };
-        const limit = limits[role] !== undefined ? limits[role] : 2;
+        if (role === 'Lite' || role === 'Pro') {
+            limit = role === 'Lite' ? 20 : 100;
+            periodText = 'месяц';
+            const billingStart = subscription_expires_at 
+                ? new Date(new Date(subscription_expires_at).setMonth(new Date(subscription_expires_at).getMonth() - 1)) 
+                : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+            
+            const jobsCountRes = await db.query(
+                "SELECT COUNT(*) FROM jobs WHERE user_id = $1 AND created_at >= $2",
+                [userId, billingStart]
+            );
+            requestCount = parseInt(jobsCountRes.rows[0].count, 10);
+        } else {
+            // Standard или другая роль по умолчанию
+            limit = 2;
+            periodText = '12 часов';
+            const jobsCountRes = await db.query(
+                "SELECT COUNT(*) FROM jobs WHERE user_id = $1 AND created_at >= NOW() - INTERVAL '12 hours'",
+                [userId]
+            );
+            requestCount = parseInt(jobsCountRes.rows[0].count, 10);
+        }
 
         if (requestCount >= limit) {
             // Если стандартный лимит превышен, проверяем кастомные запросы
@@ -178,19 +199,19 @@ const checkRateLimit = async (req, res, next) => {
                 console.log(`🎟️ Использован 1 кастомный запрос для пользователя ${userId}. Осталось: ${custom_requests - 1}`);
                 
                 if (custom_requests - 1 === 0) {
-                    await createLimitsExceededNotification(userId);
+                    await createLimitsExceededNotification(userId, role);
                 }
                 
                 return next();
             }
 
             return res.status(429).json({
-                message: `Лимит запросов на анализ исчерпан. Для вашей роли (${role}) лимит составляет ${limit} запроса(ов) в 12 часов. Вы уже отправили ${requestCount} запрос(ов). Дополнительных кастомных запросов: ${custom_requests || 0}.`
+                message: `Лимит запросов на анализ исчерпан. Для вашей роли (${role}) лимит составляет ${limit} запроса(ов) в ${periodText}. Вы уже отправили ${requestCount} запрос(ов). Дополнительных кастомных запросов: ${custom_requests || 0}.`
             });
         }
 
         if (limit - requestCount === 1 && (!custom_requests || custom_requests === 0)) {
-            await createLimitsExceededNotification(userId);
+            await createLimitsExceededNotification(userId, role);
         }
 
         next();
