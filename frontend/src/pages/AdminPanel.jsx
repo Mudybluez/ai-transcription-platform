@@ -308,6 +308,24 @@ export default function AdminPanel() {
         return obj[i18n.language] || obj['ru'] || '';
     };
 
+    const getMarkdownText = (data) => {
+        if (!data) return '';
+        if (typeof data === 'string') return data;
+        if (Array.isArray(data)) return data.join('\n\n'); 
+        return JSON.stringify(data, null, 2); 
+    };
+
+    const parseStructuredAnalysis = (structuredAnalysis) => {
+        if (!structuredAnalysis) return {};
+        if (typeof structuredAnalysis === 'object') return structuredAnalysis;
+        try {
+            return JSON.parse(structuredAnalysis);
+        } catch (e) {
+            console.error('Failed to parse structured_analysis:', e);
+            return {};
+        }
+    };
+
     // Filtered user list
     const filteredUsers = users.filter(u => {
         const matchesSearch = u.username.toLowerCase().includes(userSearch.toLowerCase()) || 
@@ -887,11 +905,11 @@ export default function AdminPanel() {
                             {modalTab === 'rendered' ? (
                                 <div className="prose">
                                     <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                                        {getMarkdownText(JSON.parse(activeAnalysis.structured_analysis || '{}').summary)}
+                                        {getMarkdownText(getLangText(parseStructuredAnalysis(activeAnalysis.structured_analysis).summary))}
                                     </ReactMarkdown>
                                     <hr style={{ borderColor: 'var(--border-subtle)', margin: '24px 0' }} />
                                     <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                                        {getMarkdownText(JSON.parse(activeAnalysis.structured_analysis || '{}').detailed_analysis)}
+                                        {getMarkdownText(getLangText(parseStructuredAnalysis(activeAnalysis.structured_analysis).detailed_analysis))}
                                     </ReactMarkdown>
                                 </div>
                             ) : (
