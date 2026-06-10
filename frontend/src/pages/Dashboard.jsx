@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useLayoutEffect } from 'react';
+import React, { useState, useEffect, useRef, useLayoutEffect, useMemo } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import api from '../api';
 import './Dashboard.css';
@@ -80,6 +80,10 @@ export default function Dashboard() {
     const [youtubeUrl, setYoutubeUrl] = useState('');
     const [status, setStatus] = useState('');
     const [history, setHistory] = useState([]);
+    const [librarySearchQuery, setLibrarySearchQuery] = useState('');
+    const [detailSearchQuery, setDetailSearchQuery] = useState('');
+    const [activeMatchIndex, setActiveMatchIndex] = useState(-1);
+    const [matchCount, setMatchCount] = useState(0);
     const [inputMode, setInputMode] = useState('youtube'); 
     const [selectedFile, setSelectedFile] = useState(null);
     const [isRecording, setIsRecording] = useState(false);
@@ -125,9 +129,52 @@ export default function Dashboard() {
     const [feedbacksCurrentPage, setFeedbacksCurrentPage] = useState(1);
     const feedbacksPerPage = 3;
 
-    const totalHistoryPages = Math.ceil(history.length / historyPerPage) || 1;
+    // Filter history based on librarySearchQuery
+    const filteredHistory = useMemo(() => {
+        if (!librarySearchQuery.trim()) return history;
+        const query = librarySearchQuery.toLowerCase().trim();
+        return history.filter(item => {
+            const analysis = item.structured_analysis
+                ? (typeof item.structured_analysis === 'string'
+                    ? JSON.parse(item.structured_analysis)
+                    : item.structured_analysis)
+                : null;
+            if (!analysis) {
+                const titleStr = `${t('history_item_title', 'Разбор')} #${item.job_id}`;
+                return titleStr.toLowerCase().includes(query);
+            }
+
+            const getLangString = (obj) => {
+                if (!obj) return '';
+                if (typeof obj === 'string') return obj;
+                return (obj.ru || obj.en || obj.raw || '').toString();
+            };
+
+            const title = getLangString(analysis.title).toLowerCase();
+            const summary = getLangString(analysis.summary).toLowerCase();
+            const rawText = (item.raw_text || '').toLowerCase();
+            const detailed = getLangString(analysis.detailed_analysis).toLowerCase();
+
+            let topicsMatch = false;
+            if (Array.isArray(analysis.key_topics)) {
+                topicsMatch = analysis.key_topics.some(t => {
+                    const topicVal = getLangString(t).toLowerCase();
+                    return topicVal.includes(query);
+                });
+            }
+
+            return title.includes(query) || summary.includes(query) || rawText.includes(query) || detailed.includes(query) || topicsMatch;
+        });
+    }, [history, librarySearchQuery, t]);
+
+    // Reset pagination to page 1 on search change
+    useEffect(() => {
+        setHistoryCurrentPage(1);
+    }, [librarySearchQuery]);
+
+    const totalHistoryPages = Math.ceil(filteredHistory.length / historyPerPage) || 1;
     const activeHistoryPage = Math.min(historyCurrentPage, totalHistoryPages);
-    const paginatedHistory = history.slice(
+    const paginatedHistory = filteredHistory.slice(
         (activeHistoryPage - 1) * historyPerPage,
         activeHistoryPage * historyPerPage
     );
@@ -1050,6 +1097,15 @@ export default function Dashboard() {
         setHighlightText(initialHighlight);
     };
 
+    const handleCardMouseMove = (e) => {
+        const card = e.currentTarget;
+        const rect = card.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+        card.style.setProperty('--mouse-x', `${x}px`);
+        card.style.setProperty('--mouse-y', `${y}px`);
+    };
+
     const handleSubmit = async (e) => {
         e.preventDefault();
         setStatus(t('btn_loading'));
@@ -1457,24 +1513,51 @@ ${detailed}`;
 
                         {/* Library Grid with premium redesigned cards */}
                         <section className="page" style={{ padding: '0 24px', maxWidth: '1200px', margin: '0 auto' }}>
-                            <div className="library-head" style={{ marginBottom: 20 }}>
-                                <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 20, fontWeight: 600, margin: 0 }}>
-                                    {t('library', 'Твоя библиотека')}
-                                </h2>
-                                <span style={{ color: 'var(--text-tertiary)', fontSize: 13 }}>
-                                    {history.length} {t('items_count', 'разборов')}
-                                </span>
+                            <div className="library-head" style={{ marginBottom: 20, display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 16, justifyContent: 'space-between' }}>
+                                <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+                                    <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 20, fontWeight: 600, margin: 0 }}>
+                                        {t('library', 'Твоя библиотека')}
+                                    </h2>
+                                    <span style={{ color: 'var(--text-tertiary)', fontSize: 13 }}>
+                                        {filteredHistory.length} {t('items_count', 'разборов')}
+                                    </span>
+                                </div>
+                                <div className="library-search-container">
+                                    <Icon name="search" size={15} className="library-search-icon" />
+                                    <input
+                                        type="text"
+                                        className="library-search-input"
+                                        placeholder={t('search_library_placeholder', 'Поиск по названию или контексту...')}
+                                        value={librarySearchQuery}
+                                        onChange={(e) => setLibrarySearchQuery(e.target.value)}
+                                    />
+                                    {librarySearchQuery && (
+                                        <button 
+                                            className="library-search-clear"
+                                            onClick={() => setLibrarySearchQuery('')}
+                                            aria-label={t('clear_search', 'Очистить')}
+                                        >
+                                            <Icon name="x" size={13} />
+                                        </button>
+                                    )}
+                                </div>
                             </div>
 
                             <div className="grid">
-                                {paginatedHistory.map((item) => {
+                                {paginatedHistory.map((item, index) => {
                                     const analysis = typeof item.structured_analysis === 'string' 
                                         ? JSON.parse(item.structured_analysis) 
                                         : item.structured_analysis;
                                     const isReady = !!analysis;
 
                                     return (
-                                        <article key={item.id} className="card fade-in" onClick={() => isReady && openItem(item)}>
+                                        <article 
+                                            key={item.id} 
+                                            className="card fade-in" 
+                                            onClick={() => isReady && openItem(item)}
+                                            onMouseMove={handleCardMouseMove}
+                                            style={{ animationDelay: `${index * 45}ms` }}
+                                        >
                                             <div className="card__head">
                                                 <h3 className="card__title">
                                                     {isReady ? getLangText(analysis.title) : `${t('history_item_title', 'Разбор')} #${item.job_id}`}
