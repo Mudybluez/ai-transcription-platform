@@ -84,6 +84,7 @@ export default function GlobalMindMap() {
 
     const draggingNodeIdRef = useRef(null);
     const dragStartOffsetRef = useRef({ x: 0, y: 0 });
+    const dragStartMouseRef = useRef({ x: 0, y: 0 });
     const dragTargetRef = useRef(null);
     const hasDraggedRef = useRef(false);
 
@@ -147,6 +148,11 @@ export default function GlobalMindMap() {
             y: localY - node.y
         };
 
+        dragStartMouseRef.current = {
+            x: e.clientX,
+            y: e.clientY
+        };
+
         dragTargetRef.current = {
             x: localX - dragStartOffsetRef.current.x,
             y: localY - dragStartOffsetRef.current.y
@@ -166,7 +172,13 @@ export default function GlobalMindMap() {
     // Stage Mouse Move (handles panning and node dragging)
     const handleStageMouseMove = (e) => {
         if (draggingNodeIdRef.current) {
-            hasDraggedRef.current = true;
+            const dx = e.clientX - dragStartMouseRef.current.x;
+            const dy = e.clientY - dragStartMouseRef.current.y;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            if (dist > 5) {
+                hasDraggedRef.current = true;
+            }
+
             const svgRect = graphWrapperRef.current.getBoundingClientRect();
             const mouseX = e.clientX - svgRect.left;
             const mouseY = e.clientY - svgRect.top;
@@ -245,6 +257,11 @@ export default function GlobalMindMap() {
             y: localY - node.y
         };
 
+        dragStartMouseRef.current = {
+            x: touch.clientX,
+            y: touch.clientY
+        };
+
         dragTargetRef.current = {
             x: localX - dragStartOffsetRef.current.x,
             y: localY - dragStartOffsetRef.current.y
@@ -267,7 +284,13 @@ export default function GlobalMindMap() {
         const touch = e.touches[0];
 
         if (draggingNodeIdRef.current) {
-            hasDraggedRef.current = true;
+            const dx = touch.clientX - dragStartMouseRef.current.x;
+            const dy = touch.clientY - dragStartMouseRef.current.y;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            if (dist > 5) {
+                hasDraggedRef.current = true;
+            }
+
             const svgRect = graphWrapperRef.current.getBoundingClientRect();
             const mouseX = touch.clientX - svgRect.left;
             const mouseY = touch.clientY - svgRect.top;
@@ -925,7 +948,7 @@ export default function GlobalMindMap() {
                                                     }
                                                     if (isItem) {
                                                         // Jump directly to the detailed view in dashboard with transition state
-                                                        navigate('/', { state: { openItemId: n.libId } });
+                                                        navigate('/dashboard', { state: { openItemId: n.libId } });
                                                     } else {
                                                         setPinnedNodeId(p => p === n.id ? null : n.id);
                                                     }
@@ -1013,12 +1036,12 @@ export default function GlobalMindMap() {
                             </p>
                             <div style={{ display: 'flex', gap: 8 }}>
                                 {focusNode.type === 'item' ? (
-                                    <button className="btn btn--primary btn--sm" onClick={() => navigate('/', { state: { openItemId: focusNode.libId } })}>
+                                    <button className="btn btn--primary btn--sm" onClick={() => navigate('/dashboard', { state: { openItemId: focusNode.libId } })}>
                                         {t('mindmap_open_analysis', 'Открыть разбор')}
                                         <Icon name="arrow_right" size={13} />
                                     </button>
                                 ) : (
-                                    <button className="btn className btn--primary btn--sm" onClick={() => navigate('/', { state: { openItemId: idMap[focusNode.analysisId]?.libId, highlightText: focusNode.label } })}>
+                                    <button className="btn btn--primary btn--sm" onClick={() => navigate('/dashboard', { state: { openItemId: idMap[focusNode.analysisId]?.libId, highlightText: focusNode.label } })}>
                                         {t('mindmap_find_in_summary', 'Найти в конспекте')}
                                         <Icon name="search" size={12} />
                                     </button>
