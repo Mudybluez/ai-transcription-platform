@@ -1,6 +1,6 @@
 # AI Transcription & Analysis Platform
 
-A robust microservices-based platform for transcribing audio/video content and generating deep AI-powered insights using Google Gemini 2.5 Flash.
+A robust microservices-based platform for transcribing audio/video content and generating deep AI-powered insights using Google Gemini 2.5 Flash / Google Gemini 3.1 Flash Lite.
 
 ##  Key Features
 
