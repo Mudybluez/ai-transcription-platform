@@ -123,6 +123,4 @@ All requests should be sent to port **8000**.
 - **Secure Hashing:** Bcrypt for passwords.
 - **JWT:** Stateless authentication for all API routes.
 
-## 📄 License
 
-This project is licensed under the MIT License.
