@@ -2,7 +2,7 @@
 
 A robust microservices-based platform for transcribing audio/video content and generating deep AI-powered insights using Google Gemini 2.5 Flash.
 
-## 🚀 Key Features
+##  Key Features
 
 - **Multi-Source Upload:** Support for direct file uploads and YouTube URL processing.
 - **AI Analysis:** Automated transcription and structured analysis (summary, detailed insights, key topics, takeaways) immediately in Russian, English, and Kazakh.
@@ -16,7 +16,7 @@ A robust microservices-based platform for transcribing audio/video content and g
 - **Admin Dashboard:** System-wide statistics, user activity monitoring, feedback moderation, and proxy status monitoring.
 - **Security:** JWT-based stateless authentication, CSRF protection, Google reCAPTCHA v3 protection, DNS MX check for emails, and secure API Gateway.
 
-## ✨ Premium UI/UX & High-Performance Core
+##  Premium UI/UX & High-Performance Core
 
 The platform features a state-of-the-art, high-end interactive user experience combined with strict performance optimizations:
 
@@ -34,7 +34,7 @@ The platform features a state-of-the-art, high-end interactive user experience c
   - **Zero-CPU Canvas Pausing:** The heavy 2D planetary simulation canvas automatically unmounts and freezes once the intro completes, substituting it with standard CSS radial gradients to yield **locked 60+ FPS (0% JS CPU overhead)**.
   - **GPU Compositing:** Optimizations preventing full-screen Gaussian blur repaints by utilizing CSS transforms and layer rendering.
 
-## 🏗 Architecture
+##  Architecture
 
 The project is built on a distributed microservices architecture:
 
@@ -46,7 +46,7 @@ The project is built on a distributed microservices architecture:
 - **Search Service:** High-performance search, history management, and proxy status calculations with Redis caching.
 - **MindMap Service:** FastAPI-based service storing and searching hierarchical mind maps.
 
-## 🛠 Tech Stack
+##  Tech Stack
 
 - **Backend:** Node.js (Express), Python (FastAPI, Psycopg2, Google Generative AI, OpenAI Whisper, FFmpeg, Uvicorn, Pydantic).
 - **Frontend:** React, Vite, react-force-graph-2d, D3, react-markdown, Nginx.
@@ -56,7 +56,7 @@ The project is built on a distributed microservices architecture:
 - **Billing & Security:** Stripe, PayPal, Google reCAPTCHA v3.
 - **Containerization:** Docker & Docker Compose.
 
-## 🚦 Getting Started
+##  Getting Started
 
 ### Prerequisites
 
@@ -95,7 +95,7 @@ The project is built on a distributed microservices architecture:
     - **API Base URL:** `http://localhost:8000/api`
     - **RabbitMQ Admin:** `http://localhost:15672` (guest/guest)
 
-## 📖 API Usage (via Proxy)
+##  API Usage (via Proxy)
 
 All requests should be sent to port **8000**.
 
@@ -116,7 +116,7 @@ All requests should be sent to port **8000**.
 | `/api/search/admin/proxy-stats` | GET | Retrieve AstroProxy billing statistics (Admin only) |
 | `/api/users/change-password` | POST | Update user password |
 
-## 🛡 Security
+##  Security
 
 - **Single Entry Point:** Only port 8000 is exposed; all microservices are isolated within the Docker network.
 - **Parameterized SQL:** Protection against SQL injection.
